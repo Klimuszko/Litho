@@ -29,12 +29,21 @@ def test_face_normals_point_outward_on_flat_plate():
     mesh = build_plate(np.ones((2, 2), dtype=np.float32), 10, 8)
     tri = mesh.vertices[mesh.faces]
     normals = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
-    assert np.all(normals[0:2, 2] > 0)
-    assert np.all(normals[2:4, 2] < 0)
-    assert np.all(normals[4:6, 1] < 0)
-    assert np.all(normals[6:8, 1] > 0)
+    assert np.all(normals[0:2, 1] > 0)
+    assert np.all(normals[2:4, 1] < 0)
+    assert np.all(normals[4:6, 2] < 0)
+    assert np.all(normals[6:8, 2] > 0)
     assert np.all(normals[8:10, 0] < 0)
     assert np.all(normals[10:12, 0] > 0)
+
+
+def test_plate_is_exported_as_a_thin_upright_mask():
+    heightmap = np.array([[0.8, 1.2], [2.4, 3.2]], dtype=np.float32)
+    mesh = build_plate(heightmap, 100, 75)
+    spans = np.ptp(mesh.vertices, axis=0)
+    assert np.allclose(spans, [100, 3.2, 75])
+    assert mesh.vertices[:, 1].min() == 0
+    assert mesh.vertices[:, 1].max() == 3.2
 
 
 def test_border_expands_model_without_overwriting_photo():

@@ -16,11 +16,13 @@ def build_plate(heightmap: np.ndarray, width_mm: float, height_mm: float) -> Mes
         raise ValueError("Heightmap must contain at least 2x2 samples")
     xs = np.linspace(0, width_mm, cols, dtype=np.float32)
     ys = np.linspace(0, height_mm, rows, dtype=np.float32)
-    xx, yy = np.meshgrid(xs, ys)
-    # Image rows grow downwards; flipping preserves the uploaded image in mesh coordinates.
-    top = np.column_stack((xx.ravel(), yy.ravel(), np.flipud(heightmap).ravel()))
-    bottom = np.column_stack((xx.ravel(), yy.ravel(), np.zeros(rows * cols, dtype=np.float32)))
-    vertices = np.vstack((top, bottom)).astype(np.float32)
+    xx, zz = np.meshgrid(xs, ys)
+    # Export the lithophane standing upright: X=width, Y=thickness, Z=height.
+    # Image rows grow downwards, therefore the heightmap is flipped along Z.
+    thickness = np.flipud(heightmap).ravel()
+    front = np.column_stack((xx.ravel(), thickness, zz.ravel()))
+    back = np.column_stack((xx.ravel(), np.zeros(rows * cols, dtype=np.float32), zz.ravel()))
+    vertices = np.vstack((front, back)).astype(np.float32)
     n = rows * cols
     faces: list[tuple[int, int, int]] = []
 
@@ -34,14 +36,17 @@ def build_plate(heightmap: np.ndarray, width_mm: float, height_mm: float) -> Mes
             b00, b01, b10, b11 = b(i, j), b(i, j + 1), b(i + 1, j), b(i + 1, j + 1)
             faces.extend(((b00, b10, b11), (b00, b11, b01)))
 
-    # Front (-Y), back (+Y), left (-X), right (+X).
+    # Bottom (-Z), top (+Z), left (-X), right (+X).
     for j in range(cols - 1):
         faces.extend(((t(0, j), b(0, j + 1), t(0, j + 1)), (t(0, j), b(0, j), b(0, j + 1))))
         faces.extend(((t(rows - 1, j), t(rows - 1, j + 1), b(rows - 1, j + 1)), (t(rows - 1, j), b(rows - 1, j + 1), b(rows - 1, j))))
     for i in range(rows - 1):
         faces.extend(((t(i, 0), t(i + 1, 0), b(i + 1, 0)), (t(i, 0), b(i + 1, 0), b(i, 0))))
         faces.extend(((t(i, cols - 1), b(i + 1, cols - 1), t(i + 1, cols - 1)), (t(i, cols - 1), b(i, cols - 1), b(i + 1, cols - 1))))
-    return Mesh(vertices, np.asarray(faces, dtype=np.int32))
+    # Swapping the former Y/Z axes changes handedness, so reverse every triangle
+    # to keep outward normals and a positive signed volume.
+    face_array = np.asarray(faces, dtype=np.int32)[:, [0, 2, 1]]
+    return Mesh(vertices, face_array)
 
 
 def apply_border(heightmap: np.ndarray, width_mm: float, height_mm: float, border_width_mm: float, border_height_mm: float) -> tuple[np.ndarray, float, float]:
