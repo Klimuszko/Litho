@@ -2,14 +2,13 @@
 
 Samodzielna aplikacja webowa generująca płaskie, zamknięte modele litofanii STL bez GPU i bez zewnętrznego generatora geometrii.
 
-## Publikacja obrazów w GitHub Container Registry
+## Publikacja obrazu w GitHub Container Registry
 
-Workflow `.github/workflows/container-images.yml` buduje osobne obrazy backendu
-i frontendu dla `linux/amd64` oraz `linux/arm64`, a następnie publikuje je jako:
+Workflow `.github/workflows/container-images.yml` buduje jeden obraz aplikacji
+dla `linux/amd64` oraz `linux/arm64`, a następnie publikuje go jako:
 
 ```text
-ghcr.io/<owner>/<repo>-backend:latest
-ghcr.io/<owner>/<repo>-frontend:latest
+ghcr.io/klimuszko/lito:latest
 ```
 
 Pakiety GHCR muszą być publiczne albo serwer Docker musi być wcześniej zalogowany
@@ -18,9 +17,9 @@ przez `docker login ghcr.io`.
 ## Uruchomienie na serwerze
 
 Skopiuj `docker-compose.yml` i `.env.example` na serwer, zmień nazwę pliku na
-`.env`, a następnie ustaw nazwy obrazów, domenę, DNS oraz nazwę istniejącej sieci.
-Frontend otrzymuje statyczny adres `10.10.50.19` w zewnętrznej sieci
-`VLAN50_Docker`; backend jest dostępny wyłącznie w prywatnej sieci Compose.
+`.env`, a następnie ustaw nazwę obrazu, domenę, DNS oraz nazwę istniejącej sieci.
+Jeden kontener otrzymuje statyczny adres `10.10.50.19` w zewnętrznej sieci
+`VLAN50_Docker`. FastAPI serwuje zarówno API, jak i zbudowany frontend React.
 Sieć zewnętrzna musi już istnieć i mieć subnet obejmujący `10.10.50.19`.
 Jeżeli nie jest zarządzana przez Twój obecny stack, przykładowe utworzenie wygląda
 tak (dopasuj CIDR i sterownik do swojej infrastruktury):
@@ -57,8 +56,8 @@ Backend przetwarza obraz i STL wyłącznie w pamięci. Katalogi `data/` pozostaj
 ## Testy backendu
 
 ```bash
-docker build -t lithophane-backend-test backend
-docker run --rm -v "${PWD}/backend:/app" lithophane-backend-test sh -c "pip install -r requirements-dev.txt && pytest -q"
+docker build -t lithophane-test .
+docker run --rm -v "${PWD}/backend:/work" -w /work lithophane-test sh -c "pip install -r requirements-dev.txt && python -m pytest -q"
 ```
 
 Najważniejsza bramka jakości sprawdza, że każda krawędź wygenerowanego mesha należy dokładnie do dwóch trójkątów i że nie występują zdegenerowane ściany.

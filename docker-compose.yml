@@ -1,51 +1,28 @@
 services:
-  backend:
-    image: ${LITHOPHANE_BACKEND_IMAGE}
-    container_name: ${LITHOPHANE_BACKEND_CONTAINER_NAME:-lithophane-backend}
-    hostname: ${LITHOPHANE_BACKEND_HOSTNAME:-backend}
+  lithophane:
+    image: ${LITHOPHANE_IMAGE}
+    container_name: ${LITHOPHANE_CONTAINER_NAME:-lithophane}
+    hostname: ${LITHOPHANE_HOSTNAME:-lithophane}
     pull_policy: always
     restart: unless-stopped
     networks:
-      - lithophane_internal
-    environment:
-      TZ: ${TZ}
-      PYTHONUNBUFFERED: "1"
-    expose:
-      - "8000"
-    mem_limit: ${LITHOPHANE_BACKEND_MEM_LIMIT:-1g}
-    mem_reservation: ${LITHOPHANE_BACKEND_MEM_RESERVATION:-256m}
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
-      interval: 15s
-      timeout: 3s
-      retries: 5
-      start_period: 10s
-
-  frontend:
-    image: ${LITHOPHANE_FRONTEND_IMAGE}
-    container_name: ${LITHOPHANE_FRONTEND_CONTAINER_NAME:-lithophane-frontend}
-    hostname: ${LITHOPHANE_FRONTEND_HOSTNAME:-lithophane}
-    pull_policy: always
-    restart: unless-stopped
-    networks:
-      lithophane_internal:
       VLAN50_Docker:
         ipv4_address: 10.10.50.19
     dns:
       - ${LITHOPHANE_DNS}
     environment:
       TZ: ${TZ}
-    mem_limit: ${LITHOPHANE_FRONTEND_MEM_LIMIT:-256m}
-    mem_reservation: ${LITHOPHANE_FRONTEND_MEM_RESERVATION:-64m}
-    depends_on:
-      backend:
-        condition: service_healthy
+      PYTHONUNBUFFERED: "1"
+    expose:
+      - "8000"
+    mem_limit: ${LITHOPHANE_MEM_LIMIT:-1g}
+    mem_reservation: ${LITHOPHANE_MEM_RESERVATION:-256m}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:80/"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
       interval: 15s
       timeout: 3s
       retries: 5
-      start_period: 5s
+      start_period: 10s
     labels:
       - traefik.enable=true
       - traefik.docker.network=${DOCKER_NETWORK}
@@ -53,15 +30,12 @@ services:
       - traefik.http.routers.lithophane.entrypoints=${TRAEFIK_ENTRYPOINT}
       - traefik.http.routers.lithophane.tls=true
       - traefik.http.routers.lithophane.tls.certresolver=${TRAEFIK_CERTRESOLVER}
-      - traefik.http.services.lithophane.loadbalancer.server.port=80
+      - traefik.http.services.lithophane.loadbalancer.server.port=8000
       - traefik.http.services.lithophane.loadbalancer.server.scheme=http
-      - traefik.http.services.lithophane.loadbalancer.healthcheck.path=/
+      - traefik.http.services.lithophane.loadbalancer.healthcheck.path=/api/health
       - traefik.http.services.lithophane.loadbalancer.healthcheck.interval=15s
 
 networks:
-  lithophane_internal:
-    driver: bridge
-    internal: true
   VLAN50_Docker:
     external: true
     name: ${DOCKER_NETWORK}

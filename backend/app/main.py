@@ -1,9 +1,11 @@
 import json
+from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 
 from .exporter import binary_stl
@@ -98,3 +100,10 @@ async def generate(image: UploadFile = File(...), params: str = Form(...)):
             "X-Triangle-Count": str(len(mesh.faces)),
         },
     )
+
+
+# W obrazie produkcyjnym frontend React jest kopiowany do /app/static.
+# Montowanie następuje po trasach API, więc /api/* zachowuje pierwszeństwo.
+STATIC_DIR = Path("/app/static")
+if STATIC_DIR.is_dir():
+    app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="frontend")

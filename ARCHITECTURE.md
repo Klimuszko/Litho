@@ -12,7 +12,9 @@ i zwraca plik STL do pobrania.
 **W zakresie V1:**
 - Jeden obraz wejściowy → jeden model STL wyjściowy (płaska litofania prostokątna).
 - Przetwarzanie synchroniczne, jeden request = jedno zadanie (bez kolejki, bez workerów).
-- Docker Compose: 2 kontenery (frontend, backend), bez GPU, bez usług zewnętrznych.
+- Docker Compose: 1 kontener wdrożeniowy (frontend React jako statyczne pliki
+  serwowane przez FastAPI), bez GPU i usług zewnętrznych. Kod frontend/backend
+  pozostaje logicznie rozdzielony.
 - Generowanie mesha w 100% we własnym kodzie (numpy), bez zewnętrznych generatorów
   CAD/mesh (np. bez OpenSCAD, bez Blender, bez CGAL).
 
@@ -470,12 +472,10 @@ three.js) — wymagałby dodatkowej zależności i nie jest niezbędny do
 podstawowej funkcji "wygeneruj i pobierz STL". Rekomendacja dla V2 jeśli
 potrzebne.
 
-Frontend i backend komunikują się wyłącznie przez `/api/*` — w Docker
-Compose frontend serwuje statyczne pliki (build Vite) przez lekki serwer
-(np. `vite preview` lub nginx), backend nasłuchuje na osobnym porcie;
-przeglądarka wywołuje backend bezpośrednio (CORS skonfigurowany na
-konkretny origin frontendu, nie `*`, nawet w V1 — unikanie złych nawyków
-bezpieczeństwa od początku).
+Frontend i backend komunikują się wyłącznie przez `/api/*`. Wieloetapowy
+Dockerfile buduje React/Vite, kopiuje wynik do finalnego obrazu Pythona, a
+FastAPI serwuje SPA oraz API z portu 8000. Wdrożenie Synology składa się dzięki
+temu z jednego kontenera, mimo zachowanej separacji kodu frontend/backend.
 
 ## 11. Plan testów
 
