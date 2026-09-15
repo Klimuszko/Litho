@@ -5,7 +5,7 @@ Samodzielna aplikacja webowa generująca płaskie, zamknięte modele litofanii S
 ## Publikacja obrazu w GitHub Container Registry
 
 Workflow `.github/workflows/container-images.yml` buduje jeden obraz aplikacji
-dla `linux/amd64` oraz `linux/arm64`, a następnie publikuje go jako:
+dla `linux/amd64` (Synology z procesorem Intel/AMD), a następnie publikuje go jako:
 
 ```text
 ghcr.io/klimuszko/lito:latest
