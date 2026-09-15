@@ -163,7 +163,7 @@ export default function App() {
       </aside>
       <article className="preview">
         <div className="preview-head"><div><p className="eyebrow">PODGLĄD NA ŻYWO</p><h2>{view === "photo" ? "Przygotowane zdjęcie" : "Symulacja światła"}</h2></div><div className="tabs"><button className={view === "photo" ? "active" : ""} onClick={() => setView("photo")}>Obraz</button><button className={view === "lithophane" ? "active" : ""} onClick={() => setView("lithophane")}>Litofania</button></div></div>
-        <div className="stage">{source ? <canvas ref={canvas}/> : <div className="empty"><span>＋</span><b>Dodaj fotografię</b><small>Tutaj pojawi się jej podgląd</small></div>}</div>
+        <div className="stage crop-stage" style={{aspectRatio: `${params.width_mm} / ${params.height_mm}`, width: `min(100%, ${570 * params.width_mm / params.height_mm}px)`}}>{source ? <canvas ref={canvas}/> : <div className="empty"><span>＋</span><b>Dodaj fotografię</b><small>Tutaj pojawi się jej podgląd</small></div>}</div>
         <div className="stats"><span><small>WYMIAR</small><b>{params.width_mm} × {params.height_mm} mm</b></span><span><small>GRUBOŚĆ</small><b>{params.min_thickness_mm}–{params.max_thickness_mm} mm</b></span><span><small>SIATKA</small><b>do {params.resolution} pkt</b></span></div>
         {(error || validateParams(params)) && <p className="error">{error || validateParams(params)}</p>}
         <button className="generate" disabled={busy || !file || Boolean(validateParams(params))} onClick={generate}>{busy ? "Generowanie…" : "Generuj i pobierz STL"}<span>→</span></button>
