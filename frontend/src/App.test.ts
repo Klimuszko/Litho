@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { automaticCrop, Params, validateParams, zoomCrop } from "./App";
 
-const valid: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .8, max_thickness_mm: 3.2, gamma: 1, brightness: 1, contrast: 1, resolution: 180, orientation: "landscape", border_width_mm: 0, border_height_mm: 3.2, invert: false, mirror: false, crop: {x: 0, y: 0, width: 1, height: 1}};
+const valid: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .8, max_thickness_mm: 3.2, gamma: 1, brightness: 1, contrast: 1, resolution: 800, orientation: "landscape", border_width_mm: 0, border_height_mm: 3.2, invert: false, mirror: false, crop: {x: 0, y: 0, width: 1, height: 1}};
 
 describe("client parameter validation", () => {
   it("accepts calibrated defaults", () => expect(validateParams(valid)).toBe(""));

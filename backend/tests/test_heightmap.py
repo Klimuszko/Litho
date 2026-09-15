@@ -17,3 +17,8 @@ def test_invert_swaps_endpoints():
 def test_grid_preserves_physical_aspect():
     cols, rows = grid_resolution(100, 50, 200)
     assert (cols, rows) == (201, 101)
+
+
+def test_maximum_quality_keeps_full_resolution_for_largest_preset():
+    cols, rows = grid_resolution(200, 150, 1200)
+    assert (cols, rows) == (1201, 901)

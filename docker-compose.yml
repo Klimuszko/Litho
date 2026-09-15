@@ -15,8 +15,8 @@ services:
       PYTHONUNBUFFERED: "1"
     expose:
       - "8000"
-    mem_limit: ${LITHOPHANE_MEM_LIMIT:-1g}
-    mem_reservation: ${LITHOPHANE_MEM_RESERVATION:-256m}
+    mem_limit: ${LITHOPHANE_MEM_LIMIT:-8g}
+    mem_reservation: ${LITHOPHANE_MEM_RESERVATION:-512m}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
       interval: 15s

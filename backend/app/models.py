@@ -24,7 +24,7 @@ class LithophaneParams(BaseModel):
     gamma: float = Field(1.0, ge=0.1, le=5)
     brightness: float = Field(1.0, ge=0.25, le=2)
     contrast: float = Field(1.0, ge=0.25, le=3)
-    resolution: int = Field(180, ge=24, le=600, description="Points on the longest edge")
+    resolution: int = Field(800, ge=24, le=1200, description="Heightmap samples on the longest edge; 800 recommended, 1200 maximum quality")
     orientation: Literal["portrait", "landscape"] = Field("landscape", description="Must match the selected preset dimensions")
     border_width_mm: float = Field(0, ge=0, le=20)
     border_height_mm: float | None = Field(None, ge=0, le=20)

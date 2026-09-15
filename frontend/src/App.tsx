@@ -40,7 +40,7 @@ export function zoomCrop(base: Crop, current: Crop, zoom: number): Crop {
 }
 
 export const FORMATS = [{label: "10 × 15 cm", short: 100, long: 150}, {label: "13 × 18 cm", short: 130, long: 180}, {label: "15 × 20 cm", short: 150, long: 200}] as const;
-const initial: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .8, max_thickness_mm: 3.2, gamma: 1, brightness: 1, contrast: 1, resolution: 180, orientation: "landscape", border_width_mm: 0, border_height_mm: 3.2, invert: false, mirror: false, crop: {x: 0, y: 0, width: 1, height: 1}};
+const initial: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .8, max_thickness_mm: 3.2, gamma: 1, brightness: 1, contrast: 1, resolution: 800, orientation: "landscape", border_width_mm: 0, border_height_mm: 3.2, invert: false, mirror: false, crop: {x: 0, y: 0, width: 1, height: 1}};
 
 export function validateParams(p: Params): string {
   const dimensions = [Math.min(p.width_mm, p.height_mm), Math.max(p.width_mm, p.height_mm)].join("x");
@@ -156,7 +156,7 @@ export default function App() {
         <Slider label="Gamma" value={params.gamma} min={.1} max={5} step={.1} onChange={n => set("gamma", n)}/>
         <Slider label="Jasność" value={params.brightness} min={.25} max={2} step={.05} onChange={n => set("brightness", n)}/>
         <Slider label="Kontrast" value={params.contrast} min={.25} max={3} step={.05} onChange={n => set("contrast", n)}/>
-        <Slider label="Rozdzielczość" value={params.resolution} min={24} max={600} step={12} unit=" pkt" onChange={n => set("resolution", n)}/>
+        <Slider label="Jakość siatki" value={params.resolution} min={400} max={1200} step={100} unit=" pkt" onChange={n => set("resolution", n)}/>
         <Slider label="Szerokość ramki (na stronę)" value={params.border_width_mm} min={0} max={20} step={.5} unit=" mm" onChange={n => set("border_width_mm", n)}/>
         <label className="check"><input type="checkbox" checked={params.invert} onChange={e => set("invert", e.target.checked)}/><span>Odwróć obraz</span></label>
         <label className="check"><input type="checkbox" checked={params.mirror} onChange={e => set("mirror", e.target.checked)}/><span>Odbij lustrzanie</span></label>

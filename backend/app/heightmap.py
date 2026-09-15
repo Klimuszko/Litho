@@ -3,7 +3,10 @@ import math
 import numpy as np
 
 
-MAX_GRID_POINTS = 180_000
+# Quality-first ceiling for the photographic area: the 200x150 mm preset can
+# use a full 1201x901 grid before an optional border is added. High-resolution
+# exports intentionally trade RAM and generation time for surface detail.
+MAX_GRID_POINTS = 1_100_000
 
 
 def grid_resolution(width_mm: float, height_mm: float, longest_edge_points: int) -> tuple[int, int]:
