@@ -1,0 +1,11 @@
+__pycache__/
+.env
+.pytest_cache/
+.hypothesis/
+.venv*/
+node_modules/
+dist/
+data/uploads/*
+data/output/*
+!data/uploads/.gitkeep
+!data/output/.gitkeep

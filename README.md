@@ -1,0 +1,77 @@
+# Lumina — generator litofanii V1
+
+Samodzielna aplikacja webowa generująca płaskie, zamknięte modele litofanii STL bez GPU i bez zewnętrznego generatora geometrii.
+
+## Publikacja obrazów w GitHub Container Registry
+
+Workflow `.github/workflows/container-images.yml` buduje osobne obrazy backendu
+i frontendu dla `linux/amd64` oraz `linux/arm64`, a następnie publikuje je jako:
+
+```text
+ghcr.io/<owner>/<repo>-backend:latest
+ghcr.io/<owner>/<repo>-frontend:latest
+```
+
+Pakiety GHCR muszą być publiczne albo serwer Docker musi być wcześniej zalogowany
+przez `docker login ghcr.io`.
+
+## Uruchomienie na serwerze
+
+Skopiuj `docker-compose.yml` i `.env.example` na serwer, zmień nazwę pliku na
+`.env`, a następnie ustaw nazwy obrazów, domenę, DNS oraz nazwę istniejącej sieci.
+Frontend otrzymuje statyczny adres `10.10.50.19` w zewnętrznej sieci
+`VLAN50_Docker`; backend jest dostępny wyłącznie w prywatnej sieci Compose.
+Sieć zewnętrzna musi już istnieć i mieć subnet obejmujący `10.10.50.19`.
+Jeżeli nie jest zarządzana przez Twój obecny stack, przykładowe utworzenie wygląda
+tak (dopasuj CIDR i sterownik do swojej infrastruktury):
+
+```bash
+docker network create -d macvlan --subnet=10.10.50.0/24 --gateway=10.10.50.1 -o parent=YOUR_VLAN_INTERFACE VLAN50_Docker
+```
+
+W repozytorium GitHub ustaw właściwą gałąź produkcyjną jako domyślną. Tylko
+obrazy z tej gałęzi otrzymują tag `latest`; pozostałe są dostępne po tagu SHA.
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+Ruch HTTP/HTTPS obsługuje Traefik według `LITHOPHANE_DOMAIN`. Port hosta nie
+jest publikowany bezpośrednio.
+
+Zatrzymanie: `docker compose down`.
+
+## Pipeline
+
+`JPEG/PNG → korekcja i crop → luminancja → mapa grubości → zamknięty mesh → walidacja → binary STL`
+
+Jasne piksele dają minimalną grubość, a ciemne maksymalną:
+
+```text
+t = min + (1 - luminance)^gamma * (max - min)
+```
+
+Backend przetwarza obraz i STL wyłącznie w pamięci. Katalogi `data/` pozostają przygotowane do opcjonalnej diagnostyki, lecz V1 nie zapisuje w nich prywatnych plików.
+
+## Testy backendu
+
+```bash
+docker build -t lithophane-backend-test backend
+docker run --rm -v "${PWD}/backend:/app" lithophane-backend-test sh -c "pip install -r requirements-dev.txt && pytest -q"
+```
+
+Najważniejsza bramka jakości sprawdza, że każda krawędź wygenerowanego mesha należy dokładnie do dwóch trójkątów i że nie występują zdegenerowane ściany.
+
+## Kalibracja P1S
+
+Punkt startowy dla białego PLA: 0,8 mm / 3,2 mm / gamma 1,0. Wydrukuj tę samą fotografię z kilkoma wartościami gamma i maksymalnej grubości, zachowując ten sam filament, profil slicera oraz źródło światła. Wyniki są zależne od materiału — parametry są celowo konfigurowalne.
+
+## Ograniczenia V1
+
+- płaski model prostokątny;
+- synchroniczne generowanie;
+- opcjonalna ramka rozszerza bryłę na zewnątrz i nie zabiera obszaru fotografii;
+- brak 3MF, kolejki i podglądu 3D.
+
+Szczegółowe decyzje i kontrakty opisuje [ARCHITECTURE.md](ARCHITECTURE.md).
