@@ -39,7 +39,7 @@ def prepare_image(image: Image.Image, params: LithophaneParams) -> Image.Image:
     if params.mirror:
         image = ImageOps.mirror(image)
     target_landscape = params.orientation == "landscape"
-    model_landscape = params.height_mm is None or params.width_mm >= params.height_mm
+    model_landscape = params.width_mm >= params.height_mm
     if target_landscape != model_landscape:
         image = image.transpose(Image.Transpose.ROTATE_90)
     image = ImageEnhance.Brightness(image).enhance(params.brightness)

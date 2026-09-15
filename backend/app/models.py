@@ -17,8 +17,8 @@ class Crop(BaseModel):
 
 
 class LithophaneParams(BaseModel):
-    width_mm: float = Field(100, ge=20, le=400)
-    height_mm: float | None = Field(None, ge=20, le=400)
+    width_mm: float = Field(150, ge=20, le=256, description="Preset dimension: 100x150, 130x180 or 150x200 mm, in either orientation")
+    height_mm: float = Field(100, ge=20, le=256, description="Preset dimension: 100x150, 130x180 or 150x200 mm, in either orientation")
     min_thickness_mm: float = Field(0.8, ge=0.4, le=10)
     max_thickness_mm: float = Field(3.2, gt=0.4, le=22)
     gamma: float = Field(1.0, ge=0.1, le=5)
@@ -26,7 +26,7 @@ class LithophaneParams(BaseModel):
     contrast: float = Field(1.0, ge=0.25, le=3)
     resolution: int = Field(180, ge=24, le=600, description="Points on the longest edge")
     orientation: Literal["portrait", "landscape"] = "landscape"
-    border_width_mm: float = Field(0, ge=0, le=30)
+    border_width_mm: float = Field(0, ge=0, le=20)
     border_height_mm: float | None = Field(None, ge=0, le=20)
     invert: bool = False
     mirror: bool = False
@@ -34,6 +34,11 @@ class LithophaneParams(BaseModel):
 
     @model_validator(mode="after")
     def physical_relations(self):
+        dimensions = tuple(sorted((self.width_mm, self.height_mm)))
+        if dimensions not in ((100.0, 150.0), (130.0, 180.0), (150.0, 200.0)):
+            raise ValueError("Model size must be one of: 100x150, 130x180 or 150x200 mm")
+        if self.width_mm + 2 * self.border_width_mm > 256 or self.height_mm + 2 * self.border_width_mm > 256:
+            raise ValueError("Model with border must fit within 256x256 mm")
         if self.max_thickness_mm <= self.min_thickness_mm:
             raise ValueError("max_thickness_mm must exceed min_thickness_mm")
         if self.max_thickness_mm - self.min_thickness_mm > 12:

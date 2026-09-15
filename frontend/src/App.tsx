@@ -1,4 +1,5 @@
 import { ChangeEvent, useEffect, useRef, useState } from "react";
+import "./formats.css";
 
 export type Params = {
   width_mm: number; height_mm: number; min_thickness_mm: number; max_thickness_mm: number;
@@ -7,12 +8,16 @@ export type Params = {
   invert: boolean; mirror: boolean; crop: {x: number; y: number; width: number; height: number};
 };
 
-const initial: Params = {width_mm: 100, height_mm: 75, min_thickness_mm: .8, max_thickness_mm: 3.2, gamma: 1, brightness: 1, contrast: 1, resolution: 180, orientation: "landscape", border_width_mm: 0, border_height_mm: 3.2, invert: false, mirror: false, crop: {x: 0, y: 0, width: 1, height: 1}};
+export const FORMATS = [{label: "10 × 15 cm", short: 100, long: 150}, {label: "13 × 18 cm", short: 130, long: 180}, {label: "15 × 20 cm", short: 150, long: 200}] as const;
+const initial: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .8, max_thickness_mm: 3.2, gamma: 1, brightness: 1, contrast: 1, resolution: 180, orientation: "landscape", border_width_mm: 0, border_height_mm: 3.2, invert: false, mirror: false, crop: {x: 0, y: 0, width: 1, height: 1}};
 
 export function validateParams(p: Params): string {
+  const dimensions = [Math.min(p.width_mm, p.height_mm), Math.max(p.width_mm, p.height_mm)].join("x");
+  if (!["100x150", "130x180", "150x200"].includes(dimensions)) return "Wybierz jeden z trzech obsługiwanych formatów.";
   if (p.max_thickness_mm <= p.min_thickness_mm) return "Maksymalna grubość musi być większa od minimalnej.";
   if (p.max_thickness_mm - p.min_thickness_mm > 12) return "Zakres grubości nie może przekraczać 12 mm.";
   if (p.border_width_mm > 0 && p.border_height_mm < p.max_thickness_mm) return "Ramka nie może być niższa od reliefu.";
+  if (p.width_mm + 2 * p.border_width_mm > 256 || p.height_mm + 2 * p.border_width_mm > 256) return "Model z ramką musi zmieścić się w obszarze 256 × 256 mm.";
   return "";
 }
 
@@ -30,6 +35,7 @@ export default function App() {
   const canvas = useRef<HTMLCanvasElement>(null);
   const set = <K extends keyof Params>(key: K, value: Params[K]) => setParams(p => ({...p, [key]: value}));
   const setCrop = (key: keyof Params["crop"], value: number) => setParams(p => ({...p, crop: {...p.crop, [key]: value}}));
+  const setFormat = (short: number, long: number) => setParams(p => ({...p, width_mm: p.orientation === "landscape" ? long : short, height_mm: p.orientation === "landscape" ? short : long}));
   const setOrientation = (orientation: Params["orientation"]) => setParams(p => {
     const shouldSwap = orientation === "portrait" ? p.width_mm > p.height_mm : p.height_mm > p.width_mm;
     return {...p, orientation, width_mm: shouldSwap ? p.height_mm : p.width_mm, height_mm: shouldSwap ? p.width_mm : p.height_mm};
@@ -61,7 +67,11 @@ export default function App() {
     const url = URL.createObjectURL(selected);
     setFile(selected); setSource(url); setError("");
     const image = new Image();
-    image.onload = () => setParams(p => ({...p, height_mm: Math.max(20, Math.min(400, Math.round(p.width_mm * image.height / image.width))), orientation: image.height > image.width ? "portrait" : "landscape"}));
+    image.onload = () => setParams(p => {
+      const orientation = image.height > image.width ? "portrait" : "landscape";
+      const short = Math.min(p.width_mm, p.height_mm); const long = Math.max(p.width_mm, p.height_mm);
+      return {...p, orientation, width_mm: orientation === "landscape" ? long : short, height_mm: orientation === "landscape" ? short : long};
+    });
     image.src = url;
   };
 
@@ -93,15 +103,15 @@ export default function App() {
         <Slider label="Wysokość kadru" value={params.crop.height} min={.2} max={1 - params.crop.y} step={.01} onChange={n => setCrop("height", n)}/>
         <h2><span>02</span> Model</h2>
         <div className="orientation"><button className={params.orientation === "landscape" ? "active" : ""} onClick={() => setOrientation("landscape")}>Pozioma</button><button className={params.orientation === "portrait" ? "active" : ""} onClick={() => setOrientation("portrait")}>Pionowa</button></div>
-        <Slider label="Szerokość" value={params.width_mm} min={20} max={400} step={1} unit=" mm" onChange={n => set("width_mm", n)}/>
-        <Slider label="Wysokość" value={params.height_mm} min={20} max={400} step={1} unit=" mm" onChange={n => set("height_mm", n)}/>
+        <h3>Format obrazu</h3>
+        <div className="formats">{FORMATS.map(format => { const selected = Math.min(params.width_mm, params.height_mm) === format.short && Math.max(params.width_mm, params.height_mm) === format.long; return <button key={format.label} className={selected ? "active" : ""} onClick={() => setFormat(format.short, format.long)}>{format.label}</button>; })}</div>
         <Slider label="Minimalna grubość" value={params.min_thickness_mm} min={.4} max={4} step={.1} unit=" mm" onChange={n => set("min_thickness_mm", n)}/>
         <Slider label="Maksymalna grubość" value={params.max_thickness_mm} min={.5} max={10} step={.1} unit=" mm" onChange={n => {set("max_thickness_mm", n); if (params.border_height_mm < n) set("border_height_mm", n);}}/>
         <Slider label="Gamma" value={params.gamma} min={.1} max={5} step={.1} onChange={n => set("gamma", n)}/>
         <Slider label="Jasność" value={params.brightness} min={.25} max={2} step={.05} onChange={n => set("brightness", n)}/>
         <Slider label="Kontrast" value={params.contrast} min={.25} max={3} step={.05} onChange={n => set("contrast", n)}/>
         <Slider label="Rozdzielczość" value={params.resolution} min={24} max={600} step={12} unit=" pkt" onChange={n => set("resolution", n)}/>
-        <Slider label="Szerokość ramki" value={params.border_width_mm} min={0} max={20} step={.5} unit=" mm" onChange={n => set("border_width_mm", n)}/>
+        <Slider label="Szerokość ramki (na stronę)" value={params.border_width_mm} min={0} max={20} step={.5} unit=" mm" onChange={n => set("border_width_mm", n)}/>
         <label className="check"><input type="checkbox" checked={params.invert} onChange={e => set("invert", e.target.checked)}/><span>Odwróć obraz</span></label>
         <label className="check"><input type="checkbox" checked={params.mirror} onChange={e => set("mirror", e.target.checked)}/><span>Odbij lustrzanie</span></label>
       </aside>

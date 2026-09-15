@@ -1,0 +1,20 @@
+.formats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  margin-bottom: 17px;
+}
+
+.formats button {
+  border: 1px solid #d5ccc0;
+  background: transparent;
+  padding: 9px 3px;
+  color: #7c736a;
+  font-size: 10px;
+}
+
+.formats .active {
+  background: #332f2b;
+  color: white;
+  border-color: #332f2b;
+}

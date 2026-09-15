@@ -44,9 +44,7 @@ def pipeline(raw: bytes, params: LithophaneParams):
         image = prepare_image(decode_image(raw), params)
     except InvalidImage as exc:
         raise HTTPException(status_code=422, detail={"error_code": "INVALID_IMAGE_FORMAT", "message": str(exc)}) from exc
-    height_mm = params.height_mm or params.width_mm * image.height / image.width
-    if not 20 <= height_mm <= 400:
-        raise HTTPException(status_code=422, detail={"error_code": "PARAM_OUT_OF_RANGE", "message": "Height derived from image aspect ratio is outside 20–400 mm"})
+    height_mm = params.height_mm
     cols, rows = grid_resolution(params.width_mm, height_mm, params.resolution)
     luminance = resample_luminance(image, cols, rows)
     heightmap = luminance_to_thickness(luminance, params.min_thickness_mm, params.max_thickness_mm, params.gamma, params.invert)
