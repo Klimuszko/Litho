@@ -18,3 +18,18 @@
   color: white;
   border-color: #332f2b;
 }
+
+.auto-crop {
+  width: 100%;
+  border: 1px solid #c8baa9;
+  background: #f2ede4;
+  padding: 9px;
+  color: #6e655b;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.auto-crop:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}

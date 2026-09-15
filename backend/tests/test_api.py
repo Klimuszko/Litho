@@ -60,3 +60,12 @@ def test_rejects_size_outside_supported_presets():
         data={"params": '{"width_mm":220,"height_mm":180,"min_thickness_mm":0.8,"max_thickness_mm":3.2}'},
     )
     assert response.status_code == 422
+
+
+def test_rejects_orientation_that_does_not_match_dimensions():
+    response = client.post(
+        "/api/generate",
+        files={"image": ("photo.png", sample_png(), "image/png")},
+        data={"params": '{"width_mm":100,"height_mm":150,"orientation":"landscape"}'},
+    )
+    assert response.status_code == 422

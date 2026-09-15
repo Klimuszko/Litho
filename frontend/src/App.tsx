@@ -7,6 +7,37 @@ export type Params = {
   orientation: "portrait" | "landscape"; border_width_mm: number; border_height_mm: number;
   invert: boolean; mirror: boolean; crop: {x: number; y: number; width: number; height: number};
 };
+type Crop = Params["crop"];
+
+export function automaticCrop(imageWidth: number, imageHeight: number, modelWidth: number, modelHeight: number): Crop {
+  const sourceAspect = imageWidth / imageHeight;
+  const targetAspect = modelWidth / modelHeight;
+  if (sourceAspect > targetAspect) {
+    const width = targetAspect / sourceAspect;
+    return {x: (1 - width) / 2, y: 0, width, height: 1};
+  }
+  if (sourceAspect < targetAspect) {
+    const height = sourceAspect / targetAspect;
+    return {x: 0, y: (1 - height) / 2, width: 1, height};
+  }
+  return {x: 0, y: 0, width: 1, height: 1};
+}
+
+// Zooms into `base` (the "cover" crop for the current preset) around the pan
+// position already recorded in `current`. Width and height are always scaled
+// by the same factor, so the result keeps base's aspect ratio for any zoom.
+export function zoomCrop(base: Crop, current: Crop, zoom: number): Crop {
+  const width = base.width / zoom;
+  const height = base.height / zoom;
+  const centerX = current.x + current.width / 2;
+  const centerY = current.y + current.height / 2;
+  return {
+    x: Math.max(0, Math.min(1 - width, centerX - width / 2)),
+    y: Math.max(0, Math.min(1 - height, centerY - height / 2)),
+    width,
+    height,
+  };
+}
 
 export const FORMATS = [{label: "10 × 15 cm", short: 100, long: 150}, {label: "13 × 18 cm", short: 130, long: 180}, {label: "15 × 20 cm", short: 150, long: 200}] as const;
 const initial: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .8, max_thickness_mm: 3.2, gamma: 1, brightness: 1, contrast: 1, resolution: 180, orientation: "landscape", border_width_mm: 0, border_height_mm: 3.2, invert: false, mirror: false, crop: {x: 0, y: 0, width: 1, height: 1}};
@@ -32,13 +63,24 @@ export default function App() {
   const [view, setView] = useState<"photo" | "lithophane">("photo");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [sourceSize, setSourceSize] = useState<{width: number; height: number} | null>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const set = <K extends keyof Params>(key: K, value: Params[K]) => setParams(p => ({...p, [key]: value}));
   const setCrop = (key: keyof Params["crop"], value: number) => setParams(p => ({...p, crop: {...p.crop, [key]: value}}));
-  const setFormat = (short: number, long: number) => setParams(p => ({...p, width_mm: p.orientation === "landscape" ? long : short, height_mm: p.orientation === "landscape" ? short : long}));
+  const fitCrop = (width: number, height: number) => sourceSize ? automaticCrop(sourceSize.width, sourceSize.height, width, height) : params.crop;
+  const setFormat = (short: number, long: number) => setParams(p => {
+    const width = p.orientation === "landscape" ? long : short; const height = p.orientation === "landscape" ? short : long;
+    return {...p, width_mm: width, height_mm: height, crop: sourceSize ? automaticCrop(sourceSize.width, sourceSize.height, width, height) : p.crop};
+  });
   const setOrientation = (orientation: Params["orientation"]) => setParams(p => {
     const shouldSwap = orientation === "portrait" ? p.width_mm > p.height_mm : p.height_mm > p.width_mm;
-    return {...p, orientation, width_mm: shouldSwap ? p.height_mm : p.width_mm, height_mm: shouldSwap ? p.width_mm : p.height_mm};
+    const width = shouldSwap ? p.height_mm : p.width_mm; const height = shouldSwap ? p.width_mm : p.height_mm;
+    return {...p, orientation, width_mm: width, height_mm: height, crop: sourceSize ? automaticCrop(sourceSize.width, sourceSize.height, width, height) : p.crop};
+  });
+  const setZoom = (zoom: number) => setParams(p => {
+    if (!sourceSize) return p;
+    const base = automaticCrop(sourceSize.width, sourceSize.height, p.width_mm, p.height_mm);
+    return {...p, crop: zoomCrop(base, p.crop, zoom)};
   });
 
   useEffect(() => () => { if (source) URL.revokeObjectURL(source); }, [source]);
@@ -67,11 +109,15 @@ export default function App() {
     const url = URL.createObjectURL(selected);
     setFile(selected); setSource(url); setError("");
     const image = new Image();
-    image.onload = () => setParams(p => {
-      const orientation = image.height > image.width ? "portrait" : "landscape";
-      const short = Math.min(p.width_mm, p.height_mm); const long = Math.max(p.width_mm, p.height_mm);
-      return {...p, orientation, width_mm: orientation === "landscape" ? long : short, height_mm: orientation === "landscape" ? short : long};
-    });
+    image.onload = () => {
+      setSourceSize({width: image.width, height: image.height});
+      setParams(p => {
+        const orientation = image.height > image.width ? "portrait" : "landscape";
+        const short = Math.min(p.width_mm, p.height_mm); const long = Math.max(p.width_mm, p.height_mm);
+        const width = orientation === "landscape" ? long : short; const height = orientation === "landscape" ? short : long;
+        return {...p, orientation, width_mm: width, height_mm: height, crop: automaticCrop(image.width, image.height, width, height)};
+      });
+    };
     image.src = url;
   };
 
@@ -97,10 +143,10 @@ export default function App() {
         <h2><span>01</span> Obraz</h2>
         <label className="drop"><input type="file" accept="image/jpeg,image/png" onChange={choose}/><b>{file ? file.name : "Wybierz zdjęcie"}</b><small>JPG lub PNG · maks. 20 MB</small></label>
         <h3>Kadrowanie</h3>
+        <button className="auto-crop" disabled={!sourceSize} onClick={() => setParams(p => ({...p, crop: fitCrop(p.width_mm, p.height_mm)}))}>Dopasuj automatycznie</button>
         <Slider label="Pozycja X" value={params.crop.x} min={0} max={1 - params.crop.width} step={.01} onChange={n => setCrop("x", n)}/>
         <Slider label="Pozycja Y" value={params.crop.y} min={0} max={1 - params.crop.height} step={.01} onChange={n => setCrop("y", n)}/>
-        <Slider label="Szerokość kadru" value={params.crop.width} min={.2} max={1 - params.crop.x} step={.01} onChange={n => setCrop("width", n)}/>
-        <Slider label="Wysokość kadru" value={params.crop.height} min={.2} max={1 - params.crop.y} step={.01} onChange={n => setCrop("height", n)}/>
+        <Slider label="Powiększenie" value={sourceSize ? Number((automaticCrop(sourceSize.width, sourceSize.height, params.width_mm, params.height_mm).width / params.crop.width).toFixed(2)) : 1} min={1} max={3} step={.05} unit="×" onChange={setZoom}/>
         <h2><span>02</span> Model</h2>
         <div className="orientation"><button className={params.orientation === "landscape" ? "active" : ""} onClick={() => setOrientation("landscape")}>Pozioma</button><button className={params.orientation === "portrait" ? "active" : ""} onClick={() => setOrientation("portrait")}>Pionowa</button></div>
         <h3>Format obrazu</h3>

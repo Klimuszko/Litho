@@ -13,6 +13,20 @@ class InvalidImage(ValueError):
     pass
 
 
+def crop_to_aspect(image: Image.Image, target_aspect: float) -> Image.Image:
+    """Center-crop an already selected region without stretching it."""
+    current_aspect = image.width / image.height
+    if current_aspect > target_aspect:
+        width = max(1, round(image.height * target_aspect))
+        left = (image.width - width) // 2
+        return image.crop((left, 0, left + width, image.height))
+    if current_aspect < target_aspect:
+        height = max(1, round(image.width / target_aspect))
+        top = (image.height - height) // 2
+        return image.crop((0, top, image.width, top + height))
+    return image
+
+
 def decode_image(raw: bytes) -> Image.Image:
     if not raw or len(raw) > MAX_UPLOAD_BYTES:
         raise InvalidImage("Image is empty or exceeds 20 MB")
@@ -36,12 +50,9 @@ def prepare_image(image: Image.Image, params: LithophaneParams) -> Image.Image:
     right = round((crop.x + crop.width) * image.width)
     bottom = round((crop.y + crop.height) * image.height)
     image = image.crop((left, top, max(left + 1, right), max(top + 1, bottom)))
+    image = crop_to_aspect(image, params.width_mm / params.height_mm)
     if params.mirror:
         image = ImageOps.mirror(image)
-    target_landscape = params.orientation == "landscape"
-    model_landscape = params.width_mm >= params.height_mm
-    if target_landscape != model_landscape:
-        image = image.transpose(Image.Transpose.ROTATE_90)
     image = ImageEnhance.Brightness(image).enhance(params.brightness)
     image = ImageEnhance.Contrast(image).enhance(params.contrast)
     return image.convert("L")
