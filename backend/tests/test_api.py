@@ -80,11 +80,20 @@ def test_optional_removable_support_is_reported_and_added():
     assert response.headers["x-removable-support"] == "true"
 
 
-def test_rejects_border_lower_than_relief():
+def test_accepts_border_lower_than_relief_for_lightweight_frame():
     response = client.post(
         "/api/generate",
         files={"image": ("photo.png", sample_png(), "image/png")},
-        data={"params": '{"width_mm":150,"height_mm":100,"min_thickness_mm":0.8,"max_thickness_mm":3.2,"border_width_mm":5,"border_height_mm":2}'},
+        data={"params": '{"width_mm":150,"height_mm":100,"min_thickness_mm":0.8,"max_thickness_mm":3.2,"border_width_mm":5,"border_height_mm":0.8,"resolution":24}'},
+    )
+    assert response.status_code == 200, response.text
+
+
+def test_rejects_border_thinner_than_two_nozzle_widths():
+    response = client.post(
+        "/api/generate",
+        files={"image": ("photo.png", sample_png(), "image/png")},
+        data={"params": '{"width_mm":150,"height_mm":100,"border_width_mm":5,"border_height_mm":0.7,"nozzle_diameter_mm":0.4,"resolution":24}'},
     )
     assert response.status_code == 422
 

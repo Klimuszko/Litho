@@ -26,8 +26,8 @@ class BorderWidths(BaseModel):
 class LithophaneParams(BaseModel):
     width_mm: float = Field(150, ge=20, le=256, description="Final model width, including the optional border")
     height_mm: float = Field(100, ge=20, le=256, description="Final model height, including the optional border")
-    min_thickness_mm: float = Field(0.6, ge=0.4, le=10)
-    max_thickness_mm: float = Field(2.0, gt=0.4, le=22)
+    min_thickness_mm: float = Field(0.8, ge=0.4, le=10)
+    max_thickness_mm: float = Field(3.0, gt=0.4, le=22)
     gamma: float = Field(1.0, ge=0.1, le=5)
     brightness: float = Field(1.0, ge=0.25, le=2)
     contrast: float = Field(1.0, ge=0.25, le=3)
@@ -37,7 +37,7 @@ class LithophaneParams(BaseModel):
     orientation: Literal["portrait", "landscape"] = Field("landscape", description="Must match the final model dimensions")
     border_width_mm: float = Field(0, ge=0, le=20)
     border_widths_mm: BorderWidths | None = None
-    border_height_mm: float | None = Field(None, ge=0, le=20)
+    border_height_mm: float | None = Field(None, ge=0.4, le=20)
     removable_support: bool = False
     invert: bool = False
     mirror: bool = False
@@ -60,8 +60,8 @@ class LithophaneParams(BaseModel):
             height = self.border_height_mm or self.max_thickness_mm
             if height > 20:
                 raise ValueError("border_height_mm cannot exceed 20 mm")
-            if height < self.max_thickness_mm:
-                raise ValueError("border_height_mm must be at least max_thickness_mm")
+            if height < 2 * self.nozzle_diameter_mm:
+                raise ValueError("border_height_mm must be at least two nozzle widths")
         return self
 
     @property

@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { automaticCrop, effectiveGrid, imageArea, inscribedSize, panCrop, Params, rotatedSize, validateParams, zoomCrop, zoomCropAt } from "./App";
 
-const valid: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .6, max_thickness_mm: 2, gamma: 1, brightness: 1, contrast: 1, nozzle_diameter_mm: .4, quality_profile: "optimal", orientation: "landscape", border_width_mm: 0, border_widths_mm: null, border_height_mm: 2, removable_support: false, invert: false, mirror: false, rotation_degrees: 0, crop: {x: 0, y: 0, width: 1, height: 1}};
+const valid: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .8, max_thickness_mm: 3, gamma: 1, brightness: 1, contrast: 1, nozzle_diameter_mm: .4, quality_profile: "optimal", orientation: "landscape", border_width_mm: 0, border_widths_mm: null, border_height_mm: 3, removable_support: false, invert: false, mirror: false, rotation_degrees: 0, crop: {x: 0, y: 0, width: 1, height: 1}};
 
 describe("client parameter validation", () => {
   it("accepts calibrated defaults", () => expect(validateParams(valid)).toBe(""));
   it("rejects inverted thickness range", () => expect(validateParams({...valid, min_thickness_mm: 4})).toContain("większa"));
-  it("rejects a frame below the relief", () => expect(validateParams({...valid, border_width_mm: 2, border_height_mm: 1.5})).toContain("Ramka"));
+  it("accepts a lightweight frame below the relief", () => expect(validateParams({...valid, border_width_mm: 2, border_height_mm: .8})).toBe(""));
+  it("rejects a frame thinner than two nozzle widths", () => expect(validateParams({...valid, border_width_mm: 2, border_height_mm: .7})).toContain("0.8"));
   it("accepts the largest format with a 20 mm frame", () => expect(validateParams({...valid, width_mm: 200, height_mm: 150, border_width_mm: 20})).toBe(""));
   it("accepts a custom size", () => expect(validateParams({...valid, width_mm: 160})).toBe(""));
   it("rejects a custom size outside the build envelope", () => expect(validateParams({...valid, width_mm: 257})).toContain("256"));
