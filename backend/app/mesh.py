@@ -8,6 +8,54 @@ class Mesh:
     faces: np.ndarray
 
 
+def _box(x0: float, x1: float, y0: float, y1: float, z0: float, z1: float) -> Mesh:
+    vertices = np.asarray([
+        (x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0),
+        (x0, y0, z1), (x1, y0, z1), (x1, y1, z1), (x0, y1, z1),
+    ], dtype=np.float32)
+    faces = np.asarray([
+        (0, 2, 1), (0, 3, 2), (4, 5, 6), (4, 6, 7),
+        (0, 1, 5), (0, 5, 4), (3, 7, 6), (3, 6, 2),
+        (0, 4, 7), (0, 7, 3), (1, 2, 6), (1, 6, 5),
+    ], dtype=np.int32)
+    return Mesh(vertices, faces)
+
+
+def combine_meshes(*meshes: Mesh) -> Mesh:
+    vertices: list[np.ndarray] = []
+    faces: list[np.ndarray] = []
+    offset = 0
+    for mesh in meshes:
+        vertices.append(mesh.vertices)
+        faces.append(mesh.faces + offset)
+        offset += len(mesh.vertices)
+    return Mesh(np.vstack(vertices).astype(np.float32), np.vstack(faces).astype(np.int32))
+
+
+def add_removable_support(
+    mesh: Mesh,
+    width_mm: float,
+    front_depth_mm: float,
+    line_width_mm: float,
+    extension_mm: float = 8.0,
+    pad_height_mm: float = 0.40,
+    neck_height_mm: float = 2.0,
+) -> Mesh:
+    """Add two slicer-mergeable sacrificial feet for an upright lithophane.
+
+    Each pad extends in the thickness axis and is joined to the back by a thin
+    two-line-wide neck. The narrow neck provides a predictable snap-off point.
+    """
+    foot_width = min(18.0, width_mm / 4)
+    margin = min(10.0, width_mm / 10)
+    neck_depth = 2 * line_width_mm
+    parts = [mesh]
+    for x0 in (margin, width_mm - margin - foot_width):
+        parts.append(_box(x0, x0 + foot_width, -extension_mm, front_depth_mm + extension_mm, 0, pad_height_mm))
+        parts.append(_box(x0, x0 + foot_width, -neck_depth, 0.05, 0, neck_height_mm))
+    return combine_meshes(*parts)
+
+
 def build_plate(heightmap: np.ndarray, width_mm: float, height_mm: float) -> Mesh:
     rows, cols = heightmap.shape
     if rows < 2 or cols < 2:

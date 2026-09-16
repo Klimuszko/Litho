@@ -11,7 +11,7 @@ from pydantic import ValidationError
 from .exporter import binary_stl
 from .heightmap import grid_resolution, luminance_to_thickness
 from .image_processing import InvalidImage, decode_image, prepare_image, preview_png, resample_luminance
-from .mesh import apply_border, build_plate, validate_mesh
+from .mesh import add_removable_support, apply_border, build_plate, validate_mesh
 from .models import LithophaneParams
 
 app = FastAPI(title="Lithophane Generator API", version="1.0.0")
@@ -51,6 +51,8 @@ def pipeline(raw: bytes, params: LithophaneParams):
     heightmap = luminance_to_thickness(luminance, params.min_thickness_mm, params.max_thickness_mm, params.gamma, params.invert)
     heightmap, mesh_width, mesh_height = apply_border(heightmap, image_width_mm, image_height_mm, params.border_width_mm, params.effective_border_height)
     mesh = build_plate(heightmap, mesh_width, mesh_height)
+    if params.removable_support:
+        mesh = add_removable_support(mesh, mesh_width, float(heightmap.max()), params.line_width_mm)
     validation = validate_mesh(mesh)
     if (not validation["watertight"] or validation["degenerate_faces"]
             or validation["winding_errors"] or not validation["positive_volume"]):
@@ -102,6 +104,8 @@ async def generate(image: UploadFile = File(...), params: str = Form(...)):
             "X-Sample-Pitch-Mm": str(settings.effective_sample_pitch_mm),
             "X-Effective-Sample-Pitch-Mm": str(max(settings.image_width_mm / (cols - 1), settings.image_height_mm / (rows - 1))),
             "X-Grid-Size": f"{cols}x{rows}",
+            "X-Removable-Support": str(settings.removable_support).lower(),
+            "X-Support-Extension-Mm": "8" if settings.removable_support else "0",
         },
     )
 

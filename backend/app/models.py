@@ -30,6 +30,7 @@ class LithophaneParams(BaseModel):
     orientation: Literal["portrait", "landscape"] = Field("landscape", description="Must match the selected preset dimensions")
     border_width_mm: float = Field(0, ge=0, le=20)
     border_height_mm: float | None = Field(None, ge=0, le=20)
+    removable_support: bool = False
     invert: bool = False
     mirror: bool = False
     crop: Crop = Field(default_factory=Crop)
@@ -74,6 +75,10 @@ class LithophaneParams(BaseModel):
             0.4: {"economic": 0.40, "optimal": 0.25, "maximum": 0.20},
         }
         return pitches[self.nozzle_diameter_mm][self.quality_profile]
+
+    @property
+    def line_width_mm(self) -> float:
+        return {0.2: 0.22, 0.4: 0.44}[self.nozzle_diameter_mm]
 
     @property
     def effective_resolution(self) -> int:

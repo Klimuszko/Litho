@@ -61,6 +61,16 @@ def test_border_stays_inside_selected_final_dimensions():
     assert float(mesh.vertices[:, 2].max()) == 100
 
 
+def test_optional_removable_support_is_reported_and_added():
+    response = client.post(
+        "/api/generate",
+        files={"image": ("photo.png", sample_png(), "image/png")},
+        data={"params": '{"width_mm":150,"height_mm":100,"resolution":24,"removable_support":true}'},
+    )
+    assert response.status_code == 200, response.text
+    assert response.headers["x-removable-support"] == "true"
+
+
 def test_rejects_border_lower_than_relief():
     response = client.post(
         "/api/generate",

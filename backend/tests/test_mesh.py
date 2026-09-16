@@ -4,7 +4,7 @@ import numpy as np
 from hypothesis import given, strategies as st
 
 from app.exporter import binary_stl
-from app.mesh import apply_border, build_plate, validate_mesh
+from app.mesh import add_removable_support, apply_border, build_plate, validate_mesh
 
 
 @given(
@@ -76,3 +76,16 @@ def test_max_quality_border_size_is_explicit_and_bounded():
     assert framed.shape == (1501, 2001)
     assert framed.size == 3_003_501
     assert (width, height) == (200, 150)
+
+
+def test_removable_support_extends_only_in_thickness_axis():
+    plate = build_plate(np.full((4, 5), 3.2, dtype=np.float32), 100, 75)
+    supported = add_removable_support(plate, 100, 3.2, 0.45)
+    assert float(supported.vertices[:, 0].min()) == 0
+    assert float(supported.vertices[:, 0].max()) == 100
+    assert float(supported.vertices[:, 2].min()) == 0
+    assert float(supported.vertices[:, 2].max()) == 75
+    assert float(supported.vertices[:, 1].min()) == -8
+    assert np.isclose(float(supported.vertices[:, 1].max()), 11.2)
+    assert len(supported.faces) == len(plate.faces) + 48
+    assert validate_mesh(supported)["watertight"] is True
