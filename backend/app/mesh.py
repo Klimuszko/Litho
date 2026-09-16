@@ -32,27 +32,56 @@ def combine_meshes(*meshes: Mesh) -> Mesh:
     return Mesh(np.vstack(vertices).astype(np.float32), np.vstack(faces).astype(np.int32))
 
 
+def _triangular_prism_x(x0: float, x1: float, yz: tuple[tuple[float, float], ...]) -> Mesh:
+    """Extrude a counter-clockwise Y/Z triangle between two X coordinates."""
+    if len(yz) != 3:
+        raise ValueError("A triangular prism requires exactly three Y/Z points")
+    vertices = np.asarray(
+        [(x0, y, z) for y, z in yz] + [(x1, y, z) for y, z in yz],
+        dtype=np.float32,
+    )
+    faces = np.asarray([
+        (0, 2, 1), (3, 4, 5),
+        (0, 1, 4), (0, 4, 3),
+        (1, 2, 5), (1, 5, 4),
+        (2, 0, 3), (2, 3, 5),
+    ], dtype=np.int32)
+    return Mesh(vertices, faces)
+
+
 def add_removable_support(
     mesh: Mesh,
     width_mm: float,
+    height_mm: float,
     front_depth_mm: float,
     line_width_mm: float,
-    extension_mm: float = 8.0,
-    pad_height_mm: float = 0.40,
-    neck_height_mm: float = 2.0,
 ) -> Mesh:
-    """Add two slicer-mergeable sacrificial feet for an upright lithophane.
+    """Add two breakaway A-frame braces for an upright lithophane.
 
-    Each pad extends in the thickness axis and is joined to the back by a thin
-    two-line-wide neck. The narrow neck provides a predictable snap-off point.
+    The brace dimensions scale with model height. Small tabs rather than a
+    continuous wall connect each brace to the model, making removal practical.
     """
-    foot_width = min(18.0, width_mm / 4)
+    brace_height = min(35.0, max(16.0, height_mm * 0.16))
+    extension = min(25.0, max(14.0, height_mm * 0.11))
+    brace_width = min(10.0, width_mm / 8)
     margin = min(10.0, width_mm / 10)
-    neck_depth = 2 * line_width_mm
+    gap = max(0.30, line_width_mm)
+    tab_depth = 2 * line_width_mm
+    pad_height = 0.40
     parts = [mesh]
-    for x0 in (margin, width_mm - margin - foot_width):
-        parts.append(_box(x0, x0 + foot_width, -extension_mm, front_depth_mm + extension_mm, 0, pad_height_mm))
-        parts.append(_box(x0, x0 + foot_width, -neck_depth, 0.05, 0, neck_height_mm))
+    for x0 in (margin, width_mm - margin - brace_width):
+        x1 = x0 + brace_width
+        # A thin local pad joins the front and rear braces at bed level.
+        parts.append(_box(x0, x1, -extension, front_depth_mm + extension, 0, pad_height))
+        parts.append(_triangular_prism_x(x0, x1, ((-extension, 0), (-gap, 0), (-gap, brace_height))))
+        parts.append(_triangular_prism_x(x0, x1, ((front_depth_mm + gap, 0), (front_depth_mm + extension, 0), (front_depth_mm + gap, brace_height))))
+        # Three short bridges form a perforated break line on the reliable flat
+        # rear surface. They are limited to two extrusion lines in depth.
+        for center_z in (3.0, brace_height * 0.50, brace_height - 3.0):
+            z0 = max(pad_height, center_z - 1.0)
+            z1 = min(brace_height, center_z + 1.0)
+            if z1 > z0:
+                parts.append(_box(x0, x1, -gap - 0.05, tab_depth, z0, z1))
     return combine_meshes(*parts)
 
 

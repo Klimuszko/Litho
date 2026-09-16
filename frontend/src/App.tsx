@@ -199,7 +199,7 @@ export default function App() {
         <p className="quality-note">Próbka XY: {grid.pitch.toFixed(3)} mm · linia: {quality.line} mm · warstwa: {quality.layer} mm · siatka obrazu: {gridX} × {gridY}{params.border_width_mm > 0 ? ` · z ramką: ${grid.totalCols} × ${grid.totalRows}` : ""}</p>
         <Slider label="Szerokość ramki (wewnątrz formatu)" value={params.border_width_mm} min={0} max={20} step={.5} unit=" mm" onChange={n => setParams(p => ({...p, border_width_mm: n, crop: fitCrop(p.width_mm, p.height_mm, n)}))}/>
         <label className="check"><input type="checkbox" checked={params.removable_support} onChange={e => set("removable_support", e.target.checked)}/><span>Dodaj odrywaną stopę do druku pionowego</span></label>
-        {params.removable_support && <p className="quality-note">Dwie stopy po 18 mm · wysunięcie 8 mm na stronę · cienka szyjka do odłamania po wydruku</p>}
+        {params.removable_support && <p className="quality-note">Dwa zestawy ukośnych żeber z przodu i z tyłu · wysokość i wysunięcie skalowane do modelu · perforowane mostki do odłamania</p>}
         <label className="check"><input type="checkbox" checked={params.invert} onChange={e => set("invert", e.target.checked)}/><span>Odwróć obraz</span></label>
         <label className="check"><input type="checkbox" checked={params.mirror} onChange={e => set("mirror", e.target.checked)}/><span>Odbij lustrzanie</span></label>
       </aside>

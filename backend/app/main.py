@@ -52,7 +52,7 @@ def pipeline(raw: bytes, params: LithophaneParams):
     heightmap, mesh_width, mesh_height = apply_border(heightmap, image_width_mm, image_height_mm, params.border_width_mm, params.effective_border_height)
     mesh = build_plate(heightmap, mesh_width, mesh_height)
     if params.removable_support:
-        mesh = add_removable_support(mesh, mesh_width, float(heightmap.max()), params.line_width_mm)
+        mesh = add_removable_support(mesh, mesh_width, mesh_height, float(heightmap.max()), params.line_width_mm)
     validation = validate_mesh(mesh)
     if (not validation["watertight"] or validation["degenerate_faces"]
             or validation["winding_errors"] or not validation["positive_volume"]):

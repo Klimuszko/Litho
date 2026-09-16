@@ -80,12 +80,22 @@ def test_max_quality_border_size_is_explicit_and_bounded():
 
 def test_removable_support_extends_only_in_thickness_axis():
     plate = build_plate(np.full((4, 5), 3.2, dtype=np.float32), 100, 75)
-    supported = add_removable_support(plate, 100, 3.2, 0.45)
+    supported = add_removable_support(plate, 100, 75, 3.2, 0.45)
     assert float(supported.vertices[:, 0].min()) == 0
     assert float(supported.vertices[:, 0].max()) == 100
     assert float(supported.vertices[:, 2].min()) == 0
     assert float(supported.vertices[:, 2].max()) == 75
-    assert float(supported.vertices[:, 1].min()) == -8
-    assert np.isclose(float(supported.vertices[:, 1].max()), 11.2)
-    assert len(supported.faces) == len(plate.faces) + 48
-    assert validate_mesh(supported)["watertight"] is True
+    assert float(supported.vertices[:, 1].min()) == -14
+    assert np.isclose(float(supported.vertices[:, 1].max()), 17.2)
+    assert len(supported.faces) == len(plate.faces) + 128
+    validation = validate_mesh(supported)
+    assert validation == {"watertight": True, "boundary_edges": 0, "degenerate_faces": 0, "winding_errors": 0, "positive_volume": True}
+
+
+def test_removable_support_scales_for_two_hundred_mm_model():
+    plate = build_plate(np.full((4, 5), 3.2, dtype=np.float32), 150, 200)
+    supported = add_removable_support(plate, 150, 200, 3.2, 0.44)
+    assert np.isclose(float(supported.vertices[:, 1].min()), -22)
+    assert np.isclose(float(supported.vertices[:, 1].max()), 25.2)
+    support_vertices = supported.vertices[len(plate.vertices):]
+    assert np.isclose(float(support_vertices[:, 2].max()), 32)
