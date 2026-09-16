@@ -96,7 +96,7 @@ def test_removable_support_extends_only_in_thickness_axis():
     assert float(supported.vertices[:, 2].max()) == 75
     assert float(supported.vertices[:, 1].min()) == -18
     assert np.isclose(float(supported.vertices[:, 1].max()), 21.2)
-    assert len(supported.faces) == len(plate.faces) + 128
+    assert len(supported.faces) == len(plate.faces) + 144
     validation = validate_mesh(supported)
     assert validation == {"watertight": True, "boundary_edges": 0, "degenerate_faces": 0, "winding_errors": 0, "positive_volume": True}
 
@@ -108,7 +108,26 @@ def test_removable_support_scales_for_two_hundred_mm_model():
     assert np.isclose(float(supported.vertices[:, 1].max()), 28.2)
     support_vertices = supported.vertices[len(plate.vertices):]
     assert np.isclose(float(support_vertices[:, 2].max()), 45)
-    assert len(supported.faces) == len(plate.faces) + 192
+    assert len(supported.faces) == len(plate.faces) + 216
+
+
+def test_largest_landscape_model_keeps_full_size_support():
+    plate = build_plate(np.ones((4, 4), dtype=np.float32), 200, 150)
+    supported = add_removable_support(plate, 200, 150, 3.2, 0.44)
+    support_vertices = supported.vertices[len(plate.vertices):]
+    assert np.isclose(float(support_vertices[:, 2].max()), 45)
+    assert np.isclose(float(supported.vertices[:, 1].min()), -25)
+    assert np.isclose(float(supported.vertices[:, 1].max()), 28.2)
+    assert len(supported.faces) == len(plate.faces) + 216
+    top = support_vertices[np.isclose(support_vertices[:, 2], 45)]
+    # Each brace keeps a printable Y thickness at its top instead of ending in
+    # a zero-thickness knife edge that a slicer may discard.
+    assert float(top[:, 1].max() - top[:, 1].min()) >= 2 * 0.44
+
+
+def test_unusually_shallow_custom_model_does_not_get_oversized_braces():
+    brace_height, extension, count = removable_support_dimensions(50, 3.2, 200)
+    assert (brace_height, extension, count) == (25, 25, 2)
 
 
 def test_largest_support_footprint_allows_three_rows_on_256_mm_bed():

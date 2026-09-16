@@ -364,7 +364,7 @@ export default function App() {
         {anyBorder && <Slider label="Grubość ramki" value={params.border_height_mm} min={params.nozzle_diameter_mm * 2} max={10} step={.1} unit=" mm" onChange={n => set("border_height_mm", n)}/>}
         {anyBorder && params.border_height_mm < params.max_thickness_mm && <p className="quality-note warning-note">Cienka ramka: ciemne fragmenty reliefu będą wystawały ponad jej powierzchnię. Do ramki ochronnej zalecamy grubość co najmniej równą maksymalnej grubości obrazu.</p>}
         <label className="check"><input type="checkbox" checked={params.removable_support} onChange={e => set("removable_support", e.target.checked)}/><span>Dodaj odrywaną stopę do druku pionowego</span></label>
-        {params.removable_support && <p className="quality-note">Kompaktowa podpora seryjna · 2 zastrzały, a od 180 mm wysokości 3 · maks. 25 mm wysunięcia na stronę · bez brimu w STL · perforowane mostki do odłamania</p>}
+        {params.removable_support && <p className="quality-note">Kompaktowa podpora seryjna · 2 zastrzały, a dla dużych formatów 3 · maks. 45 mm wysokości i 25 mm wysunięcia na stronę · bez brimu w STL · perforowane mostki do odłamania</p>}
         <label className="check"><input type="checkbox" checked={params.invert} onChange={e => set("invert", e.target.checked)}/><span>Odwróć obraz</span></label>
         <label className="check"><input type="checkbox" checked={params.mirror} onChange={e => set("mirror", e.target.checked)}/><span>Odbij lustrzanie</span></label>
       </aside>

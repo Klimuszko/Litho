@@ -32,21 +32,24 @@ def combine_meshes(*meshes: Mesh) -> Mesh:
     return Mesh(np.vstack(vertices).astype(np.float32), np.vstack(faces).astype(np.int32))
 
 
-def _triangular_prism_x(x0: float, x1: float, yz: tuple[tuple[float, float], ...]) -> Mesh:
-    """Extrude a counter-clockwise Y/Z triangle between two X coordinates."""
-    if len(yz) != 3:
-        raise ValueError("A triangular prism requires exactly three Y/Z points")
+def _polygon_prism_x(x0: float, x1: float, yz: tuple[tuple[float, float], ...]) -> Mesh:
+    """Extrude a convex, counter-clockwise Y/Z polygon between X coordinates."""
+    point_count = len(yz)
+    if point_count < 3:
+        raise ValueError("A prism requires at least three Y/Z points")
     vertices = np.asarray(
         [(x0, y, z) for y, z in yz] + [(x1, y, z) for y, z in yz],
         dtype=np.float32,
     )
-    faces = np.asarray([
-        (0, 2, 1), (3, 4, 5),
-        (0, 1, 4), (0, 4, 3),
-        (1, 2, 5), (1, 5, 4),
-        (2, 0, 3), (2, 3, 5),
-    ], dtype=np.int32)
-    return Mesh(vertices, faces)
+    faces: list[tuple[int, int, int]] = []
+    for index in range(1, point_count - 1):
+        faces.append((0, index + 1, index))
+        faces.append((point_count, point_count + index, point_count + index + 1))
+    for index in range(point_count):
+        following = (index + 1) % point_count
+        faces.append((index, following, point_count + following))
+        faces.append((index, point_count + following, point_count + index))
+    return Mesh(vertices, np.asarray(faces, dtype=np.int32))
 
 
 def add_removable_support(
@@ -61,10 +64,13 @@ def add_removable_support(
     The brace dimensions scale with model height. Small tabs rather than a
     continuous wall connect each brace to the model, making removal practical.
     """
-    brace_height, extension, support_count = removable_support_dimensions(height_mm, front_depth_mm)
+    brace_height, extension, support_count = removable_support_dimensions(
+        height_mm, front_depth_mm, width_mm
+    )
     brace_width = min(10.0, width_mm / 8)
     margin = min(10.0, width_mm / 10)
     gap = max(0.30, line_width_mm)
+    top_wall = max(0.80, 2 * line_width_mm)
     tab_depth = 2 * line_width_mm
     pad_height = 0.40
     parts = [mesh]
@@ -75,8 +81,15 @@ def add_removable_support(
         x1 = x0 + brace_width
         # A thin local pad joins the front and rear braces at bed level.
         parts.append(_box(x0, x1, -extension, front_depth_mm + extension, 0, pad_height))
-        parts.append(_triangular_prism_x(x0, x1, ((-extension, 0), (-gap, 0), (-gap, brace_height))))
-        parts.append(_triangular_prism_x(x0, x1, ((front_depth_mm + gap, 0), (front_depth_mm + extension, 0), (front_depth_mm + gap, brace_height))))
+        parts.append(_polygon_prism_x(x0, x1, (
+            (-extension, 0), (-gap, 0),
+            (-gap, brace_height), (-gap - top_wall, brace_height),
+        )))
+        parts.append(_polygon_prism_x(x0, x1, (
+            (front_depth_mm + gap, 0), (front_depth_mm + extension, 0),
+            (front_depth_mm + gap + top_wall, brace_height),
+            (front_depth_mm + gap, brace_height),
+        )))
         # Three short bridges form a perforated break line on the reliable flat
         # rear surface. They are limited to two extrusion lines in depth.
         for center_z in (3.0, brace_height * 0.50, brace_height - 3.0):
@@ -87,12 +100,22 @@ def add_removable_support(
     return combine_meshes(*parts)
 
 
-def removable_support_dimensions(height_mm: float, front_depth_mm: float = 3.2) -> tuple[float, float, int]:
+def removable_support_dimensions(
+    height_mm: float,
+    front_depth_mm: float = 3.2,
+    width_mm: float | None = None,
+) -> tuple[float, float, int]:
     """Compact production support sized for batch printing on a 256 mm bed."""
-    brace_height = min(45.0, max(25.0, height_mm * 0.225))
-    desired_extension = min(25.0, max(18.0, height_mm * 0.125))
+    # Scale standard formats by their longer side so that rotating the same
+    # 150 x 200 mm product does not silently downgrade its support.  The
+    # physical-height clamp avoids an oversized brace on unusually wide,
+    # shallow custom models.
+    reference_size = max(height_mm, width_mm or height_mm)
+    desired_height = max(25.0, reference_size * 0.225)
+    brace_height = min(45.0, desired_height, max(25.0, height_mm * 0.50))
+    desired_extension = min(25.0, max(18.0, reference_size * 0.125))
     extension = min(desired_extension, max(0.0, (55.0 - front_depth_mm) / 2))
-    support_count = 3 if height_mm >= 180 else 2
+    support_count = 3 if reference_size >= 180 and height_mm >= 100 else 2
     return brace_height, extension, support_count
 
 

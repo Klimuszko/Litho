@@ -79,7 +79,18 @@ def test_optional_removable_support_is_reported_and_added():
     assert response.status_code == 200, response.text
     assert response.headers["x-removable-support"] == "true"
     assert response.headers["x-support-count"] == "2"
-    assert response.headers["x-support-extension-mm"] == "18.0"
+    assert response.headers["x-support-extension-mm"] == "18.75"
+
+
+def test_largest_landscape_format_reports_full_support_profile():
+    response = client.post(
+        "/api/generate",
+        files={"image": ("test.png", sample_png(), "image/png")},
+        data={"params": '{"width_mm":200,"height_mm":150,"resolution":24,"removable_support":true}'},
+    )
+    assert response.status_code == 200
+    assert response.headers["x-support-count"] == "3"
+    assert response.headers["x-support-extension-mm"] == "25.0"
 
 
 def test_default_photo_contrast_is_slightly_enhanced():

@@ -93,7 +93,9 @@ async def generate(image: UploadFile = File(...), params: str = Form(...)):
     raw = await read_image(image)
     _, mesh, (cols, rows) = pipeline(raw, settings)
     payload = binary_stl(mesh)
-    _, support_extension, support_count = removable_support_dimensions(settings.height_mm, settings.max_thickness_mm)
+    _, support_extension, support_count = removable_support_dimensions(
+        settings.height_mm, settings.max_thickness_mm, settings.width_mm
+    )
     return Response(
         content=payload,
         media_type="model/stl",
