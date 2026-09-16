@@ -16,11 +16,18 @@ class Crop(BaseModel):
         return self
 
 
+class BorderWidths(BaseModel):
+    top: float = Field(0, ge=0, le=20)
+    right: float = Field(0, ge=0, le=20)
+    bottom: float = Field(0, ge=0, le=20)
+    left: float = Field(0, ge=0, le=20)
+
+
 class LithophaneParams(BaseModel):
     width_mm: float = Field(150, ge=20, le=256, description="Final model width, including the optional border")
     height_mm: float = Field(100, ge=20, le=256, description="Final model height, including the optional border")
-    min_thickness_mm: float = Field(0.8, ge=0.4, le=10)
-    max_thickness_mm: float = Field(3.2, gt=0.4, le=22)
+    min_thickness_mm: float = Field(0.6, ge=0.4, le=10)
+    max_thickness_mm: float = Field(2.0, gt=0.4, le=22)
     gamma: float = Field(1.0, ge=0.1, le=5)
     brightness: float = Field(1.0, ge=0.25, le=2)
     contrast: float = Field(1.0, ge=0.25, le=3)
@@ -29,24 +36,27 @@ class LithophaneParams(BaseModel):
     resolution: int | None = Field(None, ge=24, le=2000, description="Optional legacy override; UI profiles derive resolution from a physical XY sample pitch")
     orientation: Literal["portrait", "landscape"] = Field("landscape", description="Must match the final model dimensions")
     border_width_mm: float = Field(0, ge=0, le=20)
+    border_widths_mm: BorderWidths | None = None
     border_height_mm: float | None = Field(None, ge=0, le=20)
     removable_support: bool = False
     invert: bool = False
     mirror: bool = False
-    rotation_degrees: Literal[0, 90, 180, 270] = 0
+    rotation_degrees: float = Field(0, ge=-360, le=360)
     crop: Crop = Field(default_factory=Crop)
 
     @model_validator(mode="after")
     def physical_relations(self):
         if self.width_mm != self.height_mm and (self.orientation == "landscape") != (self.width_mm > self.height_mm):
             raise ValueError("orientation must match model dimensions")
-        if 2 * self.border_width_mm >= min(self.width_mm, self.height_mm):
-            raise ValueError("border_width_mm leaves no room for the image")
+        if self.border_left_mm + self.border_right_mm >= self.width_mm:
+            raise ValueError("horizontal border widths leave no room for the image")
+        if self.border_top_mm + self.border_bottom_mm >= self.height_mm:
+            raise ValueError("vertical border widths leave no room for the image")
         if self.max_thickness_mm <= self.min_thickness_mm:
             raise ValueError("max_thickness_mm must exceed min_thickness_mm")
         if self.max_thickness_mm - self.min_thickness_mm > 12:
             raise ValueError("Thickness range cannot exceed 12 mm")
-        if self.border_width_mm > 0:
+        if self.has_border:
             height = self.border_height_mm or self.max_thickness_mm
             if height > 20:
                 raise ValueError("border_height_mm cannot exceed 20 mm")
@@ -59,12 +69,32 @@ class LithophaneParams(BaseModel):
         return self.border_height_mm or self.max_thickness_mm
 
     @property
+    def border_top_mm(self) -> float:
+        return self.border_widths_mm.top if self.border_widths_mm else self.border_width_mm
+
+    @property
+    def border_right_mm(self) -> float:
+        return self.border_widths_mm.right if self.border_widths_mm else self.border_width_mm
+
+    @property
+    def border_bottom_mm(self) -> float:
+        return self.border_widths_mm.bottom if self.border_widths_mm else self.border_width_mm
+
+    @property
+    def border_left_mm(self) -> float:
+        return self.border_widths_mm.left if self.border_widths_mm else self.border_width_mm
+
+    @property
+    def has_border(self) -> bool:
+        return any(value > 0 for value in (self.border_top_mm, self.border_right_mm, self.border_bottom_mm, self.border_left_mm))
+
+    @property
     def image_width_mm(self) -> float:
-        return self.width_mm - 2 * self.border_width_mm
+        return self.width_mm - self.border_left_mm - self.border_right_mm
 
     @property
     def image_height_mm(self) -> float:
-        return self.height_mm - 2 * self.border_width_mm
+        return self.height_mm - self.border_top_mm - self.border_bottom_mm
 
     @property
     def sample_pitch_mm(self) -> float:

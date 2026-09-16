@@ -1,6 +1,6 @@
 from PIL import Image
 
-from app.image_processing import crop_to_aspect, prepare_image
+from app.image_processing import crop_to_aspect, inscribed_size, prepare_image, rotate_and_inscribe
 from app.models import LithophaneParams
 
 
@@ -71,3 +71,11 @@ def test_prepare_image_rotates_before_applying_crop():
     # center-cropped to the requested landscape aspect.
     assert prepared.width == 200
     assert prepared.height == 133
+
+
+def test_arbitrary_rotation_is_cropped_to_fully_covered_rectangle():
+    image = Image.new("RGB", (400, 300), "white")
+    width, height = inscribed_size(400, 300, 17.5)
+    result = rotate_and_inscribe(image, 17.5)
+    assert result.size == (round(width), round(height))
+    assert min(pixel[0] for pixel in (result.getpixel((0, 0)), result.getpixel((result.width - 1, 0)), result.getpixel((0, result.height - 1)), result.getpixel((result.width - 1, result.height - 1)))) > 200

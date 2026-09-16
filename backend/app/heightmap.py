@@ -9,16 +9,25 @@ import numpy as np
 MAX_GRID_POINTS = 3_100_000
 
 
-def grid_resolution(width_mm: float, height_mm: float, longest_edge_points: int, border_width_mm: float = 0) -> tuple[int, int]:
+def grid_resolution(
+    width_mm: float,
+    height_mm: float,
+    longest_edge_points: int,
+    border_width_mm: float = 0,
+    border_widths_mm: tuple[float, float, float, float] | None = None,
+) -> tuple[int, int]:
+    top, right, bottom, left = border_widths_mm or (border_width_mm,) * 4
     scale = longest_edge_points / max(width_mm, height_mm)
     for _ in range(8):
         cols = max(2, round(width_mm * scale) + 1)
         rows = max(2, round(height_mm * scale) + 1)
         dx = width_mm / (cols - 1)
         dy = height_mm / (rows - 1)
-        x_border = max(0, math.ceil(border_width_mm / dx))
-        y_border = max(0, math.ceil(border_width_mm / dy))
-        total_points = (cols + 2 * x_border) * (rows + 2 * y_border)
+        left_cells = max(0, math.ceil(left / dx))
+        right_cells = max(0, math.ceil(right / dx))
+        top_cells = max(0, math.ceil(top / dy))
+        bottom_cells = max(0, math.ceil(bottom / dy))
+        total_points = (cols + left_cells + right_cells) * (rows + top_cells + bottom_cells)
         if total_points <= MAX_GRID_POINTS:
             return cols, rows
         scale *= math.sqrt(MAX_GRID_POINTS / total_points) * 0.999

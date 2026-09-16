@@ -46,10 +46,11 @@ def pipeline(raw: bytes, params: LithophaneParams):
         raise HTTPException(status_code=422, detail={"error_code": "INVALID_IMAGE_FORMAT", "message": str(exc)}) from exc
     image_width_mm = params.image_width_mm
     image_height_mm = params.image_height_mm
-    cols, rows = grid_resolution(image_width_mm, image_height_mm, params.effective_resolution, params.border_width_mm)
+    borders = (params.border_top_mm, params.border_right_mm, params.border_bottom_mm, params.border_left_mm)
+    cols, rows = grid_resolution(image_width_mm, image_height_mm, params.effective_resolution, border_widths_mm=borders)
     luminance = resample_luminance(image, cols, rows)
     heightmap = luminance_to_thickness(luminance, params.min_thickness_mm, params.max_thickness_mm, params.gamma, params.invert)
-    heightmap, mesh_width, mesh_height = apply_border(heightmap, image_width_mm, image_height_mm, params.border_width_mm, params.effective_border_height)
+    heightmap, mesh_width, mesh_height = apply_border(heightmap, image_width_mm, image_height_mm, params.border_width_mm, params.effective_border_height, borders)
     mesh = build_plate(heightmap, mesh_width, mesh_height)
     if params.removable_support:
         mesh = add_removable_support(mesh, mesh_width, mesh_height, float(heightmap.max()), params.line_width_mm)

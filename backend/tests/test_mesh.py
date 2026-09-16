@@ -78,6 +78,15 @@ def test_max_quality_border_size_is_explicit_and_bounded():
     assert (width, height) == (200, 150)
 
 
+def test_asymmetric_border_restores_exact_outer_dimensions():
+    source = np.ones((11, 21), dtype=np.float32)
+    framed, width, height = apply_border(source, 84, 66, 0, 2, (3, 7, 6, 9))
+    assert (width, height) == (100, 75)
+    assert framed.shape == (13, 26)
+    assert np.all(framed[0] == 2)
+    assert np.all(framed[:, -1] == 2)
+
+
 def test_removable_support_extends_only_in_thickness_axis():
     plate = build_plate(np.full((4, 5), 3.2, dtype=np.float32), 100, 75)
     supported = add_removable_support(plate, 100, 75, 3.2, 0.45)

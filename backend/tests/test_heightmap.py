@@ -36,3 +36,14 @@ def test_border_is_included_in_global_point_budget():
     x_border = int(np.ceil(20 / dx))
     y_border = int(np.ceil(20 / dy))
     assert (cols + 2 * x_border) * (rows + 2 * y_border) <= 3_100_000
+
+
+def test_asymmetric_borders_are_included_in_global_point_budget():
+    borders = (3, 17, 11, 5)
+    cols, rows = grid_resolution(178, 136, 2000, border_widths_mm=borders)
+    dx = 178 / (cols - 1)
+    dy = 136 / (rows - 1)
+    top, right, bottom, left = borders
+    total_cols = cols + int(np.ceil(left / dx)) + int(np.ceil(right / dx))
+    total_rows = rows + int(np.ceil(top / dy)) + int(np.ceil(bottom / dy))
+    assert total_cols * total_rows <= 3_100_000

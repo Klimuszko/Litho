@@ -61,12 +61,18 @@
 
 .rotate-row { margin: 15px 0 8px; }
 .rotate-row > span { display: block; margin-bottom: 7px; font-size: 11px; color: #6e655b; }
-.rotate-row > div { display: grid; grid-template-columns: repeat(4, 1fr); }
+.rotate-row > div { display: grid; grid-template-columns: 1fr 82px 1fr; }
 .rotate-row button { border: 1px solid #d5ccc0; background: transparent; padding: 7px 3px; color: #6e655b; }
 .rotate-row button.active { background: #332f2b; color: white; border-color: #332f2b; }
+.rotate-actions label { position: relative; }
+.rotate-actions input { width: 100%; height: 100%; padding: 6px 22px 6px 7px; text-align: center; border: 1px solid #d5ccc0; background: #fffdfa; }
+.rotate-actions label span { position: absolute; right: 8px; top: 7px; color: #8b8177; }
 .interaction-hint { margin: 8px 0 20px; color: #897f74; font-size: 10px; line-height: 1.45; }
 .format-options { grid-template-columns: repeat(4, 1fr); }
 .custom-size { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin: 10px 0 18px; }
 .custom-size label { position: relative; font-size: 10px; color: #6e655b; }
 .custom-size input { width: 100%; margin-top: 5px; padding: 8px 29px 8px 8px; border: 1px solid #d5ccc0; background: #fffdfa; }
 .custom-size label span { position: absolute; right: 8px; bottom: 9px; color: #9b9186; }
+.compact-check { margin-top: 8px; }
+.border-grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: 12px; }
+.border-grid .control { margin: 8px 0; }

@@ -135,18 +135,28 @@ def build_plate(heightmap: np.ndarray, width_mm: float, height_mm: float) -> Mes
     return Mesh(vertices, face_array)
 
 
-def apply_border(heightmap: np.ndarray, width_mm: float, height_mm: float, border_width_mm: float, border_height_mm: float) -> tuple[np.ndarray, float, float]:
-    if border_width_mm <= 0:
+def apply_border(
+    heightmap: np.ndarray,
+    width_mm: float,
+    height_mm: float,
+    border_width_mm: float,
+    border_height_mm: float,
+    border_widths_mm: tuple[float, float, float, float] | None = None,
+) -> tuple[np.ndarray, float, float]:
+    top, right, bottom, left = border_widths_mm or (border_width_mm,) * 4
+    if not any(value > 0 for value in (top, right, bottom, left)):
         return heightmap, width_mm, height_mm
     rows, cols = heightmap.shape
     dx = width_mm / (cols - 1)
     dy = height_mm / (rows - 1)
-    x_cells = max(1, int(np.ceil(border_width_mm / dx)))
-    y_cells = max(1, int(np.ceil(border_width_mm / dy)))
-    framed = np.pad(heightmap, ((y_cells, y_cells), (x_cells, x_cells)), constant_values=border_height_mm)
+    left_cells = int(np.ceil(left / dx)) if left > 0 else 0
+    right_cells = int(np.ceil(right / dx)) if right > 0 else 0
+    top_cells = int(np.ceil(top / dy)) if top > 0 else 0
+    bottom_cells = int(np.ceil(bottom / dy)) if bottom > 0 else 0
+    framed = np.pad(heightmap, ((top_cells, bottom_cells), (left_cells, right_cells)), constant_values=border_height_mm)
     # The caller passes the inner image dimensions; adding the border restores
     # the selected final model dimensions.
-    return framed.astype(np.float32), width_mm + 2 * border_width_mm, height_mm + 2 * border_width_mm
+    return framed.astype(np.float32), width_mm + left + right, height_mm + top + bottom
 
 
 def validate_mesh(mesh: Mesh) -> dict[str, int | bool]:

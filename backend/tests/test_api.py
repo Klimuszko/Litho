@@ -61,6 +61,15 @@ def test_border_stays_inside_selected_final_dimensions():
     assert float(mesh.vertices[:, 2].max()) == 100
 
 
+def test_asymmetric_border_stays_inside_selected_final_dimensions():
+    params = LithophaneParams(
+        width_mm=150, height_mm=100, border_widths_mm={"top": 2, "right": 4, "bottom": 6, "left": 8}, resolution=24
+    )
+    _, mesh, _ = pipeline(sample_png(), params)
+    assert float(mesh.vertices[:, 0].max()) == 150
+    assert float(mesh.vertices[:, 2].max()) == 100
+
+
 def test_optional_removable_support_is_reported_and_added():
     response = client.post(
         "/api/generate",
