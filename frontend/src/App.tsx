@@ -62,6 +62,9 @@ export function effectiveGrid(width: number, height: number, pitch: number, bord
   }
   return {cols, rows, totalCols, totalRows, pitch: Math.max(width / (cols - 1), height / (rows - 1))};
 }
+export function imageArea(width: number, height: number, border: number) {
+  return {width: width - 2 * border, height: height - 2 * border};
+}
 const initial: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .8, max_thickness_mm: 3.2, gamma: 1, brightness: 1, contrast: 1, nozzle_diameter_mm: .4, quality_profile: "optimal", orientation: "landscape", border_width_mm: 0, border_height_mm: 3.2, invert: false, mirror: false, crop: {x: 0, y: 0, width: 1, height: 1}};
 
 export function validateParams(p: Params): string {
@@ -70,7 +73,7 @@ export function validateParams(p: Params): string {
   if (p.max_thickness_mm <= p.min_thickness_mm) return "Maksymalna grubość musi być większa od minimalnej.";
   if (p.max_thickness_mm - p.min_thickness_mm > 12) return "Zakres grubości nie może przekraczać 12 mm.";
   if (p.border_width_mm > 0 && p.border_height_mm < p.max_thickness_mm) return "Ramka nie może być niższa od reliefu.";
-  if (p.width_mm + 2 * p.border_width_mm > 256 || p.height_mm + 2 * p.border_width_mm > 256) return "Model z ramką musi zmieścić się w obszarze 256 × 256 mm.";
+  if (2 * p.border_width_mm >= Math.min(p.width_mm, p.height_mm)) return "Ramka nie może zajmować całego obszaru zdjęcia.";
   return "";
 }
 
@@ -88,24 +91,28 @@ export default function App() {
   const [sourceSize, setSourceSize] = useState<{width: number; height: number} | null>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const quality = QUALITY[params.nozzle_diameter_mm][params.quality_profile];
-  const grid = effectiveGrid(params.width_mm, params.height_mm, quality.pitch, params.border_width_mm);
+  const inner = imageArea(params.width_mm, params.height_mm, params.border_width_mm);
+  const grid = effectiveGrid(inner.width, inner.height, quality.pitch, params.border_width_mm);
   const gridX = grid.cols;
   const gridY = grid.rows;
   const set = <K extends keyof Params>(key: K, value: Params[K]) => setParams(p => ({...p, [key]: value}));
   const setCrop = (key: keyof Params["crop"], value: number) => setParams(p => ({...p, crop: {...p.crop, [key]: value}}));
-  const fitCrop = (width: number, height: number) => sourceSize ? automaticCrop(sourceSize.width, sourceSize.height, width, height) : params.crop;
+  const fitCrop = (width: number, height: number, border = params.border_width_mm) => { const area = imageArea(width, height, border); return sourceSize ? automaticCrop(sourceSize.width, sourceSize.height, area.width, area.height) : params.crop; };
   const setFormat = (short: number, long: number) => setParams(p => {
     const width = p.orientation === "landscape" ? long : short; const height = p.orientation === "landscape" ? short : long;
-    return {...p, width_mm: width, height_mm: height, crop: sourceSize ? automaticCrop(sourceSize.width, sourceSize.height, width, height) : p.crop};
+    const area = imageArea(width, height, p.border_width_mm);
+    return {...p, width_mm: width, height_mm: height, crop: sourceSize ? automaticCrop(sourceSize.width, sourceSize.height, area.width, area.height) : p.crop};
   });
   const setOrientation = (orientation: Params["orientation"]) => setParams(p => {
     const shouldSwap = orientation === "portrait" ? p.width_mm > p.height_mm : p.height_mm > p.width_mm;
     const width = shouldSwap ? p.height_mm : p.width_mm; const height = shouldSwap ? p.width_mm : p.height_mm;
-    return {...p, orientation, width_mm: width, height_mm: height, crop: sourceSize ? automaticCrop(sourceSize.width, sourceSize.height, width, height) : p.crop};
+    const area = imageArea(width, height, p.border_width_mm);
+    return {...p, orientation, width_mm: width, height_mm: height, crop: sourceSize ? automaticCrop(sourceSize.width, sourceSize.height, area.width, area.height) : p.crop};
   });
   const setZoom = (zoom: number) => setParams(p => {
     if (!sourceSize) return p;
-    const base = automaticCrop(sourceSize.width, sourceSize.height, p.width_mm, p.height_mm);
+    const area = imageArea(p.width_mm, p.height_mm, p.border_width_mm);
+    const base = automaticCrop(sourceSize.width, sourceSize.height, area.width, area.height);
     return {...p, crop: zoomCrop(base, p.crop, zoom)};
   });
 
@@ -120,7 +127,9 @@ export default function App() {
       ctx.filter = `brightness(${params.brightness}) contrast(${params.contrast}) grayscale(1) ${view === "lithophane" ? "invert(1)" : ""}`;
       ctx.save();
       if (params.mirror) { ctx.translate(w, 0); ctx.scale(-1, 1); }
-      ctx.drawImage(image, crop.x * image.width, crop.y * image.height, crop.width * image.width, crop.height * image.height, 0, 0, w, h);
+      const bx = w * params.border_width_mm / params.width_mm; const by = h * params.border_width_mm / params.height_mm;
+      ctx.fillStyle = "#302b27"; ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(image, crop.x * image.width, crop.y * image.height, crop.width * image.width, crop.height * image.height, bx, by, w - 2 * bx, h - 2 * by);
       ctx.restore();
       if (view === "lithophane") { ctx.globalCompositeOperation = "screen"; ctx.fillStyle = `rgba(255,177,82,${Math.min(.42, params.gamma / 10)})`; ctx.fillRect(0, 0, w, h); }
     };
@@ -141,7 +150,8 @@ export default function App() {
         const orientation = image.height > image.width ? "portrait" : "landscape";
         const short = Math.min(p.width_mm, p.height_mm); const long = Math.max(p.width_mm, p.height_mm);
         const width = orientation === "landscape" ? long : short; const height = orientation === "landscape" ? short : long;
-        return {...p, orientation, width_mm: width, height_mm: height, crop: automaticCrop(image.width, image.height, width, height)};
+        const area = imageArea(width, height, p.border_width_mm);
+        return {...p, orientation, width_mm: width, height_mm: height, crop: automaticCrop(image.width, image.height, area.width, area.height)};
       });
     };
     image.src = url;
@@ -172,7 +182,7 @@ export default function App() {
         <button className="auto-crop" disabled={!sourceSize} onClick={() => setParams(p => ({...p, crop: fitCrop(p.width_mm, p.height_mm)}))}>Dopasuj automatycznie</button>
         <Slider label="Pozycja X" value={params.crop.x} min={0} max={1 - params.crop.width} step={.01} onChange={n => setCrop("x", n)}/>
         <Slider label="Pozycja Y" value={params.crop.y} min={0} max={1 - params.crop.height} step={.01} onChange={n => setCrop("y", n)}/>
-        <Slider label="Powiększenie" value={sourceSize ? Number((automaticCrop(sourceSize.width, sourceSize.height, params.width_mm, params.height_mm).width / params.crop.width).toFixed(2)) : 1} min={1} max={3} step={.05} unit="×" onChange={setZoom}/>
+        <Slider label="Powiększenie" value={sourceSize ? Number((automaticCrop(sourceSize.width, sourceSize.height, inner.width, inner.height).width / params.crop.width).toFixed(2)) : 1} min={1} max={3} step={.05} unit="×" onChange={setZoom}/>
         <h2><span>02</span> Model</h2>
         <div className="orientation"><button className={params.orientation === "landscape" ? "active" : ""} onClick={() => setOrientation("landscape")}>Pozioma</button><button className={params.orientation === "portrait" ? "active" : ""} onClick={() => setOrientation("portrait")}>Pionowa</button></div>
         <h3>Format obrazu</h3>
@@ -187,7 +197,7 @@ export default function App() {
         <h3>Jakość geometrii</h3>
         <div className="formats"><button className={params.quality_profile === "economic" ? "active" : ""} onClick={() => set("quality_profile", "economic")}>Ekonomiczna</button><button className={params.quality_profile === "optimal" ? "active" : ""} onClick={() => set("quality_profile", "optimal")}>Optymalna</button><button className={params.quality_profile === "maximum" ? "active" : ""} onClick={() => set("quality_profile", "maximum")}>Maksymalna</button></div>
         <p className="quality-note">Próbka XY: {grid.pitch.toFixed(3)} mm · linia: {quality.line} mm · warstwa: {quality.layer} mm · siatka obrazu: {gridX} × {gridY}{params.border_width_mm > 0 ? ` · z ramką: ${grid.totalCols} × ${grid.totalRows}` : ""}</p>
-        <Slider label="Szerokość ramki (na stronę)" value={params.border_width_mm} min={0} max={20} step={.5} unit=" mm" onChange={n => set("border_width_mm", n)}/>
+        <Slider label="Szerokość ramki (wewnątrz formatu)" value={params.border_width_mm} min={0} max={20} step={.5} unit=" mm" onChange={n => setParams(p => ({...p, border_width_mm: n, crop: fitCrop(p.width_mm, p.height_mm, n)}))}/>
         <label className="check"><input type="checkbox" checked={params.invert} onChange={e => set("invert", e.target.checked)}/><span>Odwróć obraz</span></label>
         <label className="check"><input type="checkbox" checked={params.mirror} onChange={e => set("mirror", e.target.checked)}/><span>Odbij lustrzanie</span></label>
       </aside>

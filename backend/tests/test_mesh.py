@@ -62,17 +62,17 @@ def test_validation_detects_reversed_face_winding():
     assert result["winding_errors"] > 0
 
 
-def test_border_expands_model_without_overwriting_photo():
+def test_border_wraps_inner_photo_to_requested_outer_size():
     source = np.arange(20, dtype=np.float32).reshape(4, 5) + 1
-    framed, width, height = apply_border(source, 100, 75, 5, 4)
-    assert (width, height) == (110, 85)
+    framed, width, height = apply_border(source, 90, 65, 5, 4)
+    assert (width, height) == (100, 75)
     assert np.array_equal(framed[1:-1, 1:-1], source)
     assert np.all(framed[0] == 4)
 
 
 def test_max_quality_border_size_is_explicit_and_bounded():
-    source = np.ones((901, 1201), dtype=np.float32)
-    framed, width, height = apply_border(source, 200, 150, 20, 3.2)
-    assert framed.shape == (1141, 1441)
-    assert framed.size == 1_644_181
-    assert (width, height) == (240, 190)
+    source = np.ones((1101, 1601), dtype=np.float32)
+    framed, width, height = apply_border(source, 160, 110, 20, 3.2)
+    assert framed.shape == (1501, 2001)
+    assert framed.size == 3_003_501
+    assert (width, height) == (200, 150)

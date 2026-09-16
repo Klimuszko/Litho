@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { automaticCrop, effectiveGrid, Params, validateParams, zoomCrop } from "./App";
+import { automaticCrop, effectiveGrid, imageArea, Params, validateParams, zoomCrop } from "./App";
 
 const valid: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .8, max_thickness_mm: 3.2, gamma: 1, brightness: 1, contrast: 1, nozzle_diameter_mm: .4, quality_profile: "optimal", orientation: "landscape", border_width_mm: 0, border_height_mm: 3.2, invert: false, mirror: false, crop: {x: 0, y: 0, width: 1, height: 1}};
 
@@ -53,5 +53,11 @@ describe("effective mesh grid", () => {
     const grid = effectiveGrid(200, 150, .1, 20);
     expect(grid.totalCols * grid.totalRows).toBeLessThanOrEqual(3_100_000);
     expect(grid.cols).toBeLessThan(2001);
+  });
+});
+
+describe("frame dimensions", () => {
+  it("takes the frame from inside the selected final format", () => {
+    expect(imageArea(150, 100, 4)).toEqual({width: 142, height: 92});
   });
 });

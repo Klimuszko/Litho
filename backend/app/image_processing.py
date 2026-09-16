@@ -50,7 +50,7 @@ def prepare_image(image: Image.Image, params: LithophaneParams) -> Image.Image:
     right = round((crop.x + crop.width) * image.width)
     bottom = round((crop.y + crop.height) * image.height)
     image = image.crop((left, top, max(left + 1, right), max(top + 1, bottom)))
-    image = crop_to_aspect(image, params.width_mm / params.height_mm)
+    image = crop_to_aspect(image, params.image_width_mm / params.image_height_mm)
     if params.mirror:
         image = ImageOps.mirror(image)
     image = ImageEnhance.Brightness(image).enhance(params.brightness)

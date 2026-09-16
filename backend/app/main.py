@@ -44,11 +44,12 @@ def pipeline(raw: bytes, params: LithophaneParams):
         image = prepare_image(decode_image(raw), params)
     except InvalidImage as exc:
         raise HTTPException(status_code=422, detail={"error_code": "INVALID_IMAGE_FORMAT", "message": str(exc)}) from exc
-    height_mm = params.height_mm
-    cols, rows = grid_resolution(params.width_mm, height_mm, params.effective_resolution, params.border_width_mm)
+    image_width_mm = params.image_width_mm
+    image_height_mm = params.image_height_mm
+    cols, rows = grid_resolution(image_width_mm, image_height_mm, params.effective_resolution, params.border_width_mm)
     luminance = resample_luminance(image, cols, rows)
     heightmap = luminance_to_thickness(luminance, params.min_thickness_mm, params.max_thickness_mm, params.gamma, params.invert)
-    heightmap, mesh_width, mesh_height = apply_border(heightmap, params.width_mm, height_mm, params.border_width_mm, params.effective_border_height)
+    heightmap, mesh_width, mesh_height = apply_border(heightmap, image_width_mm, image_height_mm, params.border_width_mm, params.effective_border_height)
     mesh = build_plate(heightmap, mesh_width, mesh_height)
     validation = validate_mesh(mesh)
     if (not validation["watertight"] or validation["degenerate_faces"]
@@ -99,7 +100,7 @@ async def generate(image: UploadFile = File(...), params: str = Form(...)):
             "X-Nozzle-Diameter-Mm": str(settings.nozzle_diameter_mm),
             "X-Quality-Profile": settings.quality_profile,
             "X-Sample-Pitch-Mm": str(settings.effective_sample_pitch_mm),
-            "X-Effective-Sample-Pitch-Mm": str(max(settings.width_mm / (cols - 1), settings.height_mm / (rows - 1))),
+            "X-Effective-Sample-Pitch-Mm": str(max(settings.image_width_mm / (cols - 1), settings.image_height_mm / (rows - 1))),
             "X-Grid-Size": f"{cols}x{rows}",
         },
     )

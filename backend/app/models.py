@@ -41,8 +41,8 @@ class LithophaneParams(BaseModel):
             raise ValueError("Model size must be one of: 100x150, 130x180 or 150x200 mm")
         if (self.orientation == "landscape") != (self.width_mm > self.height_mm):
             raise ValueError("orientation must match model dimensions")
-        if self.width_mm + 2 * self.border_width_mm > 256 or self.height_mm + 2 * self.border_width_mm > 256:
-            raise ValueError("Model with border must fit within 256x256 mm")
+        if 2 * self.border_width_mm >= min(self.width_mm, self.height_mm):
+            raise ValueError("border_width_mm leaves no room for the image")
         if self.max_thickness_mm <= self.min_thickness_mm:
             raise ValueError("max_thickness_mm must exceed min_thickness_mm")
         if self.max_thickness_mm - self.min_thickness_mm > 12:
@@ -60,6 +60,14 @@ class LithophaneParams(BaseModel):
         return self.border_height_mm or self.max_thickness_mm
 
     @property
+    def image_width_mm(self) -> float:
+        return self.width_mm - 2 * self.border_width_mm
+
+    @property
+    def image_height_mm(self) -> float:
+        return self.height_mm - 2 * self.border_width_mm
+
+    @property
     def sample_pitch_mm(self) -> float:
         pitches = {
             0.2: {"economic": 0.20, "optimal": 0.125, "maximum": 0.10},
@@ -71,8 +79,8 @@ class LithophaneParams(BaseModel):
     def effective_resolution(self) -> int:
         if self.resolution is not None:
             return self.resolution
-        return round(max(self.width_mm, self.height_mm) / self.sample_pitch_mm)
+        return round(max(self.image_width_mm, self.image_height_mm) / self.sample_pitch_mm)
 
     @property
     def effective_sample_pitch_mm(self) -> float:
-        return max(self.width_mm, self.height_mm) / self.effective_resolution
+        return max(self.image_width_mm, self.image_height_mm) / self.effective_resolution

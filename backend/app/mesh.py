@@ -67,7 +67,8 @@ def apply_border(heightmap: np.ndarray, width_mm: float, height_mm: float, borde
     x_cells = max(1, int(np.ceil(border_width_mm / dx)))
     y_cells = max(1, int(np.ceil(border_width_mm / dy)))
     framed = np.pad(heightmap, ((y_cells, y_cells), (x_cells, x_cells)), constant_values=border_height_mm)
-    # The requested photo dimensions stay intact; the border increases the model footprint.
+    # The caller passes the inner image dimensions; adding the border restores
+    # the selected final model dimensions.
     return framed.astype(np.float32), width_mm + 2 * border_width_mm, height_mm + 2 * border_width_mm
 
 

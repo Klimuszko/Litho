@@ -50,3 +50,12 @@ def test_prepare_image_corrects_a_badly_shaped_crop_region():
     )
     prepared = prepare_image(image, params)
     assert abs(prepared.width / prepared.height - 200 / 150) < 0.02
+
+
+def test_prepare_image_uses_inner_area_aspect_when_frame_is_present():
+    image = Image.new("RGB", (400, 300))
+    params = LithophaneParams(
+        width_mm=150, height_mm=100, border_width_mm=4
+    )
+    prepared = prepare_image(image, params)
+    assert abs(prepared.width / prepared.height - 142 / 92) < 0.02

@@ -3,7 +3,8 @@ from io import BytesIO
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from app.main import app
+from app.main import app, pipeline
+from app.models import LithophaneParams
 
 
 client = TestClient(app)
@@ -47,6 +48,17 @@ def test_accepts_largest_preset_with_twenty_mm_border():
         data={"params": '{"width_mm":200,"height_mm":150,"min_thickness_mm":0.8,"max_thickness_mm":3.2,"border_width_mm":20,"resolution":24}'},
     )
     assert response.status_code == 200, response.text
+
+
+def test_border_stays_inside_selected_final_dimensions():
+    params = LithophaneParams(
+        width_mm=150, height_mm=100, border_width_mm=4, resolution=24
+    )
+    _, mesh, _ = pipeline(sample_png(), params)
+    assert float(mesh.vertices[:, 0].min()) == 0
+    assert float(mesh.vertices[:, 0].max()) == 150
+    assert float(mesh.vertices[:, 2].min()) == 0
+    assert float(mesh.vertices[:, 2].max()) == 100
 
 
 def test_rejects_border_lower_than_relief():
