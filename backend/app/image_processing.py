@@ -44,6 +44,10 @@ def decode_image(raw: bytes) -> Image.Image:
 
 
 def prepare_image(image: Image.Image, params: LithophaneParams) -> Image.Image:
+    if params.rotation_degrees:
+        # Pillow rotates counter-clockwise for positive angles.  The UI uses
+        # the familiar clockwise direction, hence the negative value here.
+        image = image.rotate(-params.rotation_degrees, expand=True)
     crop = params.crop
     left = round(crop.x * image.width)
     top = round(crop.y * image.height)

@@ -59,3 +59,15 @@ def test_prepare_image_uses_inner_area_aspect_when_frame_is_present():
     )
     prepared = prepare_image(image, params)
     assert abs(prepared.width / prepared.height - 142 / 92) < 0.02
+
+
+def test_prepare_image_rotates_before_applying_crop():
+    image = Image.new("RGB", (400, 200))
+    params = LithophaneParams(
+        width_mm=150, height_mm=100, rotation_degrees=90
+    )
+    prepared = prepare_image(image, params)
+    # A 90-degree turn changes the source from 2:1 to 1:2 before it is
+    # center-cropped to the requested landscape aspect.
+    assert prepared.width == 200
+    assert prepared.height == 133

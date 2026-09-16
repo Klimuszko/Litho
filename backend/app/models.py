@@ -17,8 +17,8 @@ class Crop(BaseModel):
 
 
 class LithophaneParams(BaseModel):
-    width_mm: float = Field(150, ge=20, le=256, description="Preset dimension: 100x150, 130x180 or 150x200 mm, in either orientation")
-    height_mm: float = Field(100, ge=20, le=256, description="Preset dimension: 100x150, 130x180 or 150x200 mm, in either orientation")
+    width_mm: float = Field(150, ge=20, le=256, description="Final model width, including the optional border")
+    height_mm: float = Field(100, ge=20, le=256, description="Final model height, including the optional border")
     min_thickness_mm: float = Field(0.8, ge=0.4, le=10)
     max_thickness_mm: float = Field(3.2, gt=0.4, le=22)
     gamma: float = Field(1.0, ge=0.1, le=5)
@@ -27,20 +27,18 @@ class LithophaneParams(BaseModel):
     nozzle_diameter_mm: Literal[0.2, 0.4] = 0.4
     quality_profile: Literal["economic", "optimal", "maximum"] = "optimal"
     resolution: int | None = Field(None, ge=24, le=2000, description="Optional legacy override; UI profiles derive resolution from a physical XY sample pitch")
-    orientation: Literal["portrait", "landscape"] = Field("landscape", description="Must match the selected preset dimensions")
+    orientation: Literal["portrait", "landscape"] = Field("landscape", description="Must match the final model dimensions")
     border_width_mm: float = Field(0, ge=0, le=20)
     border_height_mm: float | None = Field(None, ge=0, le=20)
     removable_support: bool = False
     invert: bool = False
     mirror: bool = False
+    rotation_degrees: Literal[0, 90, 180, 270] = 0
     crop: Crop = Field(default_factory=Crop)
 
     @model_validator(mode="after")
     def physical_relations(self):
-        dimensions = tuple(sorted((self.width_mm, self.height_mm)))
-        if dimensions not in ((100.0, 150.0), (130.0, 180.0), (150.0, 200.0)):
-            raise ValueError("Model size must be one of: 100x150, 130x180 or 150x200 mm")
-        if (self.orientation == "landscape") != (self.width_mm > self.height_mm):
+        if self.width_mm != self.height_mm and (self.orientation == "landscape") != (self.width_mm > self.height_mm):
             raise ValueError("orientation must match model dimensions")
         if 2 * self.border_width_mm >= min(self.width_mm, self.height_mm):
             raise ValueError("border_width_mm leaves no room for the image")

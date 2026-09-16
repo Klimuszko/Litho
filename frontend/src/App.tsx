@@ -1,4 +1,4 @@
-import { ChangeEvent, useEffect, useRef, useState } from "react";
+import { ChangeEvent, PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
 import "./formats.css";
 
 export type Params = {
@@ -6,7 +6,8 @@ export type Params = {
   gamma: number; brightness: number; contrast: number;
   nozzle_diameter_mm: 0.2 | 0.4; quality_profile: "economic" | "optimal" | "maximum";
   orientation: "portrait" | "landscape"; border_width_mm: number; border_height_mm: number;
-  removable_support: boolean; invert: boolean; mirror: boolean; crop: {x: number; y: number; width: number; height: number};
+  removable_support: boolean; invert: boolean; mirror: boolean; rotation_degrees: 0 | 90 | 180 | 270;
+  crop: {x: number; y: number; width: number; height: number};
 };
 type Crop = Params["crop"];
 
@@ -40,6 +41,31 @@ export function zoomCrop(base: Crop, current: Crop, zoom: number): Crop {
   };
 }
 
+export function zoomCropAt(base: Crop, current: Crop, zoom: number, focalX: number, focalY: number): Crop {
+  const width = base.width / zoom;
+  const height = base.height / zoom;
+  const sourceX = current.x + current.width * focalX;
+  const sourceY = current.y + current.height * focalY;
+  return {
+    x: Math.max(0, Math.min(1 - width, sourceX - width * focalX)),
+    y: Math.max(0, Math.min(1 - height, sourceY - height * focalY)),
+    width,
+    height,
+  };
+}
+
+export function panCrop(crop: Crop, deltaX: number, deltaY: number): Crop {
+  return {
+    ...crop,
+    x: Math.max(0, Math.min(1 - crop.width, crop.x + deltaX)),
+    y: Math.max(0, Math.min(1 - crop.height, crop.y + deltaY)),
+  };
+}
+
+export function rotatedSize(size: {width: number; height: number}, rotation: number) {
+  return rotation % 180 === 0 ? size : {width: size.height, height: size.width};
+}
+
 export const FORMATS = [{label: "10 × 15 cm", short: 100, long: 150}, {label: "13 × 18 cm", short: 130, long: 180}, {label: "15 × 20 cm", short: 150, long: 200}] as const;
 export const QUALITY = {
   0.2: {economic: {pitch: .2, layer: .16, line: .22}, optimal: {pitch: .125, layer: .1, line: .22}, maximum: {pitch: .1, layer: .08, line: .22}},
@@ -65,11 +91,11 @@ export function effectiveGrid(width: number, height: number, pitch: number, bord
 export function imageArea(width: number, height: number, border: number) {
   return {width: width - 2 * border, height: height - 2 * border};
 }
-const initial: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .8, max_thickness_mm: 3.2, gamma: 1, brightness: 1, contrast: 1, nozzle_diameter_mm: .4, quality_profile: "optimal", orientation: "landscape", border_width_mm: 0, border_height_mm: 3.2, removable_support: false, invert: false, mirror: false, crop: {x: 0, y: 0, width: 1, height: 1}};
+const initial: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .8, max_thickness_mm: 3.2, gamma: 1, brightness: 1, contrast: 1, nozzle_diameter_mm: .4, quality_profile: "optimal", orientation: "landscape", border_width_mm: 0, border_height_mm: 3.2, removable_support: false, invert: false, mirror: false, rotation_degrees: 0, crop: {x: 0, y: 0, width: 1, height: 1}};
 
 export function validateParams(p: Params): string {
-  const dimensions = [Math.min(p.width_mm, p.height_mm), Math.max(p.width_mm, p.height_mm)].join("x");
-  if (!["100x150", "130x180", "150x200"].includes(dimensions)) return "Wybierz jeden z trzech obsługiwanych formatów.";
+  if (!Number.isFinite(p.width_mm) || !Number.isFinite(p.height_mm) || p.width_mm < 20 || p.height_mm < 20 || p.width_mm > 256 || p.height_mm > 256) return "Wymiary niestandardowe muszą mieć od 20 do 256 mm.";
+  if (p.width_mm !== p.height_mm && (p.orientation === "landscape") !== (p.width_mm > p.height_mm)) return "Orientacja musi odpowiadać wymiarom modelu.";
   if (p.max_thickness_mm <= p.min_thickness_mm) return "Maksymalna grubość musi być większa od minimalnej.";
   if (p.max_thickness_mm - p.min_thickness_mm > 12) return "Zakres grubości nie może przekraczać 12 mm.";
   if (p.border_width_mm > 0 && p.border_height_mm < p.max_thickness_mm) return "Ramka nie może być niższa od reliefu.";
@@ -88,8 +114,14 @@ export default function App() {
   const [view, setView] = useState<"photo" | "lithophane">("photo");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [customFormat, setCustomFormat] = useState(false);
+  const [customWidthInput, setCustomWidthInput] = useState(String(initial.width_mm));
+  const [customHeightInput, setCustomHeightInput] = useState(String(initial.height_mm));
   const [sourceSize, setSourceSize] = useState<{width: number; height: number} | null>(null);
+  const [rotatedPreview, setRotatedPreview] = useState<HTMLCanvasElement | null>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
+  const drag = useRef<{pointerId: number; x: number; y: number; crop: Crop} | null>(null);
+  const effectiveSourceSize = sourceSize ? rotatedSize(sourceSize, params.rotation_degrees) : null;
   const quality = QUALITY[params.nozzle_diameter_mm][params.quality_profile];
   const inner = imageArea(params.width_mm, params.height_mm, params.border_width_mm);
   const grid = effectiveGrid(inner.width, inner.height, quality.pitch, params.border_width_mm);
@@ -97,44 +129,115 @@ export default function App() {
   const gridY = grid.rows;
   const set = <K extends keyof Params>(key: K, value: Params[K]) => setParams(p => ({...p, [key]: value}));
   const setCrop = (key: keyof Params["crop"], value: number) => setParams(p => ({...p, crop: {...p.crop, [key]: value}}));
-  const fitCrop = (width: number, height: number, border = params.border_width_mm) => { const area = imageArea(width, height, border); return sourceSize ? automaticCrop(sourceSize.width, sourceSize.height, area.width, area.height) : params.crop; };
-  const setFormat = (short: number, long: number) => setParams(p => {
+  const fitCrop = (width: number, height: number, border = params.border_width_mm) => { const area = imageArea(width, height, border); return effectiveSourceSize ? automaticCrop(effectiveSourceSize.width, effectiveSourceSize.height, area.width, area.height) : params.crop; };
+  const setFormat = (short: number, long: number) => { setCustomFormat(false); setParams(p => {
     const width = p.orientation === "landscape" ? long : short; const height = p.orientation === "landscape" ? short : long;
     const area = imageArea(width, height, p.border_width_mm);
-    return {...p, width_mm: width, height_mm: height, crop: sourceSize ? automaticCrop(sourceSize.width, sourceSize.height, area.width, area.height) : p.crop};
-  });
+    const size = sourceSize ? rotatedSize(sourceSize, p.rotation_degrees) : null;
+    return {...p, width_mm: width, height_mm: height, crop: size ? automaticCrop(size.width, size.height, area.width, area.height) : p.crop};
+  }); };
   const setOrientation = (orientation: Params["orientation"]) => setParams(p => {
     const shouldSwap = orientation === "portrait" ? p.width_mm > p.height_mm : p.height_mm > p.width_mm;
     const width = shouldSwap ? p.height_mm : p.width_mm; const height = shouldSwap ? p.width_mm : p.height_mm;
     const area = imageArea(width, height, p.border_width_mm);
-    return {...p, orientation, width_mm: width, height_mm: height, crop: sourceSize ? automaticCrop(sourceSize.width, sourceSize.height, area.width, area.height) : p.crop};
+    const size = sourceSize ? rotatedSize(sourceSize, p.rotation_degrees) : null;
+    return {...p, orientation, width_mm: width, height_mm: height, crop: size ? automaticCrop(size.width, size.height, area.width, area.height) : p.crop};
   });
   const setZoom = (zoom: number) => setParams(p => {
     if (!sourceSize) return p;
     const area = imageArea(p.width_mm, p.height_mm, p.border_width_mm);
-    const base = automaticCrop(sourceSize.width, sourceSize.height, area.width, area.height);
+    const size = rotatedSize(sourceSize, p.rotation_degrees);
+    const base = automaticCrop(size.width, size.height, area.width, area.height);
     return {...p, crop: zoomCrop(base, p.crop, zoom)};
   });
+  const setRotation = (rotation: Params["rotation_degrees"]) => setParams(p => {
+    if (!sourceSize) return {...p, rotation_degrees: rotation};
+    const size = rotatedSize(sourceSize, rotation);
+    const area = imageArea(p.width_mm, p.height_mm, p.border_width_mm);
+    return {...p, rotation_degrees: rotation, crop: automaticCrop(size.width, size.height, area.width, area.height)};
+  });
+  const setCustomDimension = (key: "width_mm" | "height_mm", value: number) => setParams(p => {
+    value = Math.max(20, Math.min(256, Number.isFinite(value) ? value : 20));
+    const width = key === "width_mm" ? value : p.width_mm;
+    const height = key === "height_mm" ? value : p.height_mm;
+    const orientation = width >= height ? "landscape" : "portrait";
+    const size = sourceSize ? rotatedSize(sourceSize, p.rotation_degrees) : null;
+    const area = imageArea(width, height, p.border_width_mm);
+    return {...p, [key]: value, orientation, crop: size && area.width > 0 && area.height > 0 ? automaticCrop(size.width, size.height, area.width, area.height) : p.crop};
+  });
+  const commitCustomDimension = (key: "width_mm" | "height_mm", raw: string) => {
+    const value = Math.max(20, Math.min(256, Number.isFinite(Number(raw)) ? Number(raw) : 20));
+    setCustomDimension(key, value);
+    if (key === "width_mm") setCustomWidthInput(String(value)); else setCustomHeightInput(String(value));
+  };
 
+  const beginDrag = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    drag.current = {pointerId: event.pointerId, x: event.clientX, y: event.clientY, crop: params.crop};
+  };
+  const moveDrag = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    const start = drag.current;
+    if (!start || start.pointerId !== event.pointerId) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const innerWidth = rect.width * inner.width / params.width_mm;
+    const innerHeight = rect.height * inner.height / params.height_mm;
+    const directionX = params.mirror ? 1 : -1;
+    setParams(p => ({...p, crop: panCrop(start.crop, directionX * (event.clientX - start.x) / innerWidth * start.crop.width, -(event.clientY - start.y) / innerHeight * start.crop.height)}));
+  };
+  const endDrag = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (drag.current?.pointerId === event.pointerId) drag.current = null;
+  };
   useEffect(() => () => { if (source) URL.revokeObjectURL(source); }, [source]);
   useEffect(() => {
-    if (!source || !canvas.current) return;
+    if (!source) { setRotatedPreview(null); return; }
+    let cancelled = false;
     const image = new Image();
     image.onload = () => {
-      const c = canvas.current!; const ctx = c.getContext("2d")!;
-      const crop = params.crop; const w = 760; const h = Math.max(240, Math.round(w * params.height_mm / params.width_mm));
+      const rotated = document.createElement("canvas");
+      const quarterTurn = params.rotation_degrees % 180 !== 0;
+      rotated.width = quarterTurn ? image.height : image.width;
+      rotated.height = quarterTurn ? image.width : image.height;
+      const rotatedContext = rotated.getContext("2d")!;
+      rotatedContext.translate(rotated.width / 2, rotated.height / 2);
+      rotatedContext.rotate(params.rotation_degrees * Math.PI / 180);
+      rotatedContext.drawImage(image, -image.width / 2, -image.height / 2);
+      if (!cancelled) setRotatedPreview(rotated);
+    };
+    image.src = source;
+    return () => { cancelled = true; };
+  }, [source, params.rotation_degrees]);
+  useEffect(() => {
+    if (!rotatedPreview || !canvas.current) return;
+    const c = canvas.current; const ctx = c.getContext("2d")!;
+    const crop = params.crop; const w = 760; const h = Math.max(240, Math.round(w * params.height_mm / params.width_mm));
       c.width = w; c.height = h;
       ctx.filter = `brightness(${params.brightness}) contrast(${params.contrast}) grayscale(1) ${view === "lithophane" ? "invert(1)" : ""}`;
       ctx.save();
       if (params.mirror) { ctx.translate(w, 0); ctx.scale(-1, 1); }
       const bx = w * params.border_width_mm / params.width_mm; const by = h * params.border_width_mm / params.height_mm;
       ctx.fillStyle = "#302b27"; ctx.fillRect(0, 0, w, h);
-      ctx.drawImage(image, crop.x * image.width, crop.y * image.height, crop.width * image.width, crop.height * image.height, bx, by, w - 2 * bx, h - 2 * by);
+      ctx.drawImage(rotatedPreview, crop.x * rotatedPreview.width, crop.y * rotatedPreview.height, crop.width * rotatedPreview.width, crop.height * rotatedPreview.height, bx, by, w - 2 * bx, h - 2 * by);
       ctx.restore();
       if (view === "lithophane") { ctx.globalCompositeOperation = "screen"; ctx.fillStyle = `rgba(255,177,82,${Math.min(.42, params.gamma / 10)})`; ctx.fillRect(0, 0, w, h); }
+  }, [rotatedPreview, params, view]);
+  useEffect(() => {
+    const element = canvas.current;
+    if (!element || !effectiveSourceSize) return;
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const rect = element.getBoundingClientRect();
+      const borderX = rect.width * params.border_width_mm / params.width_mm;
+      const borderY = rect.height * params.border_width_mm / params.height_mm;
+      const screenFocalX = Math.max(0, Math.min(1, (event.clientX - rect.left - borderX) / Math.max(1, rect.width - 2 * borderX)));
+      const focalX = params.mirror ? 1 - screenFocalX : screenFocalX;
+      const focalY = Math.max(0, Math.min(1, (event.clientY - rect.top - borderY) / Math.max(1, rect.height - 2 * borderY)));
+      const base = automaticCrop(effectiveSourceSize.width, effectiveSourceSize.height, inner.width, inner.height);
+      const zoom = Math.max(1, Math.min(5, base.width / params.crop.width * Math.exp(-event.deltaY * .0015)));
+      setParams(p => ({...p, crop: zoomCropAt(base, p.crop, zoom, focalX, focalY)}));
     };
-    image.src = source;
-  }, [source, params, view]);
+    element.addEventListener("wheel", onWheel, {passive: false});
+    return () => element.removeEventListener("wheel", onWheel);
+  }, [effectiveSourceSize?.width, effectiveSourceSize?.height, inner.width, inner.height, params.border_width_mm, params.width_mm, params.height_mm, params.crop.width, params.mirror]);
 
   const choose = (e: ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0] || null;
@@ -182,11 +285,14 @@ export default function App() {
         <button className="auto-crop" disabled={!sourceSize} onClick={() => setParams(p => ({...p, crop: fitCrop(p.width_mm, p.height_mm)}))}>Dopasuj automatycznie</button>
         <Slider label="Pozycja X" value={params.crop.x} min={0} max={1 - params.crop.width} step={.01} onChange={n => setCrop("x", n)}/>
         <Slider label="Pozycja Y" value={params.crop.y} min={0} max={1 - params.crop.height} step={.01} onChange={n => setCrop("y", n)}/>
-        <Slider label="Powiększenie" value={sourceSize ? Number((automaticCrop(sourceSize.width, sourceSize.height, inner.width, inner.height).width / params.crop.width).toFixed(2)) : 1} min={1} max={3} step={.05} unit="×" onChange={setZoom}/>
+        <Slider label="Powiększenie" value={effectiveSourceSize ? Number((automaticCrop(effectiveSourceSize.width, effectiveSourceSize.height, inner.width, inner.height).width / params.crop.width).toFixed(2)) : 1} min={1} max={5} step={.05} unit="×" onChange={setZoom}/>
+        <div className="rotate-row"><span>Obrót zdjęcia</span><div>{([0, 90, 180, 270] as const).map(angle => <button key={angle} className={params.rotation_degrees === angle ? "active" : ""} onClick={() => setRotation(angle)}>{angle}°</button>)}</div></div>
+        <p className="interaction-hint">Na podglądzie: przeciągnij zdjęcie, aby je przesunąć · użyj kółka myszy, aby przybliżyć.</p>
         <h2><span>02</span> Model</h2>
         <div className="orientation"><button className={params.orientation === "landscape" ? "active" : ""} onClick={() => setOrientation("landscape")}>Pozioma</button><button className={params.orientation === "portrait" ? "active" : ""} onClick={() => setOrientation("portrait")}>Pionowa</button></div>
         <h3>Format obrazu</h3>
-        <div className="formats">{FORMATS.map(format => { const selected = Math.min(params.width_mm, params.height_mm) === format.short && Math.max(params.width_mm, params.height_mm) === format.long; return <button key={format.label} className={selected ? "active" : ""} onClick={() => setFormat(format.short, format.long)}>{format.label}</button>; })}</div>
+        <div className="formats format-options">{FORMATS.map(format => { const selected = !customFormat && Math.min(params.width_mm, params.height_mm) === format.short && Math.max(params.width_mm, params.height_mm) === format.long; return <button key={format.label} className={selected ? "active" : ""} onClick={() => setFormat(format.short, format.long)}>{format.label}</button>; })}<button className={customFormat ? "active" : ""} onClick={() => { setCustomWidthInput(String(params.width_mm)); setCustomHeightInput(String(params.height_mm)); setCustomFormat(true); }}>Custom</button></div>
+        {customFormat && <div className="custom-size"><label>Szerokość<input type="number" min="20" max="256" step="1" value={customWidthInput} onChange={e => setCustomWidthInput(e.target.value)} onBlur={e => commitCustomDimension("width_mm", e.target.value)} onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}/><span>mm</span></label><label>Wysokość<input type="number" min="20" max="256" step="1" value={customHeightInput} onChange={e => setCustomHeightInput(e.target.value)} onBlur={e => commitCustomDimension("height_mm", e.target.value)} onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}/><span>mm</span></label></div>}
         <Slider label="Minimalna grubość" value={params.min_thickness_mm} min={.4} max={4} step={.1} unit=" mm" onChange={n => set("min_thickness_mm", n)}/>
         <Slider label="Maksymalna grubość" value={params.max_thickness_mm} min={.5} max={10} step={.1} unit=" mm" onChange={n => {set("max_thickness_mm", n); if (params.border_height_mm < n) set("border_height_mm", n);}}/>
         <Slider label="Gamma" value={params.gamma} min={.1} max={5} step={.1} onChange={n => set("gamma", n)}/>
@@ -205,7 +311,7 @@ export default function App() {
       </aside>
       <article className="preview">
         <div className="preview-head"><div><p className="eyebrow">PODGLĄD NA ŻYWO</p><h2>{view === "photo" ? "Przygotowane zdjęcie" : "Symulacja światła"}</h2></div><div className="tabs"><button className={view === "photo" ? "active" : ""} onClick={() => setView("photo")}>Obraz</button><button className={view === "lithophane" ? "active" : ""} onClick={() => setView("lithophane")}>Litofania</button></div></div>
-        <div className="stage crop-stage" style={{aspectRatio: `${params.width_mm} / ${params.height_mm}`, width: `min(100%, ${570 * params.width_mm / params.height_mm}px)`}}>{source ? <canvas ref={canvas}/> : <div className="empty"><span>＋</span><b>Dodaj fotografię</b><small>Tutaj pojawi się jej podgląd</small></div>}</div>
+        <div className="stage crop-stage" style={{aspectRatio: `${params.width_mm} / ${params.height_mm}`, width: `min(100%, ${570 * params.width_mm / params.height_mm}px)`}}>{source ? <canvas ref={canvas} onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}/> : <div className="empty"><span>＋</span><b>Dodaj fotografię</b><small>Tutaj pojawi się jej podgląd</small></div>}</div>
         <div className="stats"><span><small>WYMIAR</small><b>{params.width_mm} × {params.height_mm} mm</b></span><span><small>GRUBOŚĆ</small><b>{params.min_thickness_mm}–{params.max_thickness_mm} mm</b></span><span><small>SIATKA</small><b>{gridX} × {gridY}</b></span></div>
         {(error || validateParams(params)) && <p className="error">{error || validateParams(params)}</p>}
         <button className="generate" disabled={busy || !file || Boolean(validateParams(params))} onClick={generate}>{busy ? "Generowanie…" : "Generuj i pobierz STL"}<span>→</span></button>

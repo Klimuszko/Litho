@@ -80,13 +80,13 @@ def test_rejects_border_lower_than_relief():
     assert response.status_code == 422
 
 
-def test_rejects_size_outside_supported_presets():
+def test_accepts_custom_size_within_machine_envelope():
     response = client.post(
         "/api/generate",
         files={"image": ("photo.png", sample_png(), "image/png")},
         data={"params": '{"width_mm":220,"height_mm":180,"min_thickness_mm":0.8,"max_thickness_mm":3.2}'},
     )
-    assert response.status_code == 422
+    assert response.status_code == 200, response.text
 
 
 def test_rejects_orientation_that_does_not_match_dimensions():

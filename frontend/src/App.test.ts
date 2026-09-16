@@ -1,14 +1,27 @@
 import { describe, expect, it } from "vitest";
-import { automaticCrop, effectiveGrid, imageArea, Params, validateParams, zoomCrop } from "./App";
+import { automaticCrop, effectiveGrid, imageArea, panCrop, Params, rotatedSize, validateParams, zoomCrop, zoomCropAt } from "./App";
 
-const valid: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .8, max_thickness_mm: 3.2, gamma: 1, brightness: 1, contrast: 1, nozzle_diameter_mm: .4, quality_profile: "optimal", orientation: "landscape", border_width_mm: 0, border_height_mm: 3.2, removable_support: false, invert: false, mirror: false, crop: {x: 0, y: 0, width: 1, height: 1}};
+const valid: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .8, max_thickness_mm: 3.2, gamma: 1, brightness: 1, contrast: 1, nozzle_diameter_mm: .4, quality_profile: "optimal", orientation: "landscape", border_width_mm: 0, border_height_mm: 3.2, removable_support: false, invert: false, mirror: false, rotation_degrees: 0, crop: {x: 0, y: 0, width: 1, height: 1}};
 
 describe("client parameter validation", () => {
   it("accepts calibrated defaults", () => expect(validateParams(valid)).toBe(""));
   it("rejects inverted thickness range", () => expect(validateParams({...valid, min_thickness_mm: 4})).toContain("większa"));
   it("rejects a frame below the relief", () => expect(validateParams({...valid, border_width_mm: 2, border_height_mm: 2})).toContain("Ramka"));
   it("accepts the largest format with a 20 mm frame", () => expect(validateParams({...valid, width_mm: 200, height_mm: 150, border_width_mm: 20})).toBe(""));
-  it("rejects a size outside supported presets", () => expect(validateParams({...valid, width_mm: 160})).toContain("trzech"));
+  it("accepts a custom size", () => expect(validateParams({...valid, width_mm: 160})).toBe(""));
+  it("rejects a custom size outside the build envelope", () => expect(validateParams({...valid, width_mm: 257})).toContain("256"));
+});
+
+describe("direct crop interactions", () => {
+  it("clamps dragging to image bounds", () => expect(panCrop({x: .2, y: .2, width: .5, height: .5}, 1, -1)).toEqual({x: .5, y: 0, width: .5, height: .5}));
+  it("swaps source dimensions for quarter turns", () => expect(rotatedSize({width: 400, height: 200}, 90)).toEqual({width: 200, height: 400}));
+  it("keeps source dimensions for a half turn", () => expect(rotatedSize({width: 400, height: 200}, 180)).toEqual({width: 400, height: 200}));
+  it("keeps the source point under the cursor while zooming", () => {
+    const current = {x: .1, y: .2, width: .8, height: .6};
+    const zoomed = zoomCropAt(current, current, 2, .25, .75);
+    expect(zoomed.x + zoomed.width * .25).toBeCloseTo(current.x + current.width * .25);
+    expect(zoomed.y + zoomed.height * .75).toBeCloseTo(current.y + current.height * .75);
+  });
 });
 
 describe("automatic crop", () => {
