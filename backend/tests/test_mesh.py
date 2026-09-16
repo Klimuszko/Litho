@@ -4,7 +4,7 @@ import numpy as np
 from hypothesis import given, strategies as st
 
 from app.exporter import binary_stl
-from app.mesh import add_removable_support, apply_border, build_plate, validate_mesh
+from app.mesh import add_removable_support, apply_border, build_plate, removable_support_dimensions, validate_mesh
 
 
 @given(
@@ -94,8 +94,8 @@ def test_removable_support_extends_only_in_thickness_axis():
     assert float(supported.vertices[:, 0].max()) == 100
     assert float(supported.vertices[:, 2].min()) == 0
     assert float(supported.vertices[:, 2].max()) == 75
-    assert float(supported.vertices[:, 1].min()) == -14
-    assert np.isclose(float(supported.vertices[:, 1].max()), 17.2)
+    assert float(supported.vertices[:, 1].min()) == -18
+    assert np.isclose(float(supported.vertices[:, 1].max()), 21.2)
     assert len(supported.faces) == len(plate.faces) + 128
     validation = validate_mesh(supported)
     assert validation == {"watertight": True, "boundary_edges": 0, "degenerate_faces": 0, "winding_errors": 0, "positive_volume": True}
@@ -104,7 +104,23 @@ def test_removable_support_extends_only_in_thickness_axis():
 def test_removable_support_scales_for_two_hundred_mm_model():
     plate = build_plate(np.full((4, 5), 3.2, dtype=np.float32), 150, 200)
     supported = add_removable_support(plate, 150, 200, 3.2, 0.44)
-    assert np.isclose(float(supported.vertices[:, 1].min()), -22)
-    assert np.isclose(float(supported.vertices[:, 1].max()), 25.2)
+    assert np.isclose(float(supported.vertices[:, 1].min()), -25)
+    assert np.isclose(float(supported.vertices[:, 1].max()), 28.2)
     support_vertices = supported.vertices[len(plate.vertices):]
-    assert np.isclose(float(support_vertices[:, 2].max()), 32)
+    assert np.isclose(float(support_vertices[:, 2].max()), 45)
+    assert len(supported.faces) == len(plate.faces) + 192
+
+
+def test_largest_support_footprint_allows_three_rows_on_256_mm_bed():
+    brace_height, extension, count = removable_support_dimensions(200)
+    footprint_depth = 3.2 + 2 * extension
+    spacing = (256 - 3 * footprint_depth) / 2
+    assert (brace_height, extension, count) == (45, 25, 3)
+    assert footprint_depth == 53.2
+    assert spacing >= 8
+
+
+def test_compact_support_never_exceeds_fifty_five_mm_depth():
+    _, extension, count = removable_support_dimensions(200, 22)
+    assert count == 3
+    assert 22 + 2 * extension <= 55

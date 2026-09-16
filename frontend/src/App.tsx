@@ -114,7 +114,7 @@ export function imageArea(width: number, height: number, border: number | Border
   const borders = typeof border === "number" ? {top: border, right: border, bottom: border, left: border} : border;
   return {width: width - borders.left - borders.right, height: height - borders.top - borders.bottom};
 }
-const initial: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .8, max_thickness_mm: 3, gamma: 1, brightness: 1, contrast: 1, nozzle_diameter_mm: .4, quality_profile: "optimal", orientation: "landscape", border_width_mm: 0, border_widths_mm: null, border_height_mm: 3, removable_support: false, invert: false, mirror: false, rotation_degrees: 0, crop: {x: 0, y: 0, width: 1, height: 1}};
+export const initial: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .8, max_thickness_mm: 3, gamma: 1, brightness: 1, contrast: 1.25, nozzle_diameter_mm: .4, quality_profile: "optimal", orientation: "landscape", border_width_mm: 0, border_widths_mm: null, border_height_mm: 3, removable_support: false, invert: false, mirror: false, rotation_degrees: 0, crop: {x: 0, y: 0, width: 1, height: 1}};
 
 export function resolvedBorders(p: Params): BorderWidths {
   return p.border_widths_mm || {top: p.border_width_mm, right: p.border_width_mm, bottom: p.border_width_mm, left: p.border_width_mm};
@@ -364,7 +364,7 @@ export default function App() {
         {anyBorder && <Slider label="Grubość ramki" value={params.border_height_mm} min={params.nozzle_diameter_mm * 2} max={10} step={.1} unit=" mm" onChange={n => set("border_height_mm", n)}/>}
         {anyBorder && params.border_height_mm < params.max_thickness_mm && <p className="quality-note warning-note">Cienka ramka: ciemne fragmenty reliefu będą wystawały ponad jej powierzchnię. Do ramki ochronnej zalecamy grubość co najmniej równą maksymalnej grubości obrazu.</p>}
         <label className="check"><input type="checkbox" checked={params.removable_support} onChange={e => set("removable_support", e.target.checked)}/><span>Dodaj odrywaną stopę do druku pionowego</span></label>
-        {params.removable_support && <p className="quality-note">Dwa zestawy ukośnych żeber z przodu i z tyłu · wysokość i wysunięcie skalowane do modelu · perforowane mostki do odłamania</p>}
+        {params.removable_support && <p className="quality-note">Kompaktowa podpora seryjna · 2 zastrzały, a od 180 mm wysokości 3 · maks. 25 mm wysunięcia na stronę · bez brimu w STL · perforowane mostki do odłamania</p>}
         <label className="check"><input type="checkbox" checked={params.invert} onChange={e => set("invert", e.target.checked)}/><span>Odwróć obraz</span></label>
         <label className="check"><input type="checkbox" checked={params.mirror} onChange={e => set("mirror", e.target.checked)}/><span>Odbij lustrzanie</span></label>
       </aside>

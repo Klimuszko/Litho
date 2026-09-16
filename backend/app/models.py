@@ -30,7 +30,7 @@ class LithophaneParams(BaseModel):
     max_thickness_mm: float = Field(3.0, gt=0.4, le=22)
     gamma: float = Field(1.0, ge=0.1, le=5)
     brightness: float = Field(1.0, ge=0.25, le=2)
-    contrast: float = Field(1.0, ge=0.25, le=3)
+    contrast: float = Field(1.25, ge=0.25, le=3)
     nozzle_diameter_mm: Literal[0.2, 0.4] = 0.4
     quality_profile: Literal["economic", "optimal", "maximum"] = "optimal"
     resolution: int | None = Field(None, ge=24, le=2000, description="Optional legacy override; UI profiles derive resolution from a physical XY sample pitch")

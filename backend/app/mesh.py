@@ -61,15 +61,17 @@ def add_removable_support(
     The brace dimensions scale with model height. Small tabs rather than a
     continuous wall connect each brace to the model, making removal practical.
     """
-    brace_height = min(35.0, max(16.0, height_mm * 0.16))
-    extension = min(25.0, max(14.0, height_mm * 0.11))
+    brace_height, extension, support_count = removable_support_dimensions(height_mm, front_depth_mm)
     brace_width = min(10.0, width_mm / 8)
     margin = min(10.0, width_mm / 10)
     gap = max(0.30, line_width_mm)
     tab_depth = 2 * line_width_mm
     pad_height = 0.40
     parts = [mesh]
-    for x0 in (margin, width_mm - margin - brace_width):
+    positions = [margin, width_mm - margin - brace_width]
+    if support_count == 3:
+        positions.insert(1, (width_mm - brace_width) / 2)
+    for x0 in positions:
         x1 = x0 + brace_width
         # A thin local pad joins the front and rear braces at bed level.
         parts.append(_box(x0, x1, -extension, front_depth_mm + extension, 0, pad_height))
@@ -83,6 +85,15 @@ def add_removable_support(
             if z1 > z0:
                 parts.append(_box(x0, x1, -gap - 0.05, tab_depth, z0, z1))
     return combine_meshes(*parts)
+
+
+def removable_support_dimensions(height_mm: float, front_depth_mm: float = 3.2) -> tuple[float, float, int]:
+    """Compact production support sized for batch printing on a 256 mm bed."""
+    brace_height = min(45.0, max(25.0, height_mm * 0.225))
+    desired_extension = min(25.0, max(18.0, height_mm * 0.125))
+    extension = min(desired_extension, max(0.0, (55.0 - front_depth_mm) / 2))
+    support_count = 3 if height_mm >= 180 else 2
+    return brace_height, extension, support_count
 
 
 def build_plate(heightmap: np.ndarray, width_mm: float, height_mm: float) -> Mesh:

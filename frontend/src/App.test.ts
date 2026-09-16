@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { automaticCrop, effectiveGrid, imageArea, inscribedSize, panCrop, Params, rotatedSize, validateParams, zoomCrop, zoomCropAt } from "./App";
+import { automaticCrop, effectiveGrid, imageArea, initial, inscribedSize, panCrop, Params, rotatedSize, validateParams, zoomCrop, zoomCropAt } from "./App";
 
 const valid: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .8, max_thickness_mm: 3, gamma: 1, brightness: 1, contrast: 1, nozzle_diameter_mm: .4, quality_profile: "optimal", orientation: "landscape", border_width_mm: 0, border_widths_mm: null, border_height_mm: 3, removable_support: false, invert: false, mirror: false, rotation_degrees: 0, crop: {x: 0, y: 0, width: 1, height: 1}};
 
 describe("client parameter validation", () => {
+  it("uses a modest default contrast boost", () => expect(initial.contrast).toBe(1.25));
   it("accepts calibrated defaults", () => expect(validateParams(valid)).toBe(""));
   it("rejects inverted thickness range", () => expect(validateParams({...valid, min_thickness_mm: 4})).toContain("większa"));
   it("accepts a lightweight frame below the relief", () => expect(validateParams({...valid, border_width_mm: 2, border_height_mm: .8})).toBe(""));

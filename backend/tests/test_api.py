@@ -78,6 +78,12 @@ def test_optional_removable_support_is_reported_and_added():
     )
     assert response.status_code == 200, response.text
     assert response.headers["x-removable-support"] == "true"
+    assert response.headers["x-support-count"] == "2"
+    assert response.headers["x-support-extension-mm"] == "18.0"
+
+
+def test_default_photo_contrast_is_slightly_enhanced():
+    assert LithophaneParams().contrast == 1.25
 
 
 def test_accepts_border_lower_than_relief_for_lightweight_frame():

@@ -11,7 +11,7 @@ from pydantic import ValidationError
 from .exporter import binary_stl
 from .heightmap import grid_resolution, luminance_to_thickness
 from .image_processing import InvalidImage, decode_image, prepare_image, preview_png, resample_luminance
-from .mesh import add_removable_support, apply_border, build_plate, validate_mesh
+from .mesh import add_removable_support, apply_border, build_plate, removable_support_dimensions, validate_mesh
 from .models import LithophaneParams
 
 app = FastAPI(title="Lithophane Generator API", version="1.0.0")
@@ -93,6 +93,7 @@ async def generate(image: UploadFile = File(...), params: str = Form(...)):
     raw = await read_image(image)
     _, mesh, (cols, rows) = pipeline(raw, settings)
     payload = binary_stl(mesh)
+    _, support_extension, support_count = removable_support_dimensions(settings.height_mm, settings.max_thickness_mm)
     return Response(
         content=payload,
         media_type="model/stl",
@@ -106,7 +107,8 @@ async def generate(image: UploadFile = File(...), params: str = Form(...)):
             "X-Effective-Sample-Pitch-Mm": str(max(settings.image_width_mm / (cols - 1), settings.image_height_mm / (rows - 1))),
             "X-Grid-Size": f"{cols}x{rows}",
             "X-Removable-Support": str(settings.removable_support).lower(),
-            "X-Support-Extension-Mm": "8" if settings.removable_support else "0",
+            "X-Support-Extension-Mm": str(support_extension) if settings.removable_support else "0",
+            "X-Support-Count": str(support_count) if settings.removable_support else "0",
         },
     )
 
