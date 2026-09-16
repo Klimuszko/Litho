@@ -22,3 +22,17 @@ def test_grid_preserves_physical_aspect():
 def test_maximum_quality_keeps_full_resolution_for_largest_preset():
     cols, rows = grid_resolution(200, 150, 1200)
     assert (cols, rows) == (1201, 901)
+
+
+def test_point_two_nozzle_can_use_full_maximum_grid():
+    cols, rows = grid_resolution(200, 150, 2000)
+    assert (cols, rows) == (2001, 1501)
+
+
+def test_border_is_included_in_global_point_budget():
+    cols, rows = grid_resolution(200, 150, 2000, border_width_mm=20)
+    dx = 200 / (cols - 1)
+    dy = 150 / (rows - 1)
+    x_border = int(np.ceil(20 / dx))
+    y_border = int(np.ceil(20 / dy))
+    assert (cols + 2 * x_border) * (rows + 2 * y_border) <= 3_100_000

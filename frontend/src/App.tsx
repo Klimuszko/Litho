@@ -3,7 +3,8 @@ import "./formats.css";
 
 export type Params = {
   width_mm: number; height_mm: number; min_thickness_mm: number; max_thickness_mm: number;
-  gamma: number; brightness: number; contrast: number; resolution: number;
+  gamma: number; brightness: number; contrast: number;
+  nozzle_diameter_mm: 0.2 | 0.4; quality_profile: "economic" | "optimal" | "maximum";
   orientation: "portrait" | "landscape"; border_width_mm: number; border_height_mm: number;
   invert: boolean; mirror: boolean; crop: {x: number; y: number; width: number; height: number};
 };
@@ -40,7 +41,28 @@ export function zoomCrop(base: Crop, current: Crop, zoom: number): Crop {
 }
 
 export const FORMATS = [{label: "10 × 15 cm", short: 100, long: 150}, {label: "13 × 18 cm", short: 130, long: 180}, {label: "15 × 20 cm", short: 150, long: 200}] as const;
-const initial: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .8, max_thickness_mm: 3.2, gamma: 1, brightness: 1, contrast: 1, resolution: 800, orientation: "landscape", border_width_mm: 0, border_height_mm: 3.2, invert: false, mirror: false, crop: {x: 0, y: 0, width: 1, height: 1}};
+export const QUALITY = {
+  0.2: {economic: {pitch: .2, layer: .16, line: .22}, optimal: {pitch: .125, layer: .1, line: .22}, maximum: {pitch: .1, layer: .08, line: .22}},
+  0.4: {economic: {pitch: .4, layer: .2, line: .44}, optimal: {pitch: .25, layer: .12, line: .44}, maximum: {pitch: .2, layer: .08, line: .44}},
+} as const;
+const MAX_GRID_POINTS = 3_100_000;
+
+export function effectiveGrid(width: number, height: number, pitch: number, border: number) {
+  let scale = 1 / pitch;
+  let cols = 2; let rows = 2; let totalCols = 2; let totalRows = 2;
+  for (let i = 0; i < 8; i++) {
+    cols = Math.max(2, Math.round(width * scale) + 1);
+    rows = Math.max(2, Math.round(height * scale) + 1);
+    const dx = width / (cols - 1); const dy = height / (rows - 1);
+    totalCols = cols + 2 * Math.ceil(border / dx);
+    totalRows = rows + 2 * Math.ceil(border / dy);
+    const points = totalCols * totalRows;
+    if (points <= MAX_GRID_POINTS) break;
+    scale *= Math.sqrt(MAX_GRID_POINTS / points) * .999;
+  }
+  return {cols, rows, totalCols, totalRows, pitch: Math.max(width / (cols - 1), height / (rows - 1))};
+}
+const initial: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .8, max_thickness_mm: 3.2, gamma: 1, brightness: 1, contrast: 1, nozzle_diameter_mm: .4, quality_profile: "optimal", orientation: "landscape", border_width_mm: 0, border_height_mm: 3.2, invert: false, mirror: false, crop: {x: 0, y: 0, width: 1, height: 1}};
 
 export function validateParams(p: Params): string {
   const dimensions = [Math.min(p.width_mm, p.height_mm), Math.max(p.width_mm, p.height_mm)].join("x");
@@ -65,6 +87,10 @@ export default function App() {
   const [error, setError] = useState("");
   const [sourceSize, setSourceSize] = useState<{width: number; height: number} | null>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
+  const quality = QUALITY[params.nozzle_diameter_mm][params.quality_profile];
+  const grid = effectiveGrid(params.width_mm, params.height_mm, quality.pitch, params.border_width_mm);
+  const gridX = grid.cols;
+  const gridY = grid.rows;
   const set = <K extends keyof Params>(key: K, value: Params[K]) => setParams(p => ({...p, [key]: value}));
   const setCrop = (key: keyof Params["crop"], value: number) => setParams(p => ({...p, crop: {...p.crop, [key]: value}}));
   const fitCrop = (width: number, height: number) => sourceSize ? automaticCrop(sourceSize.width, sourceSize.height, width, height) : params.crop;
@@ -156,7 +182,11 @@ export default function App() {
         <Slider label="Gamma" value={params.gamma} min={.1} max={5} step={.1} onChange={n => set("gamma", n)}/>
         <Slider label="Jasność" value={params.brightness} min={.25} max={2} step={.05} onChange={n => set("brightness", n)}/>
         <Slider label="Kontrast" value={params.contrast} min={.25} max={3} step={.05} onChange={n => set("contrast", n)}/>
-        <Slider label="Jakość siatki" value={params.resolution} min={400} max={1200} step={100} unit=" pkt" onChange={n => set("resolution", n)}/>
+        <h3>Średnica dyszy</h3>
+        <div className="orientation"><button className={params.nozzle_diameter_mm === .2 ? "active" : ""} onClick={() => set("nozzle_diameter_mm", .2)}>0,2 mm · detal</button><button className={params.nozzle_diameter_mm === .4 ? "active" : ""} onClick={() => set("nozzle_diameter_mm", .4)}>0,4 mm · standard</button></div>
+        <h3>Jakość geometrii</h3>
+        <div className="formats"><button className={params.quality_profile === "economic" ? "active" : ""} onClick={() => set("quality_profile", "economic")}>Ekonomiczna</button><button className={params.quality_profile === "optimal" ? "active" : ""} onClick={() => set("quality_profile", "optimal")}>Optymalna</button><button className={params.quality_profile === "maximum" ? "active" : ""} onClick={() => set("quality_profile", "maximum")}>Maksymalna</button></div>
+        <p className="quality-note">Próbka XY: {grid.pitch.toFixed(3)} mm · linia: {quality.line} mm · warstwa: {quality.layer} mm · siatka obrazu: {gridX} × {gridY}{params.border_width_mm > 0 ? ` · z ramką: ${grid.totalCols} × ${grid.totalRows}` : ""}</p>
         <Slider label="Szerokość ramki (na stronę)" value={params.border_width_mm} min={0} max={20} step={.5} unit=" mm" onChange={n => set("border_width_mm", n)}/>
         <label className="check"><input type="checkbox" checked={params.invert} onChange={e => set("invert", e.target.checked)}/><span>Odwróć obraz</span></label>
         <label className="check"><input type="checkbox" checked={params.mirror} onChange={e => set("mirror", e.target.checked)}/><span>Odbij lustrzanie</span></label>
@@ -164,7 +194,7 @@ export default function App() {
       <article className="preview">
         <div className="preview-head"><div><p className="eyebrow">PODGLĄD NA ŻYWO</p><h2>{view === "photo" ? "Przygotowane zdjęcie" : "Symulacja światła"}</h2></div><div className="tabs"><button className={view === "photo" ? "active" : ""} onClick={() => setView("photo")}>Obraz</button><button className={view === "lithophane" ? "active" : ""} onClick={() => setView("lithophane")}>Litofania</button></div></div>
         <div className="stage crop-stage" style={{aspectRatio: `${params.width_mm} / ${params.height_mm}`, width: `min(100%, ${570 * params.width_mm / params.height_mm}px)`}}>{source ? <canvas ref={canvas}/> : <div className="empty"><span>＋</span><b>Dodaj fotografię</b><small>Tutaj pojawi się jej podgląd</small></div>}</div>
-        <div className="stats"><span><small>WYMIAR</small><b>{params.width_mm} × {params.height_mm} mm</b></span><span><small>GRUBOŚĆ</small><b>{params.min_thickness_mm}–{params.max_thickness_mm} mm</b></span><span><small>SIATKA</small><b>do {params.resolution} pkt</b></span></div>
+        <div className="stats"><span><small>WYMIAR</small><b>{params.width_mm} × {params.height_mm} mm</b></span><span><small>GRUBOŚĆ</small><b>{params.min_thickness_mm}–{params.max_thickness_mm} mm</b></span><span><small>SIATKA</small><b>{gridX} × {gridY}</b></span></div>
         {(error || validateParams(params)) && <p className="error">{error || validateParams(params)}</p>}
         <button className="generate" disabled={busy || !file || Boolean(validateParams(params))} onClick={generate}>{busy ? "Generowanie…" : "Generuj i pobierz STL"}<span>→</span></button>
       </article>

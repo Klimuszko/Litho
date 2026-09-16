@@ -24,7 +24,9 @@ class LithophaneParams(BaseModel):
     gamma: float = Field(1.0, ge=0.1, le=5)
     brightness: float = Field(1.0, ge=0.25, le=2)
     contrast: float = Field(1.0, ge=0.25, le=3)
-    resolution: int = Field(800, ge=24, le=1200, description="Heightmap samples on the longest edge; 800 recommended, 1200 maximum quality")
+    nozzle_diameter_mm: Literal[0.2, 0.4] = 0.4
+    quality_profile: Literal["economic", "optimal", "maximum"] = "optimal"
+    resolution: int | None = Field(None, ge=24, le=2000, description="Optional legacy override; UI profiles derive resolution from a physical XY sample pitch")
     orientation: Literal["portrait", "landscape"] = Field("landscape", description="Must match the selected preset dimensions")
     border_width_mm: float = Field(0, ge=0, le=20)
     border_height_mm: float | None = Field(None, ge=0, le=20)
@@ -56,3 +58,21 @@ class LithophaneParams(BaseModel):
     @property
     def effective_border_height(self) -> float:
         return self.border_height_mm or self.max_thickness_mm
+
+    @property
+    def sample_pitch_mm(self) -> float:
+        pitches = {
+            0.2: {"economic": 0.20, "optimal": 0.125, "maximum": 0.10},
+            0.4: {"economic": 0.40, "optimal": 0.25, "maximum": 0.20},
+        }
+        return pitches[self.nozzle_diameter_mm][self.quality_profile]
+
+    @property
+    def effective_resolution(self) -> int:
+        if self.resolution is not None:
+            return self.resolution
+        return round(max(self.width_mm, self.height_mm) / self.sample_pitch_mm)
+
+    @property
+    def effective_sample_pitch_mm(self) -> float:
+        return max(self.width_mm, self.height_mm) / self.effective_resolution

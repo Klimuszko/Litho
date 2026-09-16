@@ -3,21 +3,25 @@ import math
 import numpy as np
 
 
-# Quality-first ceiling for the photographic area: the 200x150 mm preset can
-# use a full 1201x901 grid before an optional border is added. High-resolution
+# Quality-first ceiling for the photographic area: a 0.2 mm nozzle can use a
+# full 2001x1501 grid before an optional border is added. High-resolution
 # exports intentionally trade RAM and generation time for surface detail.
-MAX_GRID_POINTS = 1_100_000
+MAX_GRID_POINTS = 3_100_000
 
 
-def grid_resolution(width_mm: float, height_mm: float, longest_edge_points: int) -> tuple[int, int]:
+def grid_resolution(width_mm: float, height_mm: float, longest_edge_points: int, border_width_mm: float = 0) -> tuple[int, int]:
     scale = longest_edge_points / max(width_mm, height_mm)
-    cols = max(2, round(width_mm * scale) + 1)
-    rows = max(2, round(height_mm * scale) + 1)
-    points = rows * cols
-    if points > MAX_GRID_POINTS:
-        factor = math.sqrt(MAX_GRID_POINTS / points)
-        cols = max(2, int(cols * factor))
-        rows = max(2, int(rows * factor))
+    for _ in range(8):
+        cols = max(2, round(width_mm * scale) + 1)
+        rows = max(2, round(height_mm * scale) + 1)
+        dx = width_mm / (cols - 1)
+        dy = height_mm / (rows - 1)
+        x_border = max(0, math.ceil(border_width_mm / dx))
+        y_border = max(0, math.ceil(border_width_mm / dy))
+        total_points = (cols + 2 * x_border) * (rows + 2 * y_border)
+        if total_points <= MAX_GRID_POINTS:
+            return cols, rows
+        scale *= math.sqrt(MAX_GRID_POINTS / total_points) * 0.999
     return cols, rows
 
 

@@ -23,6 +23,11 @@ def test_generate_returns_binary_stl():
     )
     assert response.status_code == 200, response.text
     assert response.headers["content-type"] == "model/stl"
+    assert response.headers["x-nozzle-diameter-mm"] == "0.4"
+    assert response.headers["x-quality-profile"] == "optimal"
+    assert response.headers["x-sample-pitch-mm"] == "3.125"
+    assert response.headers["x-effective-sample-pitch-mm"] == "3.125"
+    assert response.headers["x-grid-size"] == "49x33"
     assert len(response.content) > 84
 
 

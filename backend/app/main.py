@@ -45,7 +45,7 @@ def pipeline(raw: bytes, params: LithophaneParams):
     except InvalidImage as exc:
         raise HTTPException(status_code=422, detail={"error_code": "INVALID_IMAGE_FORMAT", "message": str(exc)}) from exc
     height_mm = params.height_mm
-    cols, rows = grid_resolution(params.width_mm, height_mm, params.resolution)
+    cols, rows = grid_resolution(params.width_mm, height_mm, params.effective_resolution, params.border_width_mm)
     luminance = resample_luminance(image, cols, rows)
     heightmap = luminance_to_thickness(luminance, params.min_thickness_mm, params.max_thickness_mm, params.gamma, params.invert)
     heightmap, mesh_width, mesh_height = apply_border(heightmap, params.width_mm, height_mm, params.border_width_mm, params.effective_border_height)
@@ -54,7 +54,7 @@ def pipeline(raw: bytes, params: LithophaneParams):
     if (not validation["watertight"] or validation["degenerate_faces"]
             or validation["winding_errors"] or not validation["positive_volume"]):
         raise HTTPException(status_code=500, detail={"error_code": "MESH_GENERATION_FAILED", "message": "Mesh validation failed", "validation": validation})
-    return image, mesh
+    return image, mesh, (cols, rows)
 
 
 @app.get("/api/health")
@@ -87,7 +87,7 @@ async def preview(image: UploadFile = File(...), params: str = Form(...)):
 async def generate(image: UploadFile = File(...), params: str = Form(...)):
     settings = parse_params(params)
     raw = await read_image(image)
-    _, mesh = pipeline(raw, settings)
+    _, mesh, (cols, rows) = pipeline(raw, settings)
     payload = binary_stl(mesh)
     return Response(
         content=payload,
@@ -96,6 +96,11 @@ async def generate(image: UploadFile = File(...), params: str = Form(...)):
             "Content-Disposition": 'attachment; filename="lithophane.stl"',
             "Cache-Control": "no-store",
             "X-Triangle-Count": str(len(mesh.faces)),
+            "X-Nozzle-Diameter-Mm": str(settings.nozzle_diameter_mm),
+            "X-Quality-Profile": settings.quality_profile,
+            "X-Sample-Pitch-Mm": str(settings.effective_sample_pitch_mm),
+            "X-Effective-Sample-Pitch-Mm": str(max(settings.width_mm / (cols - 1), settings.height_mm / (rows - 1))),
+            "X-Grid-Size": f"{cols}x{rows}",
         },
     )
 

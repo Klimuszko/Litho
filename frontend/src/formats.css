@@ -34,6 +34,13 @@
   cursor: not-allowed;
 }
 
+.quality-note {
+  margin: -8px 0 16px;
+  color: #7c736a;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
 .stage.crop-stage {
   min-height: 0;
   margin-left: auto;
