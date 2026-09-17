@@ -1,6 +1,7 @@
 import struct
 
 import numpy as np
+import pytest
 from hypothesis import given, strategies as st
 
 from app.exporter import binary_stl
@@ -10,6 +11,7 @@ from app.mesh import (
     build_plate,
     removable_support_connector_dimensions,
     removable_support_dimensions,
+    removable_support_gap,
     validate_mesh,
 )
 
@@ -139,12 +141,27 @@ def test_unusually_shallow_custom_model_does_not_get_oversized_braces():
 
 def test_breakaway_connectors_are_small_and_only_minimally_overlap_plate():
     tab_width, tab_height, overlap, bottom_neck_height = removable_support_connector_dimensions(0.44)
-    assert np.isclose(tab_width, 1.76)
-    assert tab_height == 0.40
-    assert overlap == 0.15
-    assert bottom_neck_height == 0.40
+    assert np.isclose(tab_width, 2.0)
+    assert tab_height == 0.50
+    assert overlap == 0.18
+    assert bottom_neck_height == 0.50
     # Old connector section was 10 x 2 = 20 mm2 per bridge.
-    assert tab_width * tab_height < 0.8
+    assert tab_width * tab_height == 1.0
+    assert tab_width * tab_height <= 0.05 * 20
+
+
+@pytest.mark.parametrize("front_depth", [1.6, 3.2, 10.0])
+def test_wide_braces_keep_line_width_clearance_from_actual_model_depth(front_depth):
+    line_width = 0.44
+    plate = build_plate(np.full((4, 5), front_depth, dtype=np.float32), 100, 100)
+    supported = add_removable_support(plate, 100, 100, front_depth, line_width)
+    brace_height, _, _ = removable_support_dimensions(100, front_depth, 100)
+    support_vertices = supported.vertices[len(plate.vertices):]
+    brace_top_y = support_vertices[np.isclose(support_vertices[:, 2], brace_height), 1]
+    rear = brace_top_y[brace_top_y < 0]
+    front = brace_top_y[brace_top_y > front_depth]
+    assert rear.max() == pytest.approx(-removable_support_gap(line_width))
+    assert front.min() == pytest.approx(front_depth + removable_support_gap(line_width))
 
 
 def test_largest_support_footprint_allows_three_rows_on_256_mm_bed():

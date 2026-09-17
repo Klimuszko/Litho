@@ -69,7 +69,7 @@ def add_removable_support(
     )
     brace_width = min(10.0, width_mm / 8)
     margin = min(10.0, width_mm / 10)
-    gap = max(0.30, line_width_mm)
+    gap = removable_support_gap(line_width_mm)
     top_wall = max(0.80, 2 * line_width_mm)
     tab_width, tab_height, tab_overlap, pad_height = removable_support_connector_dimensions(line_width_mm)
     parts = [mesh]
@@ -107,13 +107,18 @@ def add_removable_support(
 
 def removable_support_connector_dimensions(line_width_mm: float) -> tuple[float, float, float, float]:
     """Return X width, Z height, plate overlap and bottom-neck height."""
-    tab_width = max(1.60, 4 * line_width_mm)
-    tab_height = 0.40
-    tab_overlap = 0.15
-    # Two layers even with the 0.20 mm production profile: strong enough while
-    # printing, but the narrow X section remains an easy breakaway fuse.
-    pad_height = 0.40
+    # Slightly stronger than the original 1.76 x 0.40 mm fuse, while remaining
+    # only 5% of the old 10 x 2 mm connector cross-section.
+    tab_width = max(2.00, 4.5 * line_width_mm)
+    tab_height = 0.50
+    tab_overlap = 0.18
+    pad_height = 0.50
     return tab_width, tab_height, tab_overlap, pad_height
+
+
+def removable_support_gap(line_width_mm: float) -> float:
+    """Clearance from both lithophane faces to the wide feet and braces."""
+    return max(0.30, line_width_mm)
 
 
 def removable_support_dimensions(
