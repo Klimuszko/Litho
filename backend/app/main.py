@@ -144,8 +144,8 @@ async def generate_housing(settings: HousingParams):
                 f"Obudowa: {settings.outer_width_mm:g} x {settings.outer_height_mm:g} x {settings.depth_mm:g} mm\n"
                 f"Kieszen panelu: {settings.panel_pocket_depth_mm:g} mm (panel {settings.panel_thickness_mm:g} mm + luz {settings.clearance_mm:g} mm)\n\n"
                 "Oba pliki STL sa juz obrocone plaska strona do stolu i nie wymagaja podpor.\n"
-                "Wloz panel od otwartego tylu i oprzyj kolnierz montazowy o wewnetrzny rant frontu.\n"
-                "Zamocuj kolnierz cienka spoina neutralnego silikonu lub kleju MS od strony wnetrza.\n"
+                "Wloz panel od otwartego tylu i rownomiernie docisnij jego kolnierz do frontu.\n"
+                f"Panel przejdzie pod {settings.panel_clip_count} sprezystymi zatrzaskami i zablokuje sie bez kleju.\n"
                 "Po zwiazaniu kleju uloz oswietlenie i przewod, a nastepnie zamontuj tylna pokrywe.\n"
                 "Przed drukiem produkcyjnym wykonaj krotka probe pasowania kieszeni dla swojego filamentu.\n"
             ).encode("utf-8"),
@@ -160,6 +160,7 @@ async def generate_housing(settings: HousingParams):
             "X-Panel-Size-Mm": f"{settings.panel_width_mm:g}x{settings.panel_height_mm:g}",
             "X-Housing-Outer-Size-Mm": f"{settings.outer_width_mm:g}x{settings.outer_height_mm:g}x{settings.depth_mm:g}",
             "X-Panel-Pocket-Depth-Mm": f"{settings.panel_pocket_depth_mm:g}",
+            "X-Panel-Clip-Count": str(settings.panel_clip_count),
             "X-Print-Orientation": "front-face-down",
             "X-Body-Triangle-Count": str(len(body.faces)),
             "X-Back-Triangle-Count": str(len(back.faces)),

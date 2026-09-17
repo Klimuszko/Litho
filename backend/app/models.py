@@ -204,6 +204,38 @@ class HousingParams(BaseModel):
         return self.bezel_overlap_mm if self.kind == "frame" else 0.8
 
     @property
+    def panel_clip_count(self) -> int:
+        return 6 if max(self.panel_width_mm, self.panel_height_mm) >= 175 else 4
+
+    @property
+    def panel_clip_width_mm(self) -> float:
+        return 9.0
+
+    @property
+    def panel_clip_reach_mm(self) -> float:
+        return 0.4
+
+    @property
+    def panel_clip_clearance_mm(self) -> float:
+        return 0.15
+
+    @property
+    def panel_clip_ramp_height_mm(self) -> float:
+        return 0.8
+
+    @property
+    def panel_clip_flex_thickness_mm(self) -> float:
+        return 0.8
+
+    @property
+    def panel_clip_relief_mm(self) -> float:
+        return 0.6
+
+    @property
+    def panel_clip_end_relief_mm(self) -> float:
+        return 0.6
+
+    @property
     def rear_opening_width_mm(self) -> float:
         return self.outer_width_mm - 2 * self.wall_mm
 

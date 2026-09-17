@@ -60,8 +60,9 @@ Widok `Obudowa` generuje podświetlany `Box` albo `Ramkę` dla paneli
 dokładnym wymiarem panelu Litho; aplikacja automatycznie dodaje ściany, kieszeń
 montażową 2,0 mm, luz, obramowanie i tylną pokrywę. Wynikiem jest ZIP zawierający
 osobny STL korpusu i pokrywy oraz instrukcję montażu. Panel wkłada się od otwartego
-tyłu, opiera kołnierzem o wewnętrzny rant i mocuje od środka przed zamknięciem
-pokrywy. Oba modele są eksportowane płaską stroną do stołu i nie wymagają podpór.
+tyłu, opiera kołnierzem o wewnętrzny rant i dociska pod 4 lub 6 sprężystych
+zatrzasków. Montaż nie wymaga kleju ani dodatkowych części. Oba modele są
+eksportowane płaską stroną do stołu i nie wymagają podpór.
 
 ```text
 POST /api/housing/generate

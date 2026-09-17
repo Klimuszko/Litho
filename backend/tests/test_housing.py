@@ -59,6 +59,34 @@ def test_box_and_frame_derive_outer_size_from_exact_panel_size():
     assert build_housing_body(box).vertices[:, 1].max() == pytest.approx(37.6)
 
 
+@pytest.mark.parametrize("width,height,expected", [
+    (150, 100, 4), (180, 130, 6), (200, 150, 6), (100, 150, 4), (130, 180, 6),
+])
+def test_integrated_clip_count_scales_with_panel(width, height, expected):
+    params = HousingParams(panel_width_mm=width, panel_height_mm=height)
+    assert params.panel_clip_count == expected
+    assert params.panel_clip_reach_mm == pytest.approx(0.4)
+    assert params.panel_clip_ramp_height_mm == pytest.approx(0.8)
+    assert params.panel_clip_flex_thickness_mm == pytest.approx(0.8)
+    assert params.panel_clip_relief_mm == pytest.approx(0.6)
+
+
+def test_clip_hook_reaches_over_panel_edge_at_controlled_clearance():
+    params = HousingParams(panel_width_mm=150, panel_height_mm=100)
+    mesh = build_housing_body(params)
+    hook_y = params.front_thickness_mm + params.panel_thickness_mm + params.panel_clip_clearance_mm
+    left_hook_tip = params.panel_x0_mm - params.clearance_mm / 2 + params.panel_clip_reach_mm
+    clip_center_z = params.panel_z0_mm + params.panel_height_mm / 2
+    vertices = mesh.vertices
+    assert any(
+        x == pytest.approx(left_hook_tip)
+        and y == pytest.approx(hook_y)
+        and z == pytest.approx(clip_center_z - params.panel_clip_width_mm / 2)
+        for x, y, z in vertices
+    )
+    assert left_hook_tip - params.panel_x0_mm == pytest.approx(0.2)
+
+
 @pytest.mark.parametrize("builder", [build_housing_body, build_housing_back])
 def test_export_orientation_places_front_flat_on_print_bed(builder):
     assembly_mesh = builder(HousingParams(kind="box"))
@@ -95,6 +123,7 @@ def test_housing_api_returns_body_and_back_as_separate_stls():
     assert response.headers["x-housing-kind"] == "frame"
     assert response.headers["x-housing-outer-size-mm"] == "174x124x40"
     assert response.headers["x-panel-pocket-depth-mm"] == "2"
+    assert response.headers["x-panel-clip-count"] == "4"
     assert response.headers["x-print-orientation"] == "front-face-down"
     with ZipFile(BytesIO(response.content)) as archive:
         assert sorted(archive.namelist()) == [
@@ -106,3 +135,6 @@ def test_housing_api_returns_body_and_back_as_separate_stls():
             payload = archive.read(name)
             assert len(payload) > 84
             assert payload.startswith(b"Lithophane Generator V1")
+        instructions = archive.read("README-PL.txt").decode("utf-8")
+        assert "sprezystymi zatrzaskami" in instructions
+        assert "bez kleju" in instructions

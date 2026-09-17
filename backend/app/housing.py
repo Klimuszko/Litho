@@ -77,9 +77,54 @@ def build_housing_body(params) -> Mesh:
     opening_z0 = panel_z0 + params.effective_bezel_overlap_mm
     opening_z1 = panel_z1 - params.effective_bezel_overlap_mm
 
-    xs = [0, wall, pocket_x0, panel_x0, opening_x0, opening_x1, panel_x1, pocket_x1, width - wall, width]
-    ys = [0, bezel_front, pocket_y1, depth]
-    zs = [0, wall, pocket_z0, panel_z0, opening_z0, opening_z1, panel_z1, pocket_z1, height - wall, height]
+    clip_y0 = pocket_y0 + params.panel_thickness_mm + params.panel_clip_clearance_mm
+    clip_steps = 4
+    clip_step_height = params.panel_clip_ramp_height_mm / clip_steps
+    clip_ys = [clip_y0 + index * clip_step_height for index in range(clip_steps + 1)]
+    clip_reaches = [params.panel_clip_reach_mm * index / clip_steps for index in range(1, clip_steps + 1)]
+
+    def centered_intervals(start: float, end: float, count: int) -> list[tuple[float, float]]:
+        span = end - start
+        half = params.panel_clip_width_mm / 2
+        return [
+            (start + span * index / (count + 1) - half, start + span * index / (count + 1) + half)
+            for index in range(1, count + 1)
+        ]
+
+    if params.panel_clip_count == 4:
+        vertical_clips = centered_intervals(panel_z0, panel_z1, 1)
+        horizontal_clips = centered_intervals(panel_x0, panel_x1, 1)
+    elif params.panel_width_mm >= params.panel_height_mm:
+        vertical_clips = centered_intervals(panel_z0, panel_z1, 1)
+        horizontal_clips = centered_intervals(panel_x0, panel_x1, 2)
+    else:
+        vertical_clips = centered_intervals(panel_z0, panel_z1, 2)
+        horizontal_clips = centered_intervals(panel_x0, panel_x1, 1)
+
+    clip_xs = [value for interval in horizontal_clips for value in interval]
+    clip_zs = [value for interval in vertical_clips for value in interval]
+    reach_xs = [pocket_x0 + reach for reach in clip_reaches] + [pocket_x1 - reach for reach in clip_reaches]
+    reach_zs = [pocket_z0 + reach for reach in clip_reaches] + [pocket_z1 - reach for reach in clip_reaches]
+    flex = params.panel_clip_flex_thickness_mm
+    relief = params.panel_clip_relief_mm
+    flex_xs = [pocket_x0 - flex - relief, pocket_x0 - flex, pocket_x1 + flex, pocket_x1 + flex + relief]
+    flex_zs = [pocket_z0 - flex - relief, pocket_z0 - flex, pocket_z1 + flex, pocket_z1 + flex + relief]
+
+    xs = [0, wall, pocket_x0, panel_x0, opening_x0, opening_x1, panel_x1, pocket_x1, width - wall, width, *clip_xs, *reach_xs, *flex_xs]
+    clip_release_y1 = clip_ys[-1] + params.panel_clip_end_relief_mm
+    ys = [0, bezel_front, pocket_y1, clip_release_y1, depth, *clip_ys]
+    zs = [0, wall, pocket_z0, panel_z0, opening_z0, opening_z1, panel_z1, pocket_z1, height - wall, height, *clip_zs, *reach_zs, *flex_zs]
+
+    def in_intervals(value: float, intervals: list[tuple[float, float]]) -> bool:
+        return any(start < value < end for start, end in intervals)
+
+    def clip_reach_at(y: float) -> float:
+        if not clip_y0 < y < clip_ys[-1]:
+            return 0.0
+        # The hook is deepest nearest the panel, then retracts in four
+        # 0.2 mm steps to form a support-free insertion ramp.
+        step = min(int((y - clip_y0) / clip_step_height), clip_steps - 1)
+        return params.panel_clip_reach_mm * (clip_steps - step) / clip_steps
 
     def solid(x: float, y: float, z: float) -> bool:
         material = x < wall or x > width - wall or z < wall or z > height - wall
@@ -89,6 +134,50 @@ def build_housing_body(params) -> Mesh:
         if pocket_y0 < y < pocket_y1:
             pocket = pocket_x0 < x < pocket_x1 and pocket_z0 < z < pocket_z1
             material = material or not pocket
+        clip_active = bezel_front < y < clip_ys[-1]
+        side_span = in_intervals(z, vertical_clips)
+        top_bottom_span = in_intervals(x, horizontal_clips)
+        if clip_active:
+            side_fin = side_span and (
+                pocket_x0 - flex < x < pocket_x0 or pocket_x1 < x < pocket_x1 + flex
+            )
+            top_bottom_fin = top_bottom_span and (
+                pocket_z0 - flex < z < pocket_z0 or pocket_z1 < z < pocket_z1 + flex
+            )
+            material = material or side_fin or top_bottom_fin
+
+        reach = clip_reach_at(y)
+        if reach:
+            side_clip = side_span and (
+                pocket_x0 < x < pocket_x0 + reach or pocket_x1 - reach < x < pocket_x1
+            )
+            top_bottom_clip = top_bottom_span and (
+                pocket_z0 < z < pocket_z0 + reach or pocket_z1 - reach < z < pocket_z1
+            )
+            material = material or side_clip or top_bottom_clip
+
+        if clip_active:
+            side_relief = side_span and (
+                pocket_x0 - flex - relief < x < pocket_x0 - flex
+                or pocket_x1 + flex < x < pocket_x1 + flex + relief
+            )
+            top_bottom_relief = top_bottom_span and (
+                pocket_z0 - flex - relief < z < pocket_z0 - flex
+                or pocket_z1 + flex < z < pocket_z1 + flex + relief
+            )
+            if side_relief or top_bottom_relief:
+                material = False
+        if clip_ys[-1] < y < clip_release_y1:
+            side_end_relief = side_span and (
+                pocket_x0 - flex - relief < x < pocket_x0
+                or pocket_x1 < x < pocket_x1 + flex + relief
+            )
+            top_bottom_end_relief = top_bottom_span and (
+                pocket_z0 - flex - relief < z < pocket_z0
+                or pocket_z1 < z < pocket_z1 + flex + relief
+            )
+            if side_end_relief or top_bottom_end_relief:
+                material = False
         return material
 
     return _cell_mesh(xs, ys, zs, solid)

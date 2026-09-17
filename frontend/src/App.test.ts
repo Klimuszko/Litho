@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { automaticCrop, effectiveBorderHeight, effectiveGrid, imageArea, initial, inscribedSize, panCrop, Params, resolvedBorders, rotatedSize, validateParams, zoomCrop, zoomCropAt } from "./App";
-import { housingOuterSize, initialHousing, validateHousing } from "./HousingGenerator";
+import { housingClipCount, housingOuterSize, initialHousing, validateHousing } from "./HousingGenerator";
 
 const valid: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .8, max_thickness_mm: 3, gamma: 1, brightness: 1, contrast: 1, nozzle_diameter_mm: .4, quality_profile: "optimal", orientation: "landscape", border_width_mm: 0, border_widths_mm: null, border_height_mm: 3, mounting_flange: false, removable_support: false, invert: false, mirror: false, rotation_degrees: 0, crop: {x: 0, y: 0, width: 1, height: 1}};
 
@@ -102,5 +102,9 @@ describe("housing generator", () => {
   });
   it("rejects a frame that exceeds the 256 mm bed", () => {
     expect(validateHousing({...initialHousing, kind: "frame", panel_width_mm: 240})).toContain("256");
+  });
+  it("uses four clips for the small panel and six for larger formats", () => {
+    expect(housingClipCount(initialHousing)).toBe(4);
+    expect(housingClipCount({...initialHousing, panel_width_mm: 180})).toBe(6);
   });
 });

@@ -34,6 +34,10 @@ export function housingOuterSize(params: HousingParams) {
   return {width: params.panel_width_mm + 2 * margin, height: params.panel_height_mm + 2 * margin};
 }
 
+export function housingClipCount(params: HousingParams) {
+  return Math.max(params.panel_width_mm, params.panel_height_mm) >= 175 ? 6 : 4;
+}
+
 export function validateHousing(params: HousingParams): string {
   if (params.panel_width_mm < 20 || params.panel_height_mm < 20) return "Panel musi mieć co najmniej 20 × 20 mm.";
   const outer = housingOuterSize(params);
@@ -51,6 +55,7 @@ export default function HousingGenerator({onOpenLithophane}: {onOpenLithophane: 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const outer = housingOuterSize(params);
+  const clipCount = housingClipCount(params);
   const landscape = params.panel_width_mm >= params.panel_height_mm;
   const set = <K extends keyof HousingParams>(key: K, value: HousingParams[K]) => setParams(current => ({...current, [key]: value}));
   const chooseFormat = (short: number, long: number) => {
@@ -111,20 +116,20 @@ export default function HousingGenerator({onOpenLithophane}: {onOpenLithophane: 
         <div className="housing-presets">{HOUSING_FORMATS.map(format => <button key={format.label} className={!custom && selectedPreset === format ? "active" : ""} onClick={() => chooseFormat(format.short, format.long)}>{format.label}</button>)}<button className={custom ? "active" : ""} onClick={() => setCustom(true)}>Custom</button></div>
         {custom && <div className="dimension-grid"><label>Szerokość<input type="number" min="20" max="250" value={params.panel_width_mm} onChange={event => setDimension("panel_width_mm", event.target.value)}/><span>mm</span></label><label>Wysokość<input type="number" min="20" max="250" value={params.panel_height_mm} onChange={event => setDimension("panel_height_mm", event.target.value)}/><span>mm</span></label></div>}
         <p className="quality-note housing-note">Podajesz dokładny wymiar gotowej litofanii. Kieszeń montażowa i obudowa są doliczane automatycznie.</p>
-        <p className="quality-note flange-note">Wymagany panel z opcją „Kołnierz montażowy Litho Mount V1”. Panel wkłada się od tyłu i mocuje na rancie od strony wnętrza.</p>
+        <p className="quality-note flange-note">Wymagany panel z opcją „Kołnierz montażowy Litho Mount V1”. Panel wkłada się od tyłu i dociska pod sprężyste zatrzaski — bez kleju.</p>
         <h2><span>03</span> Głębokość</h2>
         <Range label="Głębokość obudowy" value={params.depth_mm} min={20} max={80} step={1} onChange={value => set("depth_mm", value)}/>
         <div className="housing-spec">
           <span><small>KIESZEŃ PANELU</small><b>{(params.panel_thickness_mm + params.clearance_mm).toFixed(1)} mm</b></span>
-          <span><small>ŚCIANA</small><b>{params.wall_mm.toFixed(1)} mm</b></span>
+          <span><small>ZATRZASKI</small><b>{clipCount} × 0.4 mm</b></span>
           <span><small>PRZEWÓD</small><b>{params.cable_width_mm} × {params.cable_height_mm} mm</b></span>
         </div>
       </div>
-      <div className="sidebar-foot">Montaż panelu od środka · serwisowa pokrywa tylna</div>
+      <div className="sidebar-foot">Zintegrowane zatrzaski · bez kleju · pokrywa serwisowa</div>
     </aside>
     <section className="workbench housing-workbench">
       <article className="preview housing-preview">
-        <div className="preview-head"><div><p className="eyebrow">PODGLĄD KONSTRUKCJI</p><h2>{params.kind === "box" ? "Podświetlany Box" : "Podświetlana ramka"}</h2></div><span className="housing-badge">Montaż panelu od środka</span></div>
+        <div className="preview-head"><div><p className="eyebrow">PODGLĄD KONSTRUKCJI</p><h2>{params.kind === "box" ? "Podświetlany Box" : "Podświetlana ramka"}</h2></div><span className="housing-badge">{clipCount} zatrzasków · bez kleju</span></div>
         <div className="housing-stage">
           <div className={`housing-model ${params.kind}`} style={{aspectRatio: `${outer.width} / ${outer.height}`, padding: `${visualBorder}px`}}>
             <div className="housing-panel"><span>LITHO</span><small>{params.panel_width_mm} × {params.panel_height_mm} mm</small></div>
