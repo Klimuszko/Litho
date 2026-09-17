@@ -4,7 +4,14 @@ import numpy as np
 from hypothesis import given, strategies as st
 
 from app.exporter import binary_stl
-from app.mesh import add_removable_support, apply_border, build_plate, removable_support_dimensions, validate_mesh
+from app.mesh import (
+    add_removable_support,
+    apply_border,
+    build_plate,
+    removable_support_connector_dimensions,
+    removable_support_dimensions,
+    validate_mesh,
+)
 
 
 @given(
@@ -96,7 +103,7 @@ def test_removable_support_extends_only_in_thickness_axis():
     assert float(supported.vertices[:, 2].max()) == 75
     assert float(supported.vertices[:, 1].min()) == -18
     assert np.isclose(float(supported.vertices[:, 1].max()), 21.2)
-    assert len(supported.faces) == len(plate.faces) + 144
+    assert len(supported.faces) == len(plate.faces) + 192
     validation = validate_mesh(supported)
     assert validation == {"watertight": True, "boundary_edges": 0, "degenerate_faces": 0, "winding_errors": 0, "positive_volume": True}
 
@@ -108,7 +115,7 @@ def test_removable_support_scales_for_two_hundred_mm_model():
     assert np.isclose(float(supported.vertices[:, 1].max()), 28.2)
     support_vertices = supported.vertices[len(plate.vertices):]
     assert np.isclose(float(support_vertices[:, 2].max()), 45)
-    assert len(supported.faces) == len(plate.faces) + 216
+    assert len(supported.faces) == len(plate.faces) + 288
 
 
 def test_largest_landscape_model_keeps_full_size_support():
@@ -118,7 +125,7 @@ def test_largest_landscape_model_keeps_full_size_support():
     assert np.isclose(float(support_vertices[:, 2].max()), 45)
     assert np.isclose(float(supported.vertices[:, 1].min()), -25)
     assert np.isclose(float(supported.vertices[:, 1].max()), 28.2)
-    assert len(supported.faces) == len(plate.faces) + 216
+    assert len(supported.faces) == len(plate.faces) + 288
     top = support_vertices[np.isclose(support_vertices[:, 2], 45)]
     # Each brace keeps a printable Y thickness at its top instead of ending in
     # a zero-thickness knife edge that a slicer may discard.
@@ -128,6 +135,16 @@ def test_largest_landscape_model_keeps_full_size_support():
 def test_unusually_shallow_custom_model_does_not_get_oversized_braces():
     brace_height, extension, count = removable_support_dimensions(50, 3.2, 200)
     assert (brace_height, extension, count) == (25, 25, 2)
+
+
+def test_breakaway_connectors_are_small_and_only_minimally_overlap_plate():
+    tab_width, tab_height, overlap, bottom_neck_height = removable_support_connector_dimensions(0.44)
+    assert np.isclose(tab_width, 1.76)
+    assert tab_height == 0.40
+    assert overlap == 0.15
+    assert bottom_neck_height == 0.40
+    # Old connector section was 10 x 2 = 20 mm2 per bridge.
+    assert tab_width * tab_height < 0.8
 
 
 def test_largest_support_footprint_allows_three_rows_on_256_mm_bed():

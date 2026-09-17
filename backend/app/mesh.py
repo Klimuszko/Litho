@@ -71,16 +71,20 @@ def add_removable_support(
     margin = min(10.0, width_mm / 10)
     gap = max(0.30, line_width_mm)
     top_wall = max(0.80, 2 * line_width_mm)
-    tab_depth = 2 * line_width_mm
-    pad_height = 0.40
+    tab_width, tab_height, tab_overlap, pad_height = removable_support_connector_dimensions(line_width_mm)
     parts = [mesh]
     positions = [margin, width_mm - margin - brace_width]
     if support_count == 3:
         positions.insert(1, (width_mm - brace_width) / 2)
     for x0 in positions:
         x1 = x0 + brace_width
-        # A thin local pad joins the front and rear braces at bed level.
-        parts.append(_box(x0, x1, -extension, front_depth_mm + extension, 0, pad_height))
+        # Keep the wide pads away from the model.  Only a narrow, one-layer
+        # neck crosses underneath it, so the foot can snap away cleanly.
+        parts.append(_box(x0, x1, -extension, -gap, 0, pad_height))
+        parts.append(_box(x0, x1, front_depth_mm + gap, front_depth_mm + extension, 0, pad_height))
+        tab_x0 = (x0 + x1 - tab_width) / 2
+        tab_x1 = tab_x0 + tab_width
+        parts.append(_box(tab_x0, tab_x1, -gap, front_depth_mm + gap, 0, pad_height))
         parts.append(_polygon_prism_x(x0, x1, (
             (-extension, 0), (-gap, 0),
             (-gap, brace_height), (-gap - top_wall, brace_height),
@@ -90,14 +94,26 @@ def add_removable_support(
             (front_depth_mm + gap + top_wall, brace_height),
             (front_depth_mm + gap, brace_height),
         )))
-        # Three short bridges form a perforated break line on the reliable flat
-        # rear surface. They are limited to two extrusion lines in depth.
+        # Three small fuses connect the brace to the reliable flat rear face.
+        # Their narrow X/Z section is intentionally much weaker than the old
+        # full-width 10 x 2 mm bridges and overlaps the plate only minimally.
         for center_z in (3.0, brace_height * 0.50, brace_height - 3.0):
-            z0 = max(pad_height, center_z - 1.0)
-            z1 = min(brace_height, center_z + 1.0)
+            z0 = max(pad_height, center_z - tab_height / 2)
+            z1 = min(brace_height, center_z + tab_height / 2)
             if z1 > z0:
-                parts.append(_box(x0, x1, -gap - 0.05, tab_depth, z0, z1))
+                parts.append(_box(tab_x0, tab_x1, -gap - 0.05, tab_overlap, z0, z1))
     return combine_meshes(*parts)
+
+
+def removable_support_connector_dimensions(line_width_mm: float) -> tuple[float, float, float, float]:
+    """Return X width, Z height, plate overlap and bottom-neck height."""
+    tab_width = max(1.60, 4 * line_width_mm)
+    tab_height = 0.40
+    tab_overlap = 0.15
+    # Two layers even with the 0.20 mm production profile: strong enough while
+    # printing, but the narrow X section remains an easy breakaway fuse.
+    pad_height = 0.40
+    return tab_width, tab_height, tab_overlap, pad_height
 
 
 def removable_support_dimensions(
