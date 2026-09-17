@@ -2,6 +2,9 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+MOUNTING_FLANGE_WIDTH_MM = 2.0
+MOUNTING_FLANGE_HEIGHT_MM = 1.6
+
 
 class Crop(BaseModel):
     x: float = Field(0, ge=0, le=1)
@@ -38,6 +41,7 @@ class LithophaneParams(BaseModel):
     border_width_mm: float = Field(0, ge=0, le=20)
     border_widths_mm: BorderWidths | None = None
     border_height_mm: float | None = Field(None, ge=0.4, le=20)
+    mounting_flange: bool = Field(False, description="Standard 2.0 mm internal mounting rim with a fixed 1.6 mm thickness")
     removable_support: bool = False
     invert: bool = False
     mirror: bool = Field(False, description="Creative mirror shown in preview; mesh applies the inverse technical orientation")
@@ -57,7 +61,7 @@ class LithophaneParams(BaseModel):
         if self.max_thickness_mm - self.min_thickness_mm > 12:
             raise ValueError("Thickness range cannot exceed 12 mm")
         if self.has_border:
-            height = self.border_height_mm or self.max_thickness_mm
+            height = self.effective_border_height
             if height > 20:
                 raise ValueError("border_height_mm cannot exceed 20 mm")
             if height < 2 * self.nozzle_diameter_mm:
@@ -66,22 +70,32 @@ class LithophaneParams(BaseModel):
 
     @property
     def effective_border_height(self) -> float:
+        if self.mounting_flange:
+            return MOUNTING_FLANGE_HEIGHT_MM
         return self.border_height_mm or self.max_thickness_mm
 
     @property
     def border_top_mm(self) -> float:
+        if self.mounting_flange:
+            return MOUNTING_FLANGE_WIDTH_MM
         return self.border_widths_mm.top if self.border_widths_mm else self.border_width_mm
 
     @property
     def border_right_mm(self) -> float:
+        if self.mounting_flange:
+            return MOUNTING_FLANGE_WIDTH_MM
         return self.border_widths_mm.right if self.border_widths_mm else self.border_width_mm
 
     @property
     def border_bottom_mm(self) -> float:
+        if self.mounting_flange:
+            return MOUNTING_FLANGE_WIDTH_MM
         return self.border_widths_mm.bottom if self.border_widths_mm else self.border_width_mm
 
     @property
     def border_left_mm(self) -> float:
+        if self.mounting_flange:
+            return MOUNTING_FLANGE_WIDTH_MM
         return self.border_widths_mm.left if self.border_widths_mm else self.border_width_mm
 
     @property

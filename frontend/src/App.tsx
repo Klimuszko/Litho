@@ -6,12 +6,14 @@ export type Params = {
   gamma: number; brightness: number; contrast: number;
   nozzle_diameter_mm: 0.2 | 0.4; quality_profile: "economic" | "optimal" | "maximum";
   orientation: "portrait" | "landscape"; border_width_mm: number; border_height_mm: number;
-  border_widths_mm: BorderWidths | null;
+  border_widths_mm: BorderWidths | null; mounting_flange: boolean;
   removable_support: boolean; invert: boolean; mirror: boolean; rotation_degrees: number;
   crop: {x: number; y: number; width: number; height: number};
 };
 type Crop = Params["crop"];
 type BorderWidths = {top: number; right: number; bottom: number; left: number};
+export const MOUNTING_FLANGE_WIDTH_MM = 2;
+export const MOUNTING_FLANGE_HEIGHT_MM = 1.6;
 
 export function automaticCrop(imageWidth: number, imageHeight: number, modelWidth: number, modelHeight: number): Crop {
   const sourceAspect = imageWidth / imageHeight;
@@ -114,10 +116,15 @@ export function imageArea(width: number, height: number, border: number | Border
   const borders = typeof border === "number" ? {top: border, right: border, bottom: border, left: border} : border;
   return {width: width - borders.left - borders.right, height: height - borders.top - borders.bottom};
 }
-export const initial: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .8, max_thickness_mm: 3, gamma: 1, brightness: 1, contrast: 1.25, nozzle_diameter_mm: .4, quality_profile: "optimal", orientation: "landscape", border_width_mm: 0, border_widths_mm: null, border_height_mm: 3, removable_support: false, invert: false, mirror: false, rotation_degrees: 0, crop: {x: 0, y: 0, width: 1, height: 1}};
+export const initial: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .8, max_thickness_mm: 3, gamma: 1, brightness: 1, contrast: 1.25, nozzle_diameter_mm: .4, quality_profile: "optimal", orientation: "landscape", border_width_mm: 0, border_widths_mm: null, border_height_mm: 3, mounting_flange: false, removable_support: false, invert: false, mirror: false, rotation_degrees: 0, crop: {x: 0, y: 0, width: 1, height: 1}};
 
 export function resolvedBorders(p: Params): BorderWidths {
+  if (p.mounting_flange) return {top: MOUNTING_FLANGE_WIDTH_MM, right: MOUNTING_FLANGE_WIDTH_MM, bottom: MOUNTING_FLANGE_WIDTH_MM, left: MOUNTING_FLANGE_WIDTH_MM};
   return p.border_widths_mm || {top: p.border_width_mm, right: p.border_width_mm, bottom: p.border_width_mm, left: p.border_width_mm};
+}
+
+export function effectiveBorderHeight(p: Params): number {
+  return p.mounting_flange ? MOUNTING_FLANGE_HEIGHT_MM : p.border_height_mm;
 }
 
 export function validateParams(p: Params): string {
@@ -127,7 +134,7 @@ export function validateParams(p: Params): string {
   if (p.max_thickness_mm - p.min_thickness_mm > 12) return "Zakres grubości nie może przekraczać 12 mm.";
   const borders = resolvedBorders(p);
   if (Object.values(borders).some(value => value < 0 || value > 20)) return "Każdy bok ramki musi mieć od 0 do 20 mm.";
-  if (Object.values(borders).some(value => value > 0) && p.border_height_mm < 2 * p.nozzle_diameter_mm) return `Grubość ramki musi mieć co najmniej ${(2 * p.nozzle_diameter_mm).toFixed(1)} mm dla wybranej dyszy.`;
+  if (Object.values(borders).some(value => value > 0) && effectiveBorderHeight(p) < 2 * p.nozzle_diameter_mm) return `Grubość ramki musi mieć co najmniej ${(2 * p.nozzle_diameter_mm).toFixed(1)} mm dla wybranej dyszy.`;
   if (borders.left + borders.right >= p.width_mm || borders.top + borders.bottom >= p.height_mm) return "Ramka nie może zajmować całego obszaru zdjęcia.";
   return "";
 }
@@ -213,6 +220,13 @@ export default function App() {
     const size = sourceSize ? rotatedSize(sourceSize, p.rotation_degrees) : null;
     const area = imageArea(p.width_mm, p.height_mm, next);
     return {...p, border_widths_mm: next, crop: size && area.width > 0 && area.height > 0 ? automaticCrop(size.width, size.height, area.width, area.height) : p.crop};
+  });
+  const setMountingFlange = (enabled: boolean) => setParams(p => {
+    const next = {...p, mounting_flange: enabled};
+    const nextBorders = resolvedBorders(next);
+    const size = sourceSize ? rotatedSize(sourceSize, p.rotation_degrees) : null;
+    const area = imageArea(p.width_mm, p.height_mm, nextBorders);
+    return {...next, crop: size ? automaticCrop(size.width, size.height, area.width, area.height) : p.crop};
   });
 
   const beginDrag = (event: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -357,11 +371,17 @@ export default function App() {
         <h3>Jakość geometrii</h3>
         <div className="formats"><button className={params.quality_profile === "economic" ? "active" : ""} onClick={() => set("quality_profile", "economic")}>Ekonomiczna</button><button className={params.quality_profile === "optimal" ? "active" : ""} onClick={() => set("quality_profile", "optimal")}>Optymalna</button><button className={params.quality_profile === "maximum" ? "active" : ""} onClick={() => set("quality_profile", "maximum")}>Maksymalna</button></div>
         <p className="quality-note">Próbka XY: {grid.pitch.toFixed(3)} mm · linia: {quality.line} mm · warstwa: {quality.layer} mm · siatka obrazu: {gridX} × {gridY}{anyBorder ? ` · z ramką: ${grid.totalCols} × ${grid.totalRows}` : ""}</p>
-        {!customBorder && <Slider label="Szerokość ramki (wewnątrz formatu)" value={params.border_width_mm} min={0} max={20} step={.5} unit=" mm" onChange={n => setParams(p => ({...p, border_width_mm: n, border_widths_mm: null, crop: fitCrop(p.width_mm, p.height_mm, n)}))}/>}
-        <label className="check compact-check"><input type="checkbox" checked={customBorder} onChange={e => { const enabled = e.target.checked; setCustomBorder(enabled); setParams(p => { const current = resolvedBorders(p); const next = enabled ? current : {top: current.top, right: current.top, bottom: current.top, left: current.top}; const size = sourceSize ? rotatedSize(sourceSize, p.rotation_degrees) : null; const area = imageArea(p.width_mm, p.height_mm, next); return {...p, border_width_mm: next.top, border_widths_mm: enabled ? current : null, crop: size ? automaticCrop(size.width, size.height, area.width, area.height) : p.crop}; }); }}/><span>Ustaw każdy bok ramki osobno</span></label>
-        {customBorder && <div className="border-grid"><Slider label="Góra" value={borders.top} min={0} max={20} step={.5} unit=" mm" onChange={n => setBorderSide("top", n)}/><Slider label="Prawo" value={borders.right} min={0} max={20} step={.5} unit=" mm" onChange={n => setBorderSide("right", n)}/><Slider label="Dół" value={borders.bottom} min={0} max={20} step={.5} unit=" mm" onChange={n => setBorderSide("bottom", n)}/><Slider label="Lewo" value={borders.left} min={0} max={20} step={.5} unit=" mm" onChange={n => setBorderSide("left", n)}/></div>}
-        {anyBorder && <Slider label="Grubość ramki" value={params.border_height_mm} min={params.nozzle_diameter_mm * 2} max={10} step={.1} unit=" mm" onChange={n => set("border_height_mm", n)}/>}
-        {anyBorder && params.border_height_mm < params.max_thickness_mm && <p className="quality-note warning-note">Cienka ramka: ciemne fragmenty reliefu będą wystawały ponad jej powierzchnię. Do ramki ochronnej zalecamy grubość co najmniej równą maksymalnej grubości obrazu.</p>}
+        <h3>Krawędź panelu</h3>
+        <label className="check"><input type="checkbox" checked={params.mounting_flange} onChange={e => setMountingFlange(e.target.checked)}/><span>Kołnierz montażowy Litho Mount V1</span></label>
+        {params.mounting_flange && <p className="quality-note flange-note">Stały kołnierz 2,0 mm wokół panelu · grubość 1,6 mm · wewnątrz wybranego formatu. Ręczne ustawienia ramki pozostają zapamiętane.</p>}
+        {params.mounting_flange && params.max_thickness_mm > MOUNTING_FLANGE_HEIGHT_MM && <p className="quality-note warning-note">Relief obrazu będzie wystawał ponad kołnierz montażowy. Jest to zamierzone: strefa wsuwana w uchwyt zachowuje stałą grubość 1,6 mm.</p>}
+        {!params.mounting_flange && <>
+          {!customBorder && <Slider label="Szerokość ramki (wewnątrz formatu)" value={params.border_width_mm} min={0} max={20} step={.5} unit=" mm" onChange={n => setParams(p => ({...p, border_width_mm: n, border_widths_mm: null, crop: fitCrop(p.width_mm, p.height_mm, n)}))}/>}
+          <label className="check compact-check"><input type="checkbox" checked={customBorder} onChange={e => { const enabled = e.target.checked; setCustomBorder(enabled); setParams(p => { const current = resolvedBorders(p); const next = enabled ? current : {top: current.top, right: current.top, bottom: current.top, left: current.top}; const size = sourceSize ? rotatedSize(sourceSize, p.rotation_degrees) : null; const area = imageArea(p.width_mm, p.height_mm, next); return {...p, border_width_mm: next.top, border_widths_mm: enabled ? current : null, crop: size ? automaticCrop(size.width, size.height, area.width, area.height) : p.crop}; }); }}/><span>Ustaw każdy bok ramki osobno</span></label>
+          {customBorder && <div className="border-grid"><Slider label="Góra" value={borders.top} min={0} max={20} step={.5} unit=" mm" onChange={n => setBorderSide("top", n)}/><Slider label="Prawo" value={borders.right} min={0} max={20} step={.5} unit=" mm" onChange={n => setBorderSide("right", n)}/><Slider label="Dół" value={borders.bottom} min={0} max={20} step={.5} unit=" mm" onChange={n => setBorderSide("bottom", n)}/><Slider label="Lewo" value={borders.left} min={0} max={20} step={.5} unit=" mm" onChange={n => setBorderSide("left", n)}/></div>}
+          {anyBorder && <Slider label="Grubość ramki" value={params.border_height_mm} min={params.nozzle_diameter_mm * 2} max={10} step={.1} unit=" mm" onChange={n => set("border_height_mm", n)}/>}
+          {anyBorder && params.border_height_mm < params.max_thickness_mm && <p className="quality-note warning-note">Cienka ramka: ciemne fragmenty reliefu będą wystawały ponad jej powierzchnię. Do ramki ochronnej zalecamy grubość co najmniej równą maksymalnej grubości obrazu.</p>}
+        </>}
         <label className="check"><input type="checkbox" checked={params.removable_support} onChange={e => set("removable_support", e.target.checked)}/><span>Dodaj odrywaną stopę do druku pionowego</span></label>
         {params.removable_support && <p className="quality-note">Kompaktowa podpora seryjna · 2 zastrzały, a dla dużych formatów 3 · maks. 45 mm wysokości i 25 mm wysunięcia na stronę · bez brimu w STL · wąskie bezpieczniki do łatwego odłamania</p>}
         <label className="check"><input type="checkbox" checked={params.invert} onChange={e => set("invert", e.target.checked)}/><span>Odwróć obraz</span></label>

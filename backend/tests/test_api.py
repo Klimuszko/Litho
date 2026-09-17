@@ -1,5 +1,6 @@
 from io import BytesIO
 
+import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
@@ -112,6 +113,28 @@ def test_asymmetric_border_stays_inside_selected_final_dimensions():
     _, mesh, _ = pipeline(sample_png(), params)
     assert float(mesh.vertices[:, 0].max()) == 150
     assert float(mesh.vertices[:, 2].max()) == 100
+
+
+def test_mounting_flange_has_fixed_geometry_and_preserves_manual_frame_settings():
+    params = LithophaneParams(
+        width_mm=150,
+        height_mm=100,
+        border_width_mm=10,
+        border_height_mm=0.7,
+        mounting_flange=True,
+        resolution=24,
+    )
+    assert params.border_width_mm == 10
+    assert params.border_height_mm == 0.7
+    assert (params.border_top_mm, params.border_right_mm, params.border_bottom_mm, params.border_left_mm) == (2, 2, 2, 2)
+    assert params.effective_border_height == 1.6
+    assert (params.image_width_mm, params.image_height_mm) == (146, 96)
+    _, mesh, _ = pipeline(sample_png(), params)
+    assert float(mesh.vertices[:, 0].max()) == 150
+    assert float(mesh.vertices[:, 2].max()) == 100
+    front_vertex_count = len(mesh.vertices) // 2
+    assert float(mesh.vertices[0, 1]) == pytest.approx(1.6)
+    assert float(mesh.vertices[front_vertex_count - 1, 1]) == pytest.approx(1.6)
 
 
 def test_optional_removable_support_is_reported_and_added():
