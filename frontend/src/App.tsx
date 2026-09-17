@@ -159,6 +159,7 @@ export default function App() {
   const [rotatedPreview, setRotatedPreview] = useState<HTMLCanvasElement | null>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const drag = useRef<{pointerId: number; x: number; y: number; crop: Crop} | null>(null);
+  const busyRef = useRef(false);
   const effectiveSourceSize = sourceSize ? rotatedSize(sourceSize, params.rotation_degrees) : null;
   const quality = QUALITY[params.nozzle_diameter_mm][params.quality_profile];
   const borders = resolvedBorders(params);
@@ -230,10 +231,12 @@ export default function App() {
   });
 
   const beginDrag = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (busyRef.current) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     drag.current = {pointerId: event.pointerId, x: event.clientX, y: event.clientY, crop: params.crop};
   };
   const moveDrag = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (busyRef.current) return;
     const start = drag.current;
     if (!start || start.pointerId !== event.pointerId) return;
     const rect = event.currentTarget.getBoundingClientRect();
@@ -292,6 +295,7 @@ export default function App() {
     if (!element || !effectiveSourceSize) return;
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
+      if (busyRef.current) return;
       const rect = element.getBoundingClientRect();
       const borderX = rect.width * borders.left / params.width_mm;
       const borderY = rect.height * borders.top / params.height_mm;
@@ -330,8 +334,11 @@ export default function App() {
   };
 
   const generate = async () => {
+    if (busyRef.current) return;
     if (!file) { setError("Najpierw wybierz zdjęcie."); return; }
     const invalid = validateParams(params); if (invalid) { setError(invalid); return; }
+    busyRef.current = true;
+    drag.current = null;
     setBusy(true); setError("");
     try {
       const body = new FormData(); body.append("image", file); body.append("params", JSON.stringify(params));
@@ -340,7 +347,7 @@ export default function App() {
       const blob = await response.blob(); const url = URL.createObjectURL(blob);
       const link = document.createElement("a"); link.href = url; link.download = "lithophane.stl"; link.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (e) { setError(e instanceof Error ? e.message : "Nieznany błąd"); } finally { setBusy(false); }
+    } catch (e) { setError(e instanceof Error ? e.message : "Nieznany błąd"); } finally { busyRef.current = false; setBusy(false); }
   };
 
   return <main className="app-shell">
@@ -392,7 +399,7 @@ export default function App() {
       <section className="workbench">
       <article className="preview">
         <div className="preview-head"><div><p className="eyebrow">PODGLĄD NA ŻYWO</p><h2>{view === "photo" ? "Przygotowane zdjęcie" : "Symulacja światła"}</h2></div><div className="tabs"><button className={view === "photo" ? "active" : ""} onClick={() => setView("photo")}>Obraz</button><button className={view === "lithophane" ? "active" : ""} onClick={() => setView("lithophane")}>Litofania</button></div></div>
-        <div className="stage crop-stage" style={{aspectRatio: `${params.width_mm} / ${params.height_mm}`, width: `min(100%, ${720 * params.width_mm / params.height_mm}px)`}}>{source ? <canvas ref={canvas} onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}/> : <div className="empty"><span>＋</span><b>Dodaj fotografię</b><small>Tutaj pojawi się jej podgląd</small></div>}</div>
+        <div className={`stage crop-stage${busy ? " interaction-locked" : ""}`} aria-busy={busy} style={{aspectRatio: `${params.width_mm} / ${params.height_mm}`, width: `min(100%, ${720 * params.width_mm / params.height_mm}px)`}}>{source ? <canvas ref={canvas} aria-disabled={busy} onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}/> : <div className="empty"><span>＋</span><b>Dodaj fotografię</b><small>Tutaj pojawi się jej podgląd</small></div>}{busy && <div className="interaction-lock" role="status">Generowanie STL — kadr zablokowany</div>}</div>
         <div className="stats"><span><small>WYMIAR</small><b>{params.width_mm} × {params.height_mm} mm</b></span><span><small>GRUBOŚĆ</small><b>{params.min_thickness_mm}–{params.max_thickness_mm} mm</b></span><span><small>SIATKA</small><b>{gridX} × {gridY}</b></span></div>
         {(error || validateParams(params)) && <p className="error">{error || validateParams(params)}</p>}
         <button className="generate" disabled={busy || !file || Boolean(validateParams(params))} onClick={generate}>{busy ? "Generowanie…" : "Generuj i pobierz STL"}<span>→</span></button>
