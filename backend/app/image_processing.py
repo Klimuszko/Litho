@@ -90,7 +90,19 @@ def decode_image(raw: bytes) -> Image.Image:
     return image.convert("RGB")
 
 
-def prepare_image(image: Image.Image, params: LithophaneParams) -> Image.Image:
+def prepare_image(
+    image: Image.Image,
+    params: LithophaneParams,
+    *,
+    for_mesh: bool = False,
+) -> Image.Image:
+    """Prepare the preview or the print-oriented image used by the mesh.
+
+    A lithophane is viewed from the side opposite its relief, so the mesh needs
+    a technical horizontal mirror. ``params.mirror`` is the creative direction
+    chosen by the user; the mesh uses its inverse so the physical print matches
+    the on-screen preview.
+    """
     image = rotate_and_inscribe(image, params.rotation_degrees)
     crop = params.crop
     left = round(crop.x * image.width)
@@ -99,7 +111,7 @@ def prepare_image(image: Image.Image, params: LithophaneParams) -> Image.Image:
     bottom = round((crop.y + crop.height) * image.height)
     image = image.crop((left, top, max(left + 1, right), max(top + 1, bottom)))
     image = crop_to_aspect(image, params.image_width_mm / params.image_height_mm)
-    if params.mirror:
+    if params.mirror != for_mesh:
         image = ImageOps.mirror(image)
     image = ImageEnhance.Brightness(image).enhance(params.brightness)
     image = ImageEnhance.Contrast(image).enhance(params.contrast)

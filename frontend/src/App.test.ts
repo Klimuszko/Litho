@@ -5,6 +5,7 @@ const valid: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .8, max_
 
 describe("client parameter validation", () => {
   it("uses a modest default contrast boost", () => expect(initial.contrast).toBe(1.25));
+  it("shows an uploaded photo without a creative mirror by default", () => expect(initial.mirror).toBe(false));
   it("accepts calibrated defaults", () => expect(validateParams(valid)).toBe(""));
   it("rejects inverted thickness range", () => expect(validateParams({...valid, min_thickness_mm: 4})).toContain("większa"));
   it("accepts a lightweight frame below the relief", () => expect(validateParams({...valid, border_width_mm: 2, border_height_mm: .8})).toBe(""));

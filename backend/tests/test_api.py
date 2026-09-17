@@ -16,6 +16,50 @@ def sample_png() -> bytes:
     return output.getvalue()
 
 
+def directional_png() -> bytes:
+    image = Image.new("L", (60, 40), 255)
+    for x in range(30):
+        for y in range(40):
+            image.putpixel((x, y), 0)
+    output = BytesIO()
+    image.save(output, "PNG")
+    return output.getvalue()
+
+
+def test_pipeline_applies_technical_mirror_opposite_to_preview_choice():
+    default_image, default_mesh, (default_cols, _) = pipeline(
+        directional_png(), LithophaneParams(resolution=24)
+    )
+    creative_mirror, mirrored_mesh, (mirrored_cols, _) = pipeline(
+        directional_png(), LithophaneParams(resolution=24, mirror=True)
+    )
+    assert default_image.getpixel((0, 20)) > default_image.getpixel((59, 20))
+    assert creative_mirror.getpixel((0, 20)) < creative_mirror.getpixel((59, 20))
+    # Front-surface Y is the local material thickness. The default STL has its
+    # thick/dark side on the opposite X edge; creative mirror reverses it.
+    assert default_mesh.vertices[0, 1] < default_mesh.vertices[default_cols - 1, 1]
+    assert mirrored_mesh.vertices[0, 1] > mirrored_mesh.vertices[mirrored_cols - 1, 1]
+
+
+def test_preview_endpoint_keeps_creative_orientation_without_technical_mirror():
+    normal = client.post(
+        "/api/preview",
+        files={"image": ("direction.png", directional_png(), "image/png")},
+        data={"params": '{"width_mm":150,"height_mm":100,"resolution":24}'},
+    )
+    mirrored = client.post(
+        "/api/preview",
+        files={"image": ("direction.png", directional_png(), "image/png")},
+        data={"params": '{"width_mm":150,"height_mm":100,"resolution":24,"mirror":true}'},
+    )
+    assert normal.status_code == mirrored.status_code == 200
+    normal_image = Image.open(BytesIO(normal.content))
+    mirrored_image = Image.open(BytesIO(mirrored.content))
+    y = normal_image.height // 2
+    assert normal_image.getpixel((0, y)) < normal_image.getpixel((normal_image.width - 1, y))
+    assert mirrored_image.getpixel((0, y)) > mirrored_image.getpixel((mirrored_image.width - 1, y))
+
+
 def test_generate_returns_binary_stl():
     response = client.post(
         "/api/generate",

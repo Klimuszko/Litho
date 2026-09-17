@@ -41,7 +41,7 @@ async def read_image(upload: UploadFile) -> bytes:
 
 def pipeline(raw: bytes, params: LithophaneParams):
     try:
-        image = prepare_image(decode_image(raw), params)
+        image = prepare_image(decode_image(raw), params, for_mesh=True)
     except InvalidImage as exc:
         raise HTTPException(status_code=422, detail={"error_code": "INVALID_IMAGE_FORMAT", "message": str(exc)}) from exc
     image_width_mm = params.image_width_mm

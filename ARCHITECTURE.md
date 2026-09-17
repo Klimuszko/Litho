@@ -123,7 +123,7 @@ nich zależy testowalność i poprawność geometryczna.
 | `border_width_mm`  | float       | nie (domyślnie 0) | szerokość ramki wokół płyty (0 = brak ramki) |
 | `border_height_mm` | float       | nie (domyślnie = max_thickness_mm) | wysokość ramki ponad max_thickness |
 | `invert`        | bool           | nie (domyślnie false) | true = ciemne piksele → cienkie (negatyw) |
-| `mirror`        | bool           | nie (domyślnie false) | odbicie lustrzane przed generacją        |
+| `mirror`        | bool           | nie (domyślnie false) | kreatywne odbicie widoczne w podglądzie; STL stosuje odwrotną orientację techniczną, aby wydruk odpowiadał podglądowi |
 
 **Response 200:** `application/vnd.ms-pkistl` a w praktyce `model/stl` lub
 `application/octet-stream` (nagłówek `Content-Disposition: attachment;

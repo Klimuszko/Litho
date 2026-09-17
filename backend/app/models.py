@@ -40,7 +40,7 @@ class LithophaneParams(BaseModel):
     border_height_mm: float | None = Field(None, ge=0.4, le=20)
     removable_support: bool = False
     invert: bool = False
-    mirror: bool = False
+    mirror: bool = Field(False, description="Creative mirror shown in preview; mesh applies the inverse technical orientation")
     rotation_degrees: float = Field(0, ge=-360, le=360)
     crop: Crop = Field(default_factory=Crop)
 

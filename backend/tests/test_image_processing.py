@@ -73,6 +73,32 @@ def test_prepare_image_rotates_before_applying_crop():
     assert prepared.height == 133
 
 
+def asymmetric_image() -> Image.Image:
+    image = Image.new("RGB", (12, 8), "white")
+    for x in range(6):
+        for y in range(8):
+            image.putpixel((x, y), (0, 0, 0))
+    return image
+
+
+def test_default_preview_preserves_uploaded_left_right_orientation():
+    prepared = prepare_image(asymmetric_image(), LithophaneParams())
+    assert prepared.getpixel((0, 4)) < prepared.getpixel((11, 4))
+
+
+def test_default_mesh_uses_inverse_technical_mirror():
+    prepared = prepare_image(asymmetric_image(), LithophaneParams(), for_mesh=True)
+    assert prepared.getpixel((0, 4)) > prepared.getpixel((11, 4))
+
+
+def test_creative_mirror_is_visible_in_preview_and_inverted_for_mesh():
+    params = LithophaneParams(mirror=True)
+    preview = prepare_image(asymmetric_image(), params)
+    mesh_image = prepare_image(asymmetric_image(), params, for_mesh=True)
+    assert preview.getpixel((0, 4)) > preview.getpixel((11, 4))
+    assert mesh_image.getpixel((0, 4)) < mesh_image.getpixel((11, 4))
+
+
 def test_arbitrary_rotation_is_cropped_to_fully_covered_rectangle():
     image = Image.new("RGB", (400, 300), "white")
     width, height = inscribed_size(400, 300, 17.5)
