@@ -97,7 +97,7 @@ describe("frame dimensions", () => {
 
 describe("housing generator", () => {
   it("treats preset dimensions as the exact lithophane panel size", () => {
-    expect(housingOuterSize(initialHousing)).toEqual({width: 152.4, height: 102.4});
+    expect(housingOuterSize(initialHousing)).toEqual({width: 155.6, height: 105.6});
     expect(housingOuterSize({...initialHousing, kind: "frame"})).toEqual({width: 174, height: 124});
   });
   it("rejects a frame that exceeds the 256 mm bed", () => {

@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from app.housing import build_housing_back, build_housing_body
+from app.housing import build_housing_back, build_housing_body, orient_front_on_bed
 from app.main import app
 from app.mesh import validate_mesh
 from app.models import HousingParams
@@ -51,11 +51,23 @@ def test_housing_parts_are_watertight_manifold_solids(kind):
 def test_box_and_frame_derive_outer_size_from_exact_panel_size():
     box = HousingParams(kind="box", panel_width_mm=150, panel_height_mm=100)
     frame = HousingParams(kind="frame", panel_width_mm=150, panel_height_mm=100)
-    assert (box.outer_width_mm, box.outer_height_mm) == pytest.approx((152.4, 102.4))
+    assert (box.outer_width_mm, box.outer_height_mm) == pytest.approx((155.6, 105.6))
     assert (frame.outer_width_mm, frame.outer_height_mm) == pytest.approx((174, 124))
-    assert box.slot_width_mm == pytest.approx(2.0)
-    assert frame.slot_width_mm == pytest.approx(2.0)
+    assert box.panel_pocket_depth_mm == pytest.approx(2.0)
+    assert frame.panel_pocket_depth_mm == pytest.approx(2.0)
+    assert (box.rear_opening_width_mm, box.rear_opening_height_mm) == pytest.approx((150.8, 100.8))
     assert build_housing_body(box).vertices[:, 1].max() == pytest.approx(37.6)
+
+
+@pytest.mark.parametrize("builder", [build_housing_body, build_housing_back])
+def test_export_orientation_places_front_flat_on_print_bed(builder):
+    assembly_mesh = builder(HousingParams(kind="box"))
+    print_mesh = orient_front_on_bed(assembly_mesh)
+    assert print_mesh.vertices[:, 2].min() == pytest.approx(0)
+    assert print_mesh.vertices[:, 2].max() == pytest.approx(assembly_mesh.vertices[:, 1].max())
+    validation = validate_mesh(print_mesh)
+    assert validation["watertight"]
+    assert validation["winding_errors"] == 0
 
 
 def test_housing_rejects_dimensions_outside_p1s_bed():
@@ -82,7 +94,8 @@ def test_housing_api_returns_body_and_back_as_separate_stls():
     assert response.headers["content-type"] == "application/zip"
     assert response.headers["x-housing-kind"] == "frame"
     assert response.headers["x-housing-outer-size-mm"] == "174x124x40"
-    assert response.headers["x-panel-slot-mm"] == "2"
+    assert response.headers["x-panel-pocket-depth-mm"] == "2"
+    assert response.headers["x-print-orientation"] == "front-face-down"
     with ZipFile(BytesIO(response.content)) as archive:
         assert sorted(archive.namelist()) == [
             "README-PL.txt",

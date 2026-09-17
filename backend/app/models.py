@@ -149,8 +149,8 @@ class HousingParams(BaseModel):
 
     @model_validator(mode="after")
     def printable_relations(self):
-        if self.slot_width_mm > 4.8:
-            raise ValueError("Panel slot is too wide")
+        if self.panel_pocket_depth_mm > 4.8:
+            raise ValueError("Panel pocket is too deep")
         if self.bezel_overlap_mm >= min(self.panel_width_mm, self.panel_height_mm) / 2:
             raise ValueError("Bezel overlap is too large for the panel")
         if self.bezel_overlap_mm > MOUNTING_FLANGE_WIDTH_MM:
@@ -164,16 +164,12 @@ class HousingParams(BaseModel):
         return self
 
     @property
-    def slot_width_mm(self) -> float:
+    def panel_pocket_depth_mm(self) -> float:
         return self.panel_thickness_mm + self.clearance_mm
 
     @property
-    def groove_capture_mm(self) -> float:
-        return 1.2
-
-    @property
     def outer_margin_mm(self) -> float:
-        return self.frame_border_mm if self.kind == "frame" else self.wall_mm - self.groove_capture_mm
+        return self.frame_border_mm if self.kind == "frame" else self.wall_mm + self.clearance_mm
 
     @property
     def outer_width_mm(self) -> float:
@@ -201,15 +197,19 @@ class HousingParams(BaseModel):
 
     @property
     def front_thickness_mm(self) -> float:
-        return self.wall_mm if self.kind == "frame" else 0.0
+        return self.wall_mm
 
     @property
-    def slot_y0_mm(self) -> float:
-        return self.front_thickness_mm
+    def effective_bezel_overlap_mm(self) -> float:
+        return self.bezel_overlap_mm if self.kind == "frame" else 0.8
 
     @property
-    def slot_y1_mm(self) -> float:
-        return self.slot_y0_mm + self.slot_width_mm
+    def rear_opening_width_mm(self) -> float:
+        return self.outer_width_mm - 2 * self.wall_mm
+
+    @property
+    def rear_opening_height_mm(self) -> float:
+        return self.outer_height_mm - 2 * self.wall_mm
 
     @property
     def back_lip_mm(self) -> float:

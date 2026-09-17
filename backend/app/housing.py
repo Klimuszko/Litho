@@ -65,38 +65,31 @@ def build_housing_body(params) -> Mesh:
     wall = params.wall_mm
     panel_x0, panel_x1 = params.panel_x0_mm, params.panel_x1_mm
     panel_z0, panel_z1 = params.panel_z0_mm, params.panel_z1_mm
-    slot_y0, slot_y1 = params.slot_y0_mm, params.slot_y1_mm
-    groove, bezel_front = params.groove_capture_mm, params.front_thickness_mm
+    pocket_y0 = params.front_thickness_mm
+    pocket_y1 = pocket_y0 + params.panel_pocket_depth_mm
+    bezel_front = params.front_thickness_mm
+    pocket_x0 = panel_x0 - params.clearance_mm / 2
+    pocket_x1 = panel_x1 + params.clearance_mm / 2
+    pocket_z0 = panel_z0 - params.clearance_mm / 2
+    pocket_z1 = panel_z1 + params.clearance_mm / 2
+    opening_x0 = panel_x0 + params.effective_bezel_overlap_mm
+    opening_x1 = panel_x1 - params.effective_bezel_overlap_mm
+    opening_z0 = panel_z0 + params.effective_bezel_overlap_mm
+    opening_z1 = panel_z1 - params.effective_bezel_overlap_mm
 
-    xs = [0, wall, panel_x0, panel_x0 + groove, panel_x1 - groove, panel_x1, width - wall, width]
-    ys = [0, bezel_front, slot_y0, slot_y1, slot_y1 + groove, depth]
-    zs = [0, wall, panel_z0, panel_z0 + groove, panel_z1 - groove, panel_z1, height - wall, height]
+    xs = [0, wall, pocket_x0, panel_x0, opening_x0, opening_x1, panel_x1, pocket_x1, width - wall, width]
+    ys = [0, bezel_front, pocket_y1, depth]
+    zs = [0, wall, pocket_z0, panel_z0, opening_z0, opening_z1, panel_z1, pocket_z1, height - wall, height]
 
     def solid(x: float, y: float, z: float) -> bool:
         material = x < wall or x > width - wall or z < wall or z > height - wall
-        if params.kind == "frame" and y < bezel_front:
-            opening = (
-                panel_x0 + params.bezel_overlap_mm < x < panel_x1 - params.bezel_overlap_mm
-                and panel_z0 + params.bezel_overlap_mm < z < panel_z1 - params.bezel_overlap_mm
-            )
+        if y < bezel_front:
+            opening = opening_x0 < x < opening_x1 and opening_z0 < z < opening_z1
             material = material or not opening
-
-        in_panel_y = slot_y0 < y < slot_y1
-        side_channel = (
-            (panel_x0 < x < panel_x0 + groove or panel_x1 - groove < x < panel_x1)
-            and panel_z0 < z < height
-        )
-        bottom_channel = panel_x0 < x < panel_x1 and panel_z0 < z < panel_z0 + groove
-        top_entry = panel_x0 < x < panel_x1 and panel_z1 < z < height
-        if in_panel_y and (side_channel or bottom_channel or top_entry):
-            material = False
-
-        in_rear_guide = slot_y1 < y < slot_y1 + groove
-        guide = (
-            (x < panel_x0 + groove or x > panel_x1 - groove)
-            and panel_z0 < z < panel_z1
-        ) or (panel_x0 < x < panel_x1 and z < panel_z0 + groove)
-        return material or (in_rear_guide and guide)
+        if pocket_y0 < y < pocket_y1:
+            pocket = pocket_x0 < x < pocket_x1 and pocket_z0 < z < pocket_z1
+            material = material or not pocket
+        return material
 
     return _cell_mesh(xs, ys, zs, solid)
 
@@ -126,3 +119,11 @@ def build_housing_back(params) -> Mesh:
         return plate or ring
 
     return _cell_mesh(xs, ys, zs, solid)
+
+
+def orient_front_on_bed(mesh: Mesh) -> Mesh:
+    """Rotate width/depth/height assembly axes to width/height/depth for STL."""
+    vertices = mesh.vertices[:, [0, 2, 1]].copy()
+    # Swapping axes changes handedness, so preserve outward triangle winding.
+    faces = mesh.faces[:, [0, 2, 1]].copy()
+    return Mesh(vertices.astype(np.float32), faces.astype(np.int32))

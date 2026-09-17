@@ -30,7 +30,7 @@ export const initialHousing: HousingParams = {
 };
 
 export function housingOuterSize(params: HousingParams) {
-  const margin = params.kind === "frame" ? params.frame_border_mm : params.wall_mm - 1.2;
+  const margin = params.kind === "frame" ? params.frame_border_mm : params.wall_mm + params.clearance_mm;
   return {width: params.panel_width_mm + 2 * margin, height: params.panel_height_mm + 2 * margin};
 }
 
@@ -110,25 +110,24 @@ export default function HousingGenerator({onOpenLithophane}: {onOpenLithophane: 
         <div className="formats"><button className={landscape ? "active" : ""} onClick={() => setOrientation(true)}>Pozioma</button><button className={!landscape ? "active" : ""} onClick={() => setOrientation(false)}>Pionowa</button></div>
         <div className="housing-presets">{HOUSING_FORMATS.map(format => <button key={format.label} className={!custom && selectedPreset === format ? "active" : ""} onClick={() => chooseFormat(format.short, format.long)}>{format.label}</button>)}<button className={custom ? "active" : ""} onClick={() => setCustom(true)}>Custom</button></div>
         {custom && <div className="dimension-grid"><label>Szerokość<input type="number" min="20" max="250" value={params.panel_width_mm} onChange={event => setDimension("panel_width_mm", event.target.value)}/><span>mm</span></label><label>Wysokość<input type="number" min="20" max="250" value={params.panel_height_mm} onChange={event => setDimension("panel_height_mm", event.target.value)}/><span>mm</span></label></div>}
-        <p className="quality-note housing-note">Podajesz dokładny wymiar gotowej litofanii. Luz rowka i obudowa są doliczane automatycznie.</p>
-        {params.kind === "frame" && <p className="quality-note flange-note">Ramka jest dopasowana do panelu wygenerowanego z opcją „Kołnierz montażowy Litho Mount V1”. Front zachodzi wyłącznie na jego nieprzezroczysty rant.</p>}
+        <p className="quality-note housing-note">Podajesz dokładny wymiar gotowej litofanii. Kieszeń montażowa i obudowa są doliczane automatycznie.</p>
+        <p className="quality-note flange-note">Wymagany panel z opcją „Kołnierz montażowy Litho Mount V1”. Panel wkłada się od tyłu i mocuje na rancie od strony wnętrza.</p>
         <h2><span>03</span> Głębokość</h2>
         <Range label="Głębokość obudowy" value={params.depth_mm} min={20} max={80} step={1} onChange={value => set("depth_mm", value)}/>
         <div className="housing-spec">
-          <span><small>ROWek PANELU</small><b>{(params.panel_thickness_mm + params.clearance_mm).toFixed(1)} mm</b></span>
+          <span><small>KIESZEŃ PANELU</small><b>{(params.panel_thickness_mm + params.clearance_mm).toFixed(1)} mm</b></span>
           <span><small>ŚCIANA</small><b>{params.wall_mm.toFixed(1)} mm</b></span>
           <span><small>PRZEWÓD</small><b>{params.cable_width_mm} × {params.cable_height_mm} mm</b></span>
         </div>
       </div>
-      <div className="sidebar-foot">Korpus + zdejmowana tylna pokrywa</div>
+      <div className="sidebar-foot">Montaż panelu od środka · serwisowa pokrywa tylna</div>
     </aside>
     <section className="workbench housing-workbench">
       <article className="preview housing-preview">
-        <div className="preview-head"><div><p className="eyebrow">PODGLĄD KONSTRUKCJI</p><h2>{params.kind === "box" ? "Podświetlany Box" : "Podświetlana ramka"}</h2></div><span className="housing-badge">Panel wsuwany od góry</span></div>
+        <div className="preview-head"><div><p className="eyebrow">PODGLĄD KONSTRUKCJI</p><h2>{params.kind === "box" ? "Podświetlany Box" : "Podświetlana ramka"}</h2></div><span className="housing-badge">Montaż panelu od środka</span></div>
         <div className="housing-stage">
           <div className={`housing-model ${params.kind}`} style={{aspectRatio: `${outer.width} / ${outer.height}`, padding: `${visualBorder}px`}}>
             <div className="housing-panel"><span>LITHO</span><small>{params.panel_width_mm} × {params.panel_height_mm} mm</small></div>
-            <i className="slot-indicator">↓</i>
           </div>
           <div className="depth-preview"><div style={{width: `${Math.max(70, params.depth_mm * 2)}px`}}/><span>{params.depth_mm} mm</span></div>
         </div>

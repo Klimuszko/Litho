@@ -57,17 +57,18 @@ Backend przetwarza obraz i STL wyłącznie w pamięci. Katalogi `data/` pozostaj
 
 Widok `Obudowa` generuje podświetlany `Box` albo `Ramkę` dla paneli
 100 × 150, 130 × 180, 150 × 200 mm oraz wymiarów własnych. Podany wymiar jest
-dokładnym wymiarem panelu Litho; aplikacja automatycznie dodaje ściany, rowek
-2,0 mm, luz montażowy, obramowanie i tylną pokrywę. Wynikiem jest ZIP zawierający
-osobny STL korpusu i pokrywy oraz instrukcję montażu. Panel jest wsuwany od góry,
-a pokrywa ma dolne wyjście przewodu.
+dokładnym wymiarem panelu Litho; aplikacja automatycznie dodaje ściany, kieszeń
+montażową 2,0 mm, luz, obramowanie i tylną pokrywę. Wynikiem jest ZIP zawierający
+osobny STL korpusu i pokrywy oraz instrukcję montażu. Panel wkłada się od otwartego
+tyłu, opiera kołnierzem o wewnętrzny rant i mocuje od środka przed zamknięciem
+pokrywy. Oba modele są eksportowane płaską stroną do stołu i nie wymagają podpór.
 
 ```text
 POST /api/housing/generate
 Content-Type: application/json
 ```
 
-Wariant `Ramka` jest przeznaczony dla litofanii wygenerowanej z opcją
+Oba warianty są przeznaczone dla litofanii wygenerowanej z opcją
 `Kołnierz montażowy Litho Mount V1`.
 
 ## Testy backendu
