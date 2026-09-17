@@ -370,7 +370,6 @@ export default function App() {
         <div className="sidebar-foot">Lokalne przetwarzanie · STL manifold</div>
       </aside>
       <section className="workbench">
-        <header className="workbench-head"><div><p className="eyebrow">PROJEKT</p><h1>Podgląd litofanii</h1></div><span className="badge">Własny silnik · FDM</span></header>
       <article className="preview">
         <div className="preview-head"><div><p className="eyebrow">PODGLĄD NA ŻYWO</p><h2>{view === "photo" ? "Przygotowane zdjęcie" : "Symulacja światła"}</h2></div><div className="tabs"><button className={view === "photo" ? "active" : ""} onClick={() => setView("photo")}>Obraz</button><button className={view === "lithophane" ? "active" : ""} onClick={() => setView("lithophane")}>Litofania</button></div></div>
         <div className="stage crop-stage" style={{aspectRatio: `${params.width_mm} / ${params.height_mm}`, width: `min(100%, ${720 * params.width_mm / params.height_mm}px)`}}>{source ? <canvas ref={canvas} onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}/> : <div className="empty"><span>＋</span><b>Dodaj fotografię</b><small>Tutaj pojawi się jej podgląd</small></div>}</div>
