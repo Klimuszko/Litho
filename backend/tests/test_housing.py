@@ -1,0 +1,95 @@
+from io import BytesIO
+from zipfile import ZipFile
+
+import pytest
+from fastapi.testclient import TestClient
+from pydantic import ValidationError
+
+from app.housing import build_housing_back, build_housing_body
+from app.main import app
+from app.mesh import validate_mesh
+from app.models import HousingParams
+
+
+client = TestClient(app)
+
+
+def component_count(mesh) -> int:
+    parent = list(range(len(mesh.vertices)))
+
+    def find(value):
+        while parent[value] != value:
+            parent[value] = parent[parent[value]]
+            value = parent[value]
+        return value
+
+    def union(left, right):
+        left, right = find(left), find(right)
+        if left != right:
+            parent[right] = left
+
+    for a, b, c in mesh.faces:
+        union(int(a), int(b)); union(int(b), int(c))
+    return len({find(index) for index in range(len(mesh.vertices))})
+
+
+@pytest.mark.parametrize("kind", ["box", "frame"])
+def test_housing_parts_are_watertight_manifold_solids(kind):
+    params = HousingParams(kind=kind)
+    for mesh in (build_housing_body(params), build_housing_back(params)):
+        validation = validate_mesh(mesh)
+        assert validation == {
+            "watertight": True,
+            "boundary_edges": 0,
+            "degenerate_faces": 0,
+            "winding_errors": 0,
+            "positive_volume": True,
+        }
+        assert component_count(mesh) == 1
+
+
+def test_box_and_frame_derive_outer_size_from_exact_panel_size():
+    box = HousingParams(kind="box", panel_width_mm=150, panel_height_mm=100)
+    frame = HousingParams(kind="frame", panel_width_mm=150, panel_height_mm=100)
+    assert (box.outer_width_mm, box.outer_height_mm) == pytest.approx((152.4, 102.4))
+    assert (frame.outer_width_mm, frame.outer_height_mm) == pytest.approx((174, 124))
+    assert box.slot_width_mm == pytest.approx(2.0)
+    assert frame.slot_width_mm == pytest.approx(2.0)
+    assert build_housing_body(box).vertices[:, 1].max() == pytest.approx(37.6)
+
+
+def test_housing_rejects_dimensions_outside_p1s_bed():
+    with pytest.raises(ValidationError, match="256 x 256"):
+        HousingParams(kind="frame", panel_width_mm=240, panel_height_mm=150)
+
+
+@pytest.mark.parametrize("width,height", [(150, 100), (180, 130), (200, 150), (100, 150), (130, 180), (150, 200)])
+@pytest.mark.parametrize("kind", ["box", "frame"])
+def test_every_preset_orientation_fits_and_stays_manifold(kind, width, height):
+    params = HousingParams(kind=kind, panel_width_mm=width, panel_height_mm=height)
+    assert params.outer_width_mm <= 256
+    assert params.outer_height_mm <= 256
+    assert validate_mesh(build_housing_body(params))["watertight"]
+
+
+def test_housing_api_returns_body_and_back_as_separate_stls():
+    response = client.post("/api/housing/generate", json={
+        "kind": "frame",
+        "panel_width_mm": 150,
+        "panel_height_mm": 100,
+    })
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/zip"
+    assert response.headers["x-housing-kind"] == "frame"
+    assert response.headers["x-housing-outer-size-mm"] == "174x124x40"
+    assert response.headers["x-panel-slot-mm"] == "2"
+    with ZipFile(BytesIO(response.content)) as archive:
+        assert sorted(archive.namelist()) == [
+            "README-PL.txt",
+            "litho-frame-150x100-back.stl",
+            "litho-frame-150x100-body.stl",
+        ]
+        for name in (entry for entry in archive.namelist() if entry.endswith(".stl")):
+            payload = archive.read(name)
+            assert len(payload) > 84
+            assert payload.startswith(b"Lithophane Generator V1")

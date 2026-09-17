@@ -53,6 +53,23 @@ t = min + (1 - luminance)^gamma * (max - min)
 
 Backend przetwarza obraz i STL wyłącznie w pamięci. Katalogi `data/` pozostają przygotowane do opcjonalnej diagnostyki, lecz V1 nie zapisuje w nich prywatnych plików.
 
+## Generator obudów
+
+Widok `Obudowa` generuje podświetlany `Box` albo `Ramkę` dla paneli
+100 × 150, 130 × 180, 150 × 200 mm oraz wymiarów własnych. Podany wymiar jest
+dokładnym wymiarem panelu Litho; aplikacja automatycznie dodaje ściany, rowek
+2,0 mm, luz montażowy, obramowanie i tylną pokrywę. Wynikiem jest ZIP zawierający
+osobny STL korpusu i pokrywy oraz instrukcję montażu. Panel jest wsuwany od góry,
+a pokrywa ma dolne wyjście przewodu.
+
+```text
+POST /api/housing/generate
+Content-Type: application/json
+```
+
+Wariant `Ramka` jest przeznaczony dla litofanii wygenerowanej z opcją
+`Kołnierz montażowy Litho Mount V1`.
+
 ## Testy backendu
 
 ```bash

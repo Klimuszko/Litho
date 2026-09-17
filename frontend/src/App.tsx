@@ -1,5 +1,6 @@
 import { ChangeEvent, PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
 import "./formats.css";
+import HousingGenerator from "./HousingGenerator";
 
 export type Params = {
   width_mm: number; height_mm: number; min_thickness_mm: number; max_thickness_mm: number;
@@ -143,7 +144,7 @@ function Slider({label, value, min, max, step, unit = "", onChange}: {label: str
   return <label className="control"><span>{label}<output>{value}{unit}</output></span><input type="range" value={value} min={min} max={max} step={step} onChange={e => onChange(Number(e.target.value))}/></label>;
 }
 
-export default function App() {
+function LithophaneGenerator({onOpenHousing}: {onOpenHousing: () => void}) {
   const [file, setFile] = useState<File | null>(null);
   const [source, setSource] = useState<string>("");
   const [params, setParams] = useState(initial);
@@ -353,6 +354,7 @@ export default function App() {
   return <main className="app-shell">
       <aside className="sidebar">
         <div className="sidebar-brand"><span className="mark">L</span><div><strong>Litho</strong><small>Generator litofanii 3D</small></div><span className="version">V1</span></div>
+        <div className="product-switch"><button className="active">Litofania</button><button onClick={onOpenHousing}>Obudowa</button></div>
         <div className="sidebar-scroll">
         <h2><span>01</span> Obraz</h2>
         <label className="drop"><input type="file" accept="image/jpeg,image/png" onChange={choose}/><b>{file ? file.name : "Wybierz zdjęcie"}</b><small>JPG lub PNG · maks. 20 MB</small></label>
@@ -407,4 +409,11 @@ export default function App() {
       <footer>Pliki są przetwarzane w pamięci i nie są przechowywane na serwerze.</footer>
       </section>
   </main>;
+}
+
+export default function App() {
+  const [product, setProduct] = useState<"lithophane" | "housing">("lithophane");
+  return product === "housing"
+    ? <HousingGenerator onOpenLithophane={() => setProduct("lithophane")}/>
+    : <LithophaneGenerator onOpenHousing={() => setProduct("housing")}/>;
 }

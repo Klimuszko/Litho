@@ -1,5 +1,7 @@
 import json
+from io import BytesIO
 from pathlib import Path
+from zipfile import ZIP_DEFLATED, ZipFile
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
@@ -10,9 +12,10 @@ from pydantic import ValidationError
 
 from .exporter import binary_stl
 from .heightmap import grid_resolution, luminance_to_thickness
+from .housing import build_housing_back, build_housing_body
 from .image_processing import InvalidImage, decode_image, prepare_image, preview_png, resample_luminance
 from .mesh import add_removable_support, apply_border, build_plate, removable_support_dimensions, validate_mesh
-from .models import LithophaneParams
+from .models import HousingParams, LithophaneParams
 
 app = FastAPI(title="Lithophane Generator API", version="1.0.0")
 app.add_middleware(
@@ -115,6 +118,50 @@ async def generate(image: UploadFile = File(...), params: str = Form(...)):
     )
 
 
+@app.post("/api/housing/generate")
+async def generate_housing(settings: HousingParams):
+    body = build_housing_body(settings)
+    back = build_housing_back(settings)
+    validations = {"body": validate_mesh(body), "back": validate_mesh(back)}
+    for name, validation in validations.items():
+        if (not validation["watertight"] or validation["degenerate_faces"]
+                or validation["winding_errors"] or not validation["positive_volume"]):
+            raise HTTPException(
+                status_code=500,
+                detail={"error_code": "HOUSING_MESH_FAILED", "message": f"{name} mesh validation failed", "validation": validation},
+            )
+    output = BytesIO()
+    prefix = f"litho-{settings.kind}-{settings.panel_width_mm:g}x{settings.panel_height_mm:g}"
+    with ZipFile(output, "w", compression=ZIP_DEFLATED) as archive:
+        archive.writestr(f"{prefix}-body.stl", binary_stl(body))
+        archive.writestr(f"{prefix}-back.stl", binary_stl(back))
+        archive.writestr(
+            "README-PL.txt",
+            (
+                "LITHO - ZESTAW OBUDOWY V1\n\n"
+                f"Typ: {settings.kind}\n"
+                f"Panel Litho: {settings.panel_width_mm:g} x {settings.panel_height_mm:g} mm\n"
+                f"Obudowa: {settings.outer_width_mm:g} x {settings.outer_height_mm:g} x {settings.depth_mm:g} mm\n"
+                f"Rowek: {settings.slot_width_mm:g} mm (panel {settings.panel_thickness_mm:g} mm + luz {settings.clearance_mm:g} mm)\n\n"
+                "Korpus drukuj frontem polozonym na stole. Tylna pokrywe drukuj plaska strona na stole, rantem do gory.\n"
+                "Panel wsun od gory. Pokrywe zamontuj z tylu po ulozeniu oswietlenia i przewodu.\n"
+                "Przed drukiem produkcyjnym wykonaj krotka probe pasowania rowka dla swojego filamentu.\n"
+            ).encode("utf-8"),
+        )
+    return Response(
+        content=output.getvalue(),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{prefix}.zip"',
+            "Cache-Control": "no-store",
+            "X-Housing-Kind": settings.kind,
+            "X-Panel-Size-Mm": f"{settings.panel_width_mm:g}x{settings.panel_height_mm:g}",
+            "X-Housing-Outer-Size-Mm": f"{settings.outer_width_mm:g}x{settings.outer_height_mm:g}x{settings.depth_mm:g}",
+            "X-Panel-Slot-Mm": f"{settings.slot_width_mm:g}",
+            "X-Body-Triangle-Count": str(len(body.faces)),
+            "X-Back-Triangle-Count": str(len(back.faces)),
+        },
+    )
 # W obrazie produkcyjnym frontend React jest kopiowany do /app/static.
 # Montowanie następuje po trasach API, więc /api/* zachowuje pierwszeństwo.
 STATIC_DIR = Path("/app/static")

@@ -131,3 +131,99 @@ class LithophaneParams(BaseModel):
     @property
     def effective_sample_pitch_mm(self) -> float:
         return max(self.image_width_mm, self.image_height_mm) / self.effective_resolution
+
+
+class HousingParams(BaseModel):
+    kind: Literal["box", "frame"] = "box"
+    panel_width_mm: float = Field(150, ge=20, le=250)
+    panel_height_mm: float = Field(100, ge=20, le=250)
+    panel_thickness_mm: Literal[1.6] = 1.6
+    clearance_mm: float = Field(0.4, ge=0.2, le=0.8)
+    depth_mm: float = Field(40, ge=20, le=80)
+    wall_mm: float = Field(2.4, ge=2.4, le=5.0)
+    frame_border_mm: float = Field(12, ge=5, le=25)
+    bezel_overlap_mm: float = Field(1.2, ge=0.6, le=1.8)
+    back_thickness_mm: float = Field(2.4, ge=1.6, le=5.0)
+    cable_width_mm: float = Field(12, ge=6, le=25)
+    cable_height_mm: float = Field(8, ge=4, le=20)
+
+    @model_validator(mode="after")
+    def printable_relations(self):
+        if self.slot_width_mm > 4.8:
+            raise ValueError("Panel slot is too wide")
+        if self.bezel_overlap_mm >= min(self.panel_width_mm, self.panel_height_mm) / 2:
+            raise ValueError("Bezel overlap is too large for the panel")
+        if self.bezel_overlap_mm > MOUNTING_FLANGE_WIDTH_MM:
+            raise ValueError("Bezel overlap cannot exceed the 2 mm Litho mounting flange")
+        if self.outer_width_mm > 256 or self.outer_height_mm > 256:
+            raise ValueError("Housing footprint must fit within 256 x 256 mm")
+        if self.cable_width_mm >= self.outer_width_mm - 2 * self.wall_mm:
+            raise ValueError("Cable opening is too wide")
+        if self.cable_height_mm >= self.outer_height_mm / 3:
+            raise ValueError("Cable opening is too tall")
+        return self
+
+    @property
+    def slot_width_mm(self) -> float:
+        return self.panel_thickness_mm + self.clearance_mm
+
+    @property
+    def groove_capture_mm(self) -> float:
+        return 1.2
+
+    @property
+    def outer_margin_mm(self) -> float:
+        return self.frame_border_mm if self.kind == "frame" else self.wall_mm - self.groove_capture_mm
+
+    @property
+    def outer_width_mm(self) -> float:
+        return self.panel_width_mm + 2 * self.outer_margin_mm
+
+    @property
+    def outer_height_mm(self) -> float:
+        return self.panel_height_mm + 2 * self.outer_margin_mm
+
+    @property
+    def panel_x0_mm(self) -> float:
+        return self.outer_margin_mm
+
+    @property
+    def panel_x1_mm(self) -> float:
+        return self.panel_x0_mm + self.panel_width_mm
+
+    @property
+    def panel_z0_mm(self) -> float:
+        return self.outer_margin_mm
+
+    @property
+    def panel_z1_mm(self) -> float:
+        return self.panel_z0_mm + self.panel_height_mm
+
+    @property
+    def front_thickness_mm(self) -> float:
+        return self.wall_mm if self.kind == "frame" else 0.0
+
+    @property
+    def slot_y0_mm(self) -> float:
+        return self.front_thickness_mm
+
+    @property
+    def slot_y1_mm(self) -> float:
+        return self.slot_y0_mm + self.slot_width_mm
+
+    @property
+    def back_lip_mm(self) -> float:
+        return 1.2
+
+    @property
+    def back_lip_depth_mm(self) -> float:
+        return 4.0
+
+    @property
+    def back_clearance_mm(self) -> float:
+        return 0.15
+
+    @property
+    def body_depth_mm(self) -> float:
+        """Body depth excluding the external plate of the fitted rear cover."""
+        return self.depth_mm - self.back_thickness_mm
