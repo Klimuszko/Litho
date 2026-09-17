@@ -8,7 +8,7 @@ Workflow `.github/workflows/container-images.yml` buduje jeden obraz aplikacji
 dla `linux/amd64` (Synology z procesorem Intel/AMD), a następnie publikuje go jako:
 
 ```text
-ghcr.io/klimuszko/lito:latest
+ghcr.io/klimuszko/litho:latest
 ```
 
 Pakiety GHCR muszą być publiczne albo serwer Docker musi być wcześniej zalogowany
