@@ -1,79 +1,46 @@
 .formats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 5px;
   margin-bottom: 17px;
 }
 
-.formats button {
-  border: 1px solid #d5ccc0;
-  background: transparent;
-  padding: 9px 3px;
-  color: #7c736a;
+.formats button, .auto-crop, .rotate-row button {
+  min-width: 0;
+  border: 1px solid #dce1e8;
+  border-radius: 8px;
+  background: #f8f9fb;
+  padding: 9px 5px;
+  color: #697489;
   font-size: 10px;
+  font-weight: 600;
+  transition: all .16s;
 }
+.formats button:hover, .auto-crop:hover:not(:disabled), .rotate-row button:hover { border-color: #bbc3cf; color: #273248; }
+.formats .active { border-color: #20293a; background: #20293a; color: #fff; }
+.auto-crop { width: 100%; cursor: pointer; }
+.auto-crop:disabled { cursor: not-allowed; opacity: .42; }
 
-.formats .active {
-  background: #332f2b;
-  color: white;
-  border-color: #332f2b;
-}
+.quality-note { margin: -7px 0 15px; color: #818b9c; font-size: 10px; line-height: 1.5; }
+.warning-note { padding: 9px 10px; border-radius: 8px; background: #fff7ed; color: #a25720; }
 
-.auto-crop {
-  width: 100%;
-  border: 1px solid #c8baa9;
-  background: #f2ede4;
-  padding: 9px;
-  color: #6e655b;
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.auto-crop:disabled {
-  opacity: .45;
-  cursor: not-allowed;
-}
-
-.quality-note {
-  margin: -8px 0 16px;
-  color: #7c736a;
-  font-size: 10px;
-  line-height: 1.45;
-}
-
-.stage.crop-stage {
-  min-height: 0;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.stage.crop-stage canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-  max-height: none;
-  cursor: grab;
-  touch-action: none;
-  user-select: none;
-}
-
+.stage.crop-stage { min-height: 0; margin-left: auto; margin-right: auto; }
+.stage.crop-stage canvas { display: block; width: 100%; height: 100%; max-height: none; cursor: grab; touch-action: none; user-select: none; }
 .stage.crop-stage canvas:active { cursor: grabbing; }
 
 .rotate-row { margin: 15px 0 8px; }
-.rotate-row > span { display: block; margin-bottom: 7px; font-size: 11px; color: #6e655b; }
-.rotate-row > div { display: grid; grid-template-columns: 1fr 82px 1fr; }
-.rotate-row button { border: 1px solid #d5ccc0; background: transparent; padding: 7px 3px; color: #6e655b; }
-.rotate-row button.active { background: #332f2b; color: white; border-color: #332f2b; }
+.rotate-row > span { display: block; margin-bottom: 7px; color: #687386; font-size: 11px; }
+.rotate-row > div { display: grid; grid-template-columns: 1fr 82px 1fr; gap: 5px; }
 .rotate-actions label { position: relative; }
-.rotate-actions input { width: 100%; height: 100%; padding: 6px 22px 6px 7px; text-align: center; border: 1px solid #d5ccc0; background: #fffdfa; }
-.rotate-actions label span { position: absolute; right: 8px; top: 7px; color: #8b8177; }
-.interaction-hint { margin: 8px 0 20px; color: #897f74; font-size: 10px; line-height: 1.45; }
-.format-options { grid-template-columns: repeat(4, 1fr); }
+.rotate-actions input { width: 100%; height: 100%; padding: 6px 22px 6px 7px; border: 1px solid #dce1e8; border-radius: 8px; background: #fff; color: #273248; text-align: center; }
+.rotate-actions label span { position: absolute; right: 9px; top: 8px; color: #929aaa; font-size: 10px; }
+.interaction-hint { margin: 9px 0 20px; color: #8c95a5; font-size: 10px; line-height: 1.5; }
+
+.format-options { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .custom-size { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin: 10px 0 18px; }
-.custom-size label { position: relative; font-size: 10px; color: #6e655b; }
-.custom-size input { width: 100%; margin-top: 5px; padding: 8px 29px 8px 8px; border: 1px solid #d5ccc0; background: #fffdfa; }
-.custom-size label span { position: absolute; right: 8px; bottom: 9px; color: #9b9186; }
+.custom-size label { position: relative; color: #687386; font-size: 10px; }
+.custom-size input { width: 100%; margin-top: 5px; padding: 9px 29px 9px 9px; border: 1px solid #dce1e8; border-radius: 8px; background: #fff; color: #273248; }
+.custom-size label span { position: absolute; right: 9px; bottom: 10px; color: #969ead; }
 .compact-check { margin-top: 8px; }
 .border-grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: 12px; }
 .border-grid .control { margin: 8px 0; }
-.warning-note { color: #9a5b28; }

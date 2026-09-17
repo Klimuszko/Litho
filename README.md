@@ -1,4 +1,4 @@
-# Lumina — generator litofanii V1
+# Litho — generator litofanii V1
 
 Samodzielna aplikacja webowa generująca płaskie, zamknięte modele litofanii STL bez GPU i bez zewnętrznego generatora geometrii.
 

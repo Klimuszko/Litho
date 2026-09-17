@@ -261,7 +261,7 @@ export default function App() {
   useEffect(() => {
     if (!rotatedPreview || !canvas.current) return;
     const c = canvas.current; const ctx = c.getContext("2d")!;
-    const crop = params.crop; const w = 760; const h = Math.max(240, Math.round(w * params.height_mm / params.width_mm));
+    const crop = params.crop; const w = 1200; const h = Math.max(320, Math.round(w * params.height_mm / params.width_mm));
       c.width = w; c.height = h;
       ctx.filter = `brightness(${params.brightness}) contrast(${params.contrast}) grayscale(1) ${view === "lithophane" ? "invert(1)" : ""}`;
       ctx.save();
@@ -329,11 +329,10 @@ export default function App() {
     } catch (e) { setError(e instanceof Error ? e.message : "Nieznany błąd"); } finally { setBusy(false); }
   };
 
-  return <main>
-    <header><div className="brand"><span className="mark">L</span><div><strong>Lumina</strong><small>Generator litofanii 3D</small></div></div><span className="badge">V1 · własny silnik</span></header>
-    <section className="hero"><p className="eyebrow">ŚWIATŁO ZAPISANE W MATERIALE</p><h1>Zamień fotografię<br/>w <em>drukowalne wspomnienie.</em></h1><p>Przygotuj obraz, dobierz grubość i pobierz zamknięty model STL gotowy do slicera.</p></section>
-    <section className="workspace">
-      <aside>
+  return <main className="app-shell">
+      <aside className="sidebar">
+        <div className="sidebar-brand"><span className="mark">L</span><div><strong>Litho</strong><small>Generator litofanii 3D</small></div><span className="version">V1</span></div>
+        <div className="sidebar-scroll">
         <h2><span>01</span> Obraz</h2>
         <label className="drop"><input type="file" accept="image/jpeg,image/png" onChange={choose}/><b>{file ? file.name : "Wybierz zdjęcie"}</b><small>JPG lub PNG · maks. 20 MB</small></label>
         <h3>Kadrowanie</h3>
@@ -367,15 +366,19 @@ export default function App() {
         {params.removable_support && <p className="quality-note">Kompaktowa podpora seryjna · 2 zastrzały, a dla dużych formatów 3 · maks. 45 mm wysokości i 25 mm wysunięcia na stronę · bez brimu w STL · wąskie bezpieczniki do łatwego odłamania</p>}
         <label className="check"><input type="checkbox" checked={params.invert} onChange={e => set("invert", e.target.checked)}/><span>Odwróć obraz</span></label>
         <label className="check"><input type="checkbox" checked={params.mirror} onChange={e => set("mirror", e.target.checked)}/><span>Odbij zdjęcie lustrzanie</span></label>
+        </div>
+        <div className="sidebar-foot">Lokalne przetwarzanie · STL manifold</div>
       </aside>
+      <section className="workbench">
+        <header className="workbench-head"><div><p className="eyebrow">PROJEKT</p><h1>Podgląd litofanii</h1></div><span className="badge">Własny silnik · FDM</span></header>
       <article className="preview">
         <div className="preview-head"><div><p className="eyebrow">PODGLĄD NA ŻYWO</p><h2>{view === "photo" ? "Przygotowane zdjęcie" : "Symulacja światła"}</h2></div><div className="tabs"><button className={view === "photo" ? "active" : ""} onClick={() => setView("photo")}>Obraz</button><button className={view === "lithophane" ? "active" : ""} onClick={() => setView("lithophane")}>Litofania</button></div></div>
-        <div className="stage crop-stage" style={{aspectRatio: `${params.width_mm} / ${params.height_mm}`, width: `min(100%, ${570 * params.width_mm / params.height_mm}px)`}}>{source ? <canvas ref={canvas} onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}/> : <div className="empty"><span>＋</span><b>Dodaj fotografię</b><small>Tutaj pojawi się jej podgląd</small></div>}</div>
+        <div className="stage crop-stage" style={{aspectRatio: `${params.width_mm} / ${params.height_mm}`, width: `min(100%, ${720 * params.width_mm / params.height_mm}px)`}}>{source ? <canvas ref={canvas} onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}/> : <div className="empty"><span>＋</span><b>Dodaj fotografię</b><small>Tutaj pojawi się jej podgląd</small></div>}</div>
         <div className="stats"><span><small>WYMIAR</small><b>{params.width_mm} × {params.height_mm} mm</b></span><span><small>GRUBOŚĆ</small><b>{params.min_thickness_mm}–{params.max_thickness_mm} mm</b></span><span><small>SIATKA</small><b>{gridX} × {gridY}</b></span></div>
         {(error || validateParams(params)) && <p className="error">{error || validateParams(params)}</p>}
         <button className="generate" disabled={busy || !file || Boolean(validateParams(params))} onClick={generate}>{busy ? "Generowanie…" : "Generuj i pobierz STL"}<span>→</span></button>
       </article>
-    </section>
-    <footer>Pliki są przetwarzane w pamięci i nie są przechowywane na serwerze.</footer>
+      <footer>Pliki są przetwarzane w pamięci i nie są przechowywane na serwerze.</footer>
+      </section>
   </main>;
 }
