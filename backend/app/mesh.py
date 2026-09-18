@@ -216,21 +216,30 @@ def apply_border(
 
 def validate_mesh(mesh: Mesh) -> dict[str, int | bool]:
     faces = mesh.faces
-    raw_edges = np.concatenate((faces[:, [0, 1]], faces[:, [1, 2]], faces[:, [2, 0]]))
-    low = np.minimum(raw_edges[:, 0], raw_edges[:, 1]).astype(np.uint64)
-    high = np.maximum(raw_edges[:, 0], raw_edges[:, 1]).astype(np.uint64)
-    records = np.empty(len(raw_edges), dtype=[("key", "<u8"), ("forward", "?")])
-    records["key"] = (low << np.uint64(32)) | high
-    records["forward"] = raw_edges[:, 0] == low
-    del raw_edges, low, high
-    records.sort(order="key")
-    keys = records["key"]
-    starts = np.flatnonzero(np.r_[True, keys[1:] != keys[:-1]])
-    counts = np.diff(np.r_[starts, len(keys)])
+    # Encode the undirected edge and its direction into one uint64. Vertex IDs
+    # stay below 2**31 (MAX_GRID_POINTS is ~6.2M), leaving the top bit free for
+    # the direction flag after packing two 32-bit IDs. Sorting a plain numeric
+    # array is much faster than NumPy structured-record sorting
+    # and reduces peak memory for multi-million-triangle production meshes.
+    encoded = np.empty(len(faces) * 3, dtype=np.uint64)
+    for edge_index, (left_index, right_index) in enumerate(((0, 1), (1, 2), (2, 0))):
+        left = faces[:, left_index]
+        right = faces[:, right_index]
+        low = np.minimum(left, right).astype(np.uint64)
+        high = np.maximum(left, right).astype(np.uint64)
+        key = (low << np.uint64(32)) | high
+        start = edge_index * len(faces)
+        encoded[start:start + len(faces)] = (key << np.uint64(1)) | (left == low)
+    encoded.sort()
+    same_edge = (encoded[1:] >> np.uint64(1)) == (encoded[:-1] >> np.uint64(1))
+    starts = np.flatnonzero(np.r_[True, ~same_edge])
+    counts = np.diff(np.r_[starts, len(encoded)])
     boundary_edges = int(np.count_nonzero(counts != 2))
     paired = counts == 2
     pair_starts = starts[paired]
-    winding_errors = int(np.count_nonzero(records["forward"][pair_starts] == records["forward"][pair_starts + 1]))
+    winding_errors = int(np.count_nonzero(
+        (encoded[pair_starts] & np.uint64(1)) == (encoded[pair_starts + 1] & np.uint64(1))
+    ))
 
     degenerate_faces = 0
     signed_volume = 0.0
@@ -241,7 +250,7 @@ def validate_mesh(mesh: Mesh) -> dict[str, int | bool]:
         degenerate_faces += int(np.count_nonzero(np.einsum("ij,ij->i", cross, cross) <= 1e-16))
         signed_volume += float(np.einsum("ij,ij->i", tri[:, 0], cross).sum() / 6.0)
     return {
-        "watertight": bool(len(keys) and boundary_edges == 0),
+        "watertight": bool(len(encoded) and boundary_edges == 0),
         "boundary_edges": boundary_edges,
         "degenerate_faces": degenerate_faces,
         "winding_errors": winding_errors,
