@@ -83,7 +83,7 @@ Najważniejsza bramka jakości sprawdza, że każda krawędź wygenerowanego mes
 
 ## Kalibracja P1S
 
-Punkt startowy dla białego PLA: 0,8 mm / 3,2 mm / gamma 1,0. Wydrukuj tę samą fotografię z kilkoma wartościami gamma i maksymalnej grubości, zachowując ten sam filament, profil slicera oraz źródło światła. Wyniki są zależne od materiału — parametry są celowo konfigurowalne.
+Punkt startowy dla białego PLA: 0,6 mm / 4,0 mm / gamma 1,0. Wydrukuj tę samą fotografię z kilkoma wartościami gamma i maksymalnej grubości, zachowując ten sam filament, profil slicera oraz źródło światła. Wyniki są zależne od materiału — parametry są celowo konfigurowalne.
 
 ## Ograniczenia V1
 

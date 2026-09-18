@@ -29,13 +29,13 @@ class BorderWidths(BaseModel):
 class LithophaneParams(BaseModel):
     width_mm: float = Field(150, ge=20, le=256, description="Final model width, including the optional border")
     height_mm: float = Field(100, ge=20, le=256, description="Final model height, including the optional border")
-    min_thickness_mm: float = Field(0.8, ge=0.4, le=10)
-    max_thickness_mm: float = Field(3.2, gt=0.4, le=22)
+    min_thickness_mm: float = Field(0.6, ge=0.4, le=10)
+    max_thickness_mm: float = Field(4.0, gt=0.4, le=22)
     gamma: float = Field(1.0, ge=0.1, le=5)
     brightness: float = Field(1.0, ge=0.25, le=2)
     contrast: float = Field(1.25, ge=0.25, le=3)
     nozzle_diameter_mm: Literal[0.2, 0.4] = 0.4
-    quality_profile: Literal["economic", "optimal", "maximum"] = "optimal"
+    quality_profile: Literal["economic", "optimal", "maximum"] = "maximum"
     resolution: int | None = Field(None, ge=24, le=2000, description="Optional legacy override; UI profiles derive resolution from a physical XY sample pitch")
     orientation: Literal["portrait", "landscape"] = Field("landscape", description="Must match the final model dimensions")
     border_width_mm: float = Field(0, ge=0, le=20)

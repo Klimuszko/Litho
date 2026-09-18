@@ -6,10 +6,12 @@ const valid: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .8, max_
 
 describe("client parameter validation", () => {
   it("uses a modest default contrast boost", () => expect(initial.contrast).toBe(1.25));
-  it("uses the calibrated 0.8 to 3.2 mm thickness range", () => {
-    expect(initial.min_thickness_mm).toBe(.8);
-    expect(initial.max_thickness_mm).toBe(3.2);
+  it("uses the calibrated 0.6 to 4.0 mm thickness range", () => {
+    expect(initial.min_thickness_mm).toBe(.6);
+    expect(initial.max_thickness_mm).toBe(4);
+    expect(initial.border_height_mm).toBe(4);
   });
+  it("uses maximum geometry quality by default", () => expect(initial.quality_profile).toBe("maximum"));
   it("shows an uploaded photo without a creative mirror by default", () => expect(initial.mirror).toBe(false));
   it("accepts calibrated defaults", () => expect(validateParams(valid)).toBe(""));
   it("rejects inverted thickness range", () => expect(validateParams({...valid, min_thickness_mm: 4})).toContain("większa"));

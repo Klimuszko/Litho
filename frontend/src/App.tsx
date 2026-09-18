@@ -117,7 +117,7 @@ export function imageArea(width: number, height: number, border: number | Border
   const borders = typeof border === "number" ? {top: border, right: border, bottom: border, left: border} : border;
   return {width: width - borders.left - borders.right, height: height - borders.top - borders.bottom};
 }
-export const initial: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .8, max_thickness_mm: 3.2, gamma: 1, brightness: 1, contrast: 1.25, nozzle_diameter_mm: .4, quality_profile: "optimal", orientation: "landscape", border_width_mm: 0, border_widths_mm: null, border_height_mm: 3.2, mounting_flange: false, removable_support: false, invert: false, mirror: false, rotation_degrees: 0, crop: {x: 0, y: 0, width: 1, height: 1}};
+export const initial: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .6, max_thickness_mm: 4, gamma: 1, brightness: 1, contrast: 1.25, nozzle_diameter_mm: .4, quality_profile: "maximum", orientation: "landscape", border_width_mm: 0, border_widths_mm: null, border_height_mm: 4, mounting_flange: false, removable_support: false, invert: false, mirror: false, rotation_degrees: 0, crop: {x: 0, y: 0, width: 1, height: 1}};
 
 export function resolvedBorders(p: Params): BorderWidths {
   if (p.mounting_flange) return {top: MOUNTING_FLANGE_WIDTH_MM, right: MOUNTING_FLANGE_WIDTH_MM, bottom: MOUNTING_FLANGE_WIDTH_MM, left: MOUNTING_FLANGE_WIDTH_MM};

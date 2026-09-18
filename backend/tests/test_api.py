@@ -70,7 +70,7 @@ def test_generate_returns_binary_stl():
     assert response.status_code == 200, response.text
     assert response.headers["content-type"] == "model/stl"
     assert response.headers["x-nozzle-diameter-mm"] == "0.4"
-    assert response.headers["x-quality-profile"] == "optimal"
+    assert response.headers["x-quality-profile"] == "maximum"
     assert response.headers["x-sample-pitch-mm"] == "3.125"
     assert response.headers["x-effective-sample-pitch-mm"] == "3.125"
     assert response.headers["x-grid-size"] == "49x33"
@@ -163,8 +163,9 @@ def test_largest_landscape_format_reports_full_support_profile():
 def test_default_photo_contrast_is_slightly_enhanced():
     params = LithophaneParams()
     assert params.contrast == 1.25
-    assert params.min_thickness_mm == 0.8
-    assert params.max_thickness_mm == 3.2
+    assert params.min_thickness_mm == 0.6
+    assert params.max_thickness_mm == 4.0
+    assert params.quality_profile == "maximum"
 
 
 def test_accepts_border_lower_than_relief_for_lightweight_frame():
