@@ -219,3 +219,4 @@ button { cursor: pointer; }
   .stats { grid-template-columns: 1fr; }
   .format-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+[hidden] { display: none !important; }

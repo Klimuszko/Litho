@@ -144,7 +144,7 @@ function Slider({label, value, min, max, step, unit = "", onChange}: {label: str
   return <label className="control"><span>{label}<output>{value}{unit}</output></span><input type="range" value={value} min={min} max={max} step={step} onChange={e => onChange(Number(e.target.value))}/></label>;
 }
 
-function LithophaneGenerator({onOpenHousing}: {onOpenHousing: () => void}) {
+function LithophaneGenerator({active, onOpenHousing}: {active: boolean; onOpenHousing: () => void}) {
   const [file, setFile] = useState<File | null>(null);
   const [source, setSource] = useState<string>("");
   const [params, setParams] = useState(initial);
@@ -351,7 +351,7 @@ function LithophaneGenerator({onOpenHousing}: {onOpenHousing: () => void}) {
     } catch (e) { setError(e instanceof Error ? e.message : "Nieznany błąd"); } finally { busyRef.current = false; setBusy(false); }
   };
 
-  return <main className="app-shell">
+  return <main className="app-shell" hidden={!active}>
       <aside className="sidebar">
         <div className="sidebar-brand"><span className="mark">L</span><div><strong>Litho</strong><small>Generator litofanii 3D</small></div><span className="version">V1</span></div>
         <div className="product-switch"><button className="active">Litofania</button><button onClick={onOpenHousing}>Obudowa</button></div>
@@ -413,7 +413,8 @@ function LithophaneGenerator({onOpenHousing}: {onOpenHousing: () => void}) {
 
 export default function App() {
   const [product, setProduct] = useState<"lithophane" | "housing">("lithophane");
-  return product === "housing"
-    ? <HousingGenerator onOpenLithophane={() => setProduct("lithophane")}/>
-    : <LithophaneGenerator onOpenHousing={() => setProduct("housing")}/>;
+  return <>
+    <LithophaneGenerator active={product === "lithophane"} onOpenHousing={() => setProduct("housing")}/>
+    <HousingGenerator active={product === "housing"} onOpenLithophane={() => setProduct("lithophane")}/>
+  </>;
 }

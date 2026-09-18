@@ -49,7 +49,7 @@ function Range({label, value, min, max, step, onChange}: {label: string; value: 
   return <label className="control"><span>{label}<output>{value} mm</output></span><input type="range" value={value} min={min} max={max} step={step} onChange={event => onChange(Number(event.target.value))}/></label>;
 }
 
-export default function HousingGenerator({onOpenLithophane}: {onOpenLithophane: () => void}) {
+export default function HousingGenerator({active, onOpenLithophane}: {active: boolean; onOpenLithophane: () => void}) {
   const [params, setParams] = useState(initialHousing);
   const [custom, setCustom] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -101,7 +101,7 @@ export default function HousingGenerator({onOpenLithophane}: {onOpenLithophane: 
   );
   const visualBorder = params.kind === "frame" ? Math.max(12, Math.min(30, params.frame_border_mm * .9)) : 4;
 
-  return <main className="app-shell housing-shell">
+  return <main className="app-shell housing-shell" hidden={!active}>
     <aside className="sidebar">
       <div className="sidebar-brand"><span className="mark">L</span><div><strong>Litho</strong><small>Generator obudów 3D</small></div><span className="version">V1</span></div>
       <div className="product-switch"><button onClick={onOpenLithophane}>Litofania</button><button className="active">Obudowa</button></div>
