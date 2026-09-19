@@ -7,7 +7,7 @@ services:
     restart: unless-stopped
     networks:
       VLAN50_Docker:
-        ipv4_address: 10.10.50.19
+        ipv4_address: ${LITHOPHANE_IPV4_ADDRESS}
     dns:
       - ${LITHOPHANE_DNS}
     environment:
@@ -35,8 +35,8 @@ services:
       - traefik.http.routers.lithophane.entrypoints=${TRAEFIK_ENTRYPOINT}
       - traefik.http.routers.lithophane.tls=true
       - traefik.http.routers.lithophane.tls.certresolver=${TRAEFIK_CERTRESOLVER}
-      - traefik.http.services.lithophane.loadbalancer.server.port=8000
-      - traefik.http.services.lithophane.loadbalancer.server.scheme=http
+      - traefik.http.services.lithophane.loadbalancer.server.port=${LITHOPHANE_BACKEND_PORT}
+      - traefik.http.services.lithophane.loadbalancer.server.scheme=${LITHOPHANE_BACKEND_SCHEME}
       - traefik.http.services.lithophane.loadbalancer.healthcheck.path=/api/health
       - traefik.http.services.lithophane.loadbalancer.healthcheck.interval=15s
 
