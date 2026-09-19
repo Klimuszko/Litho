@@ -1,5 +1,6 @@
 import { useState } from "react";
 import "./housing.css";
+import {useAuth} from "./Auth";
 
 export type HousingParams = {
   kind: "box" | "frame";
@@ -50,6 +51,7 @@ function Range({label, value, min, max, step, onChange}: {label: string; value: 
 }
 
 export default function HousingGenerator({active, onOpenLithophane}: {active: boolean; onOpenLithophane: () => void}) {
+  const {apiFetch} = useAuth();
   const [params, setParams] = useState(initialHousing);
   const [custom, setCustom] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -76,7 +78,7 @@ export default function HousingGenerator({active, onOpenLithophane}: {active: bo
     if (invalid) { setError(invalid); return; }
     setBusy(true); setError("");
     try {
-      const response = await fetch("/api/housing/generate", {
+      const response = await apiFetch("/api/housing/generate", {
         method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(params),
       });
       if (!response.ok) {

@@ -2,6 +2,8 @@
 
 API projektów oddziela uproszczony kreator klienta od produkcyjnego generatora Litho. WordPress przechowuje przy pozycji zamówienia tylko `project_id` oraz migawkę wybranych wariantów. Zdjęcie i STL pozostają w prywatnym katalogu aplikacji Litho.
 
+Całe API projektów jest zamknięte za uwierzytelnieniem. Do czasu wdrożenia krótkotrwałych tokenów kreatora wywołania klienta muszą przechodzić przez serwer WordPressa, który dodaje `X-Litho-Admin-Key`. Klucza nie wolno wysyłać do przeglądarki. `project_token` nadal ogranicza dostęp do jednego konkretnego projektu.
+
 ## Konfiguracja projektu
 
 `POST /api/customer/projects`

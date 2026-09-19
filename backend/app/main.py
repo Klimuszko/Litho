@@ -1,7 +1,9 @@
 import hashlib
 import json
+import logging
 import os
 import secrets
+import sqlite3
 from io import BytesIO
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -13,6 +15,10 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 
+from .auth import (
+    LoginRequest, PasswordChange, PasswordReset, UserCreate, UserUpdate,
+    auth_store, login_limiter, password_limiter,
+)
 from .exporter import binary_stl
 from .heightmap import grid_resolution, luminance_to_thickness
 from .housing import build_housing_back, build_housing_body, orient_front_on_bed
@@ -21,7 +27,7 @@ from .mesh import add_removable_support, apply_border, build_plate, removable_su
 from .models import HousingParams, LithophaneParams
 from .projects import CustomerProjectConfig, OrderReference, project_store
 
-app = FastAPI(title="Lithophane Generator API", version="1.0.0")
+app = FastAPI(title="Lithophane Generator API", version="1.0.0", docs_url=None, redoc_url=None, openapi_url=None)
 cors_origins = [origin.strip() for origin in os.getenv(
     "LITHO_CORS_ORIGINS", "http://localhost:3000,http://localhost:5173"
 ).split(",") if origin.strip()]
@@ -30,7 +36,59 @@ app.add_middleware(
     allow_origins=cors_origins,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
+    allow_credentials=True,
 )
+
+AUTH_COOKIE_SECURE = os.getenv("LITHO_SECURE_COOKIES", "true").lower() not in {"0", "false", "no"}
+AUTH_COOKIE_NAME = "__Host-litho_session" if AUTH_COOKIE_SECURE else "litho_session"
+AUTH_EXEMPT_PATHS = {"/api/health", "/api/auth/login"}
+UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+_auth_disabled_warning_emitted = False
+
+
+def auth_disabled() -> bool:
+    global _auth_disabled_warning_emitted
+    disabled = os.getenv("LITHO_AUTH_DISABLED", "").lower() in {"1", "true", "yes"}
+    if disabled and not _auth_disabled_warning_emitted:
+        logging.getLogger("uvicorn.error").critical(
+            "LITHO_AUTH_DISABLED is enabled: all API authentication is bypassed. Never use this setting in production."
+        )
+        _auth_disabled_warning_emitted = True
+    return disabled
+
+
+def is_service_api_path(path: str) -> bool:
+    return (
+        path == "/api/customer/projects"
+        or path.startswith("/api/customer/projects/")
+        or path == "/api/admin/projects"
+        or path.startswith("/api/admin/projects/")
+    )
+
+
+def service_key_valid(request: Request) -> bool:
+    configured = os.getenv("LITHO_ADMIN_API_KEY", "")
+    supplied = request.headers.get("X-Litho-Admin-Key", "")
+    return bool(configured and supplied and secrets.compare_digest(configured, supplied))
+
+
+@app.middleware("http")
+async def require_authentication(request: Request, call_next):
+    if auth_disabled():
+        return await call_next(request)
+    path = request.url.path
+    if not path.startswith("/api/") or path in AUTH_EXEMPT_PATHS:
+        return await call_next(request)
+    if is_service_api_path(path) and service_key_valid(request):
+        request.state.user = {"id": 0, "username": "wordpress-service", "display_name": "WordPress", "role": "service", "active": True}
+        return await call_next(request)
+    session = auth_store.session(request.cookies.get(AUTH_COOKIE_NAME))
+    if not session:
+        return JSONResponse(status_code=401, content={"error_code": "AUTH_REQUIRED", "message": "Zaloguj się, aby korzystać z Litho."})
+    if request.method in UNSAFE_METHODS and not auth_store.valid_csrf(session, request.headers.get("X-CSRF-Token")):
+        return JSONResponse(status_code=403, content={"error_code": "CSRF_INVALID", "message": "Sesja formularza wygasła. Odśwież stronę."})
+    request.state.user = session
+    return await call_next(request)
 
 
 def parse_params(raw: str) -> LithophaneParams:
@@ -81,7 +139,10 @@ def load_customer_project(project_id: str, project_token: str | None) -> dict:
     return metadata
 
 
-def require_admin(admin_key: str | None) -> None:
+def require_admin(admin_key: str | None, request: Request) -> None:
+    user = getattr(request.state, "user", None)
+    if user and user.get("role") in {"admin", "service"}:
+        return
     configured = os.getenv("LITHO_ADMIN_API_KEY", "")
     if not configured:
         raise HTTPException(status_code=503, detail={"error_code": "ADMIN_API_DISABLED", "message": "Panel administracyjny API nie został skonfigurowany."})
@@ -92,6 +153,111 @@ def require_admin(admin_key: str | None) -> None:
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+def authenticated_user(request: Request) -> dict:
+    user = getattr(request.state, "user", None)
+    if not user:
+        raise HTTPException(status_code=401, detail={"error_code": "AUTH_REQUIRED", "message": "Zaloguj się."})
+    return user
+
+
+def admin_user(request: Request) -> dict:
+    user = authenticated_user(request)
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail={"error_code": "ADMIN_REQUIRED", "message": "Ta operacja wymaga konta administratora."})
+    return user
+
+
+@app.post("/api/auth/login")
+def login(credentials: LoginRequest, request: Request):
+    if auth_store.user_count() == 0:
+        raise HTTPException(status_code=503, detail={"error_code": "BOOTSTRAP_REQUIRED", "message": "Brak konta administratora. Ustaw dane LITHO_BOOTSTRAP_ADMIN_* i uruchom kontener ponownie."})
+    client_ip = request.client.host if request.client else "unknown"
+    ip_key = f"ip:{client_ip}"
+    if not login_limiter.allowed(ip_key):
+        raise HTTPException(status_code=429, detail={"error_code": "LOGIN_RATE_LIMIT", "message": "Zbyt wiele prób logowania. Spróbuj ponownie później."})
+    user = auth_store.authenticate(credentials.username, credentials.password)
+    if not user:
+        login_limiter.fail(ip_key)
+        raise HTTPException(status_code=401, detail={"error_code": "LOGIN_FAILED", "message": "Nieprawidłowy login lub hasło."})
+    login_limiter.success(ip_key)
+    session_token, csrf_token = auth_store.create_session(user["id"])
+    response = JSONResponse({"user": user, "csrf_token": csrf_token})
+    response.set_cookie(
+        AUTH_COOKIE_NAME, session_token, secure=AUTH_COOKIE_SECURE, httponly=True,
+        samesite="strict", path="/",
+    )
+    return response
+
+
+@app.get("/api/auth/me")
+def current_user(request: Request):
+    session = authenticated_user(request)
+    user = {key: value for key, value in session.items() if key != "csrf_token"}
+    return {"user": user, "csrf_token": session["csrf_token"]}
+
+
+@app.post("/api/auth/logout", status_code=204)
+def logout(request: Request):
+    auth_store.destroy_session(request.cookies.get(AUTH_COOKIE_NAME))
+    response = Response(status_code=204)
+    response.delete_cookie(AUTH_COOKIE_NAME, path="/", secure=AUTH_COOKIE_SECURE, httponly=True, samesite="strict")
+    return response
+
+
+@app.get("/api/auth/users")
+def list_users(request: Request):
+    admin_user(request)
+    return {"users": auth_store.list_users()}
+
+
+@app.post("/api/auth/users", status_code=201)
+def create_user(user: UserCreate, request: Request):
+    admin_user(request)
+    try:
+        return auth_store.create_user(user)
+    except sqlite3.IntegrityError as exc:
+        raise HTTPException(status_code=409, detail={"error_code": "USERNAME_EXISTS", "message": "Konto o takim loginie już istnieje."}) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail={"error_code": "USERNAME_INVALID", "message": "Login może zawierać małe litery, cyfry, kropkę, myślnik i podkreślenie."}) from exc
+
+
+@app.put("/api/auth/users/{user_id}")
+def update_user(user_id: int, update: UserUpdate, request: Request):
+    acting = admin_user(request)
+    try:
+        return auth_store.update_user(user_id, update, acting["id"])
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail={"error_code": "USER_NOT_FOUND", "message": "Konto nie istnieje."}) from exc
+    except RuntimeError as exc:
+        message = "Nie można wyłączyć własnego konta." if str(exc) == "self_deactivation" else "Musi pozostać co najmniej jeden aktywny administrator."
+        raise HTTPException(status_code=409, detail={"error_code": str(exc).upper(), "message": message}) from exc
+
+
+@app.put("/api/auth/users/{user_id}/password", status_code=204)
+def reset_user_password(user_id: int, change: PasswordReset, request: Request):
+    admin_user(request)
+    try:
+        auth_store.reset_password(user_id, change.new_password)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail={"error_code": "USER_NOT_FOUND", "message": "Konto nie istnieje."}) from exc
+
+
+@app.put("/api/auth/password", status_code=204)
+def change_own_password(change: PasswordChange, request: Request):
+    user = authenticated_user(request)
+    limiter_key = f"password:{user['id']}"
+    if not password_limiter.allowed(limiter_key):
+        raise HTTPException(status_code=429, detail={"error_code": "PASSWORD_RATE_LIMIT", "message": "Zbyt wiele prób. Spróbuj ponownie później."})
+    if not auth_store.authenticate(user["username"], change.current_password):
+        password_limiter.fail(limiter_key)
+        raise HTTPException(status_code=403, detail={"error_code": "PASSWORD_INCORRECT", "message": "Obecne hasło jest nieprawidłowe."})
+    password_limiter.success(limiter_key)
+    auth_store.reset_password(user["id"], change.new_password)
+    response = Response(status_code=204)
+    response.delete_cookie(AUTH_COOKIE_NAME, path="/", secure=AUTH_COOKIE_SECURE, httponly=True, samesite="strict")
+    return response
 
 
 @app.post("/api/customer/projects", status_code=201)
@@ -202,14 +368,14 @@ def download_customer_artifact(project_id: str, artifact_name: str, x_project_to
 
 
 @app.get("/api/admin/projects")
-def list_customer_projects(x_litho_admin_key: str | None = Header(None)):
-    require_admin(x_litho_admin_key)
+def list_customer_projects(request: Request, x_litho_admin_key: str | None = Header(None)):
+    require_admin(x_litho_admin_key, request)
     return {"projects": project_store.list()}
 
 
 @app.get("/api/admin/projects/{project_id}")
-def get_admin_project(project_id: str, x_litho_admin_key: str | None = Header(None)):
-    require_admin(x_litho_admin_key)
+def get_admin_project(project_id: str, request: Request, x_litho_admin_key: str | None = Header(None)):
+    require_admin(x_litho_admin_key, request)
     try:
         return project_store.public(project_store.load(project_id))
     except (FileNotFoundError, OSError, ValueError, KeyError) as exc:
@@ -217,8 +383,8 @@ def get_admin_project(project_id: str, x_litho_admin_key: str | None = Header(No
 
 
 @app.get("/api/admin/projects/{project_id}/artifacts/{artifact_name}")
-def download_admin_artifact(project_id: str, artifact_name: str, x_litho_admin_key: str | None = Header(None)):
-    require_admin(x_litho_admin_key)
+def download_admin_artifact(project_id: str, artifact_name: str, request: Request, x_litho_admin_key: str | None = Header(None)):
+    require_admin(x_litho_admin_key, request)
     try:
         metadata = project_store.load(project_id)
     except (FileNotFoundError, OSError, ValueError, KeyError) as exc:
@@ -230,8 +396,8 @@ def download_admin_artifact(project_id: str, artifact_name: str, x_litho_admin_k
 
 
 @app.get("/api/admin/projects/{project_id}/source")
-def download_admin_source(project_id: str, x_litho_admin_key: str | None = Header(None)):
-    require_admin(x_litho_admin_key)
+def download_admin_source(project_id: str, request: Request, x_litho_admin_key: str | None = Header(None)):
+    require_admin(x_litho_admin_key, request)
     try:
         metadata = project_store.load(project_id)
     except (FileNotFoundError, OSError, ValueError, KeyError) as exc:
@@ -243,8 +409,8 @@ def download_admin_source(project_id: str, x_litho_admin_key: str | None = Heade
 
 
 @app.put("/api/admin/projects/{project_id}/order")
-def attach_project_order(project_id: str, reference: OrderReference, x_litho_admin_key: str | None = Header(None)):
-    require_admin(x_litho_admin_key)
+def attach_project_order(project_id: str, reference: OrderReference, request: Request, x_litho_admin_key: str | None = Header(None)):
+    require_admin(x_litho_admin_key, request)
     try:
         metadata = project_store.attach_order(project_id, reference.order_id)
     except (FileNotFoundError, OSError, ValueError, KeyError) as exc:
@@ -253,8 +419,8 @@ def attach_project_order(project_id: str, reference: OrderReference, x_litho_adm
 
 
 @app.delete("/api/admin/projects/{project_id}", status_code=204)
-def delete_admin_project(project_id: str, x_litho_admin_key: str | None = Header(None)):
-    require_admin(x_litho_admin_key)
+def delete_admin_project(project_id: str, request: Request, x_litho_admin_key: str | None = Header(None)):
+    require_admin(x_litho_admin_key, request)
     try:
         project_store.delete(project_id)
     except FileNotFoundError as exc:

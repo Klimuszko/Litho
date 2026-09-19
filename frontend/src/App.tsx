@@ -1,6 +1,7 @@
 import { ChangeEvent, PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
 import "./formats.css";
 import HousingGenerator from "./HousingGenerator";
+import {useAuth} from "./Auth";
 
 export type Params = {
   width_mm: number; height_mm: number; min_thickness_mm: number; max_thickness_mm: number;
@@ -145,6 +146,7 @@ function Slider({label, value, min, max, step, unit = "", onChange}: {label: str
 }
 
 function LithophaneGenerator({active, onOpenHousing}: {active: boolean; onOpenHousing: () => void}) {
+  const {apiFetch} = useAuth();
   const [file, setFile] = useState<File | null>(null);
   const [source, setSource] = useState<string>("");
   const [params, setParams] = useState(initial);
@@ -343,7 +345,7 @@ function LithophaneGenerator({active, onOpenHousing}: {active: boolean; onOpenHo
     setBusy(true); setError("");
     try {
       const body = new FormData(); body.append("image", file); body.append("params", JSON.stringify(params));
-      const response = await fetch("/api/generate", {method: "POST", body});
+      const response = await apiFetch("/api/generate", {method: "POST", body});
       if (!response.ok) { const problem = await response.json(); throw new Error(problem.detail?.message || "Generowanie nie powiodło się."); }
       const blob = await response.blob(); const url = URL.createObjectURL(blob);
       const link = document.createElement("a"); link.href = url; link.download = "lithophane.stl"; link.click();

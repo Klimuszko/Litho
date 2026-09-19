@@ -89,6 +89,8 @@ Punkt startowy dla białego PLA: 0,6 mm / 4,0 mm / gamma 1,0. Wydrukuj tę samą
 
 Backend udostępnia trwałe projekty klientów z prywatnym tokenem, generowaniem STL w tle oraz osobnym dostępem administracyjnym. Projekty i zdjęcia są zapisywane w prywatnym wolumenie `/data/projects`; nie trafiają do katalogu statycznego aplikacji. Kontrakt integracyjny, cykl życia projektu i wymagane zmienne środowiskowe opisuje [WOOCOMMERCE_API.md](WOOCOMMERCE_API.md).
 
+Dostęp do generatora jest chroniony lokalnymi kontami administratorów i operatorów. Pierwsze konto, role, sesje oraz wdrożenie opisuje [AUTHENTICATION.md](AUTHENTICATION.md).
+
 ## Ograniczenia V1
 
 - płaski model prostokątny;

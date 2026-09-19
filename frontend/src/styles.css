@@ -220,3 +220,32 @@ button { cursor: pointer; }
   .format-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 [hidden] { display: none !important; }
+
+.login-page { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: radial-gradient(circle at 50% 10%, #f8fafc, #e8edf4 65%, #dce3ec); }
+.login-card { width: min(420px, 100%); padding: 42px; border: 1px solid #dce2eb; border-radius: 20px; background: rgba(255,255,255,.96); box-shadow: 0 24px 70px rgba(31,42,60,.14); }
+.login-logo { display: grid; width: 48px; height: 48px; place-items: center; margin-bottom: 28px; border-radius: 13px; background: #182337; color: #f08a3c; font-size: 22px; font-weight: 900; }
+.login-card h1 { margin: 5px 0 8px; color: #182337; font-size: 28px; }
+.login-copy { margin: 0 0 28px; color: #69758a; font-size: 13px; line-height: 1.5; }
+.login-card label { display: grid; gap: 7px; margin: 14px 0; color: #4b586d; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.login-card input, .account-modal input, .account-modal select { min-width: 0; padding: 11px 12px; border: 1px solid #d8dee8; border-radius: 8px; background: #f9fafc; color: #263247; font: inherit; outline: none; }
+.login-card input:focus, .account-modal input:focus, .account-modal select:focus { border-color: #d9732f; box-shadow: 0 0 0 3px rgba(217,115,47,.12); }
+.login-card .generate { margin-top: 22px; }
+.login-loader { color: #182337; font-size: 28px; font-weight: 900; letter-spacing: -.04em; }
+.account-toolbar { position: fixed; z-index: 30; top: 15px; right: 20px; display: flex; align-items: center; gap: 8px; padding: 6px 7px 6px 13px; border: 1px solid #dce2eb; border-radius: 12px; background: rgba(255,255,255,.94); box-shadow: 0 8px 25px rgba(25,36,54,.09); backdrop-filter: blur(12px); }
+.account-toolbar span { display: grid; margin-right: 4px; color: #263247; font-size: 10px; }
+.account-toolbar small { color: #8791a2; font-size: 8px; }
+.account-toolbar button, .account-modal button { padding: 8px 10px; border: 1px solid #d9dfe8; border-radius: 7px; background: #fff; color: #536075; font-size: 9px; font-weight: 700; cursor: pointer; }
+.account-toolbar button:hover, .account-modal button:hover { border-color: #d9732f; color: #b75a20; }
+.account-backdrop { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(17,25,38,.58); backdrop-filter: blur(5px); }
+.account-modal { width: min(1050px, 100%); max-height: 88vh; overflow: auto; padding: 26px; border-radius: 18px; background: #fff; box-shadow: 0 30px 90px rgba(0,0,0,.3); }
+.account-modal header { display: flex; align-items: flex-start; justify-content: space-between; }
+.account-modal h2, .account-modal h3 { margin: 4px 0 18px; color: #263247; }
+.account-modal header > button { width: 34px; height: 34px; padding: 0; font-size: 22px; }
+.user-list { display: grid; gap: 7px; }
+.user-row { display: grid; grid-template-columns: minmax(130px,1.5fr) minmax(90px,1fr) 130px 90px auto auto; align-items: center; gap: 7px; padding: 8px; border: 1px solid #e3e7ed; border-radius: 10px; }
+.user-row strong { color: #536075; font-size: 11px; }
+.user-active { color: #536075; font-size: 10px; }
+.new-user { display: grid; grid-template-columns: 1fr 1.2fr 1.4fr 130px auto; gap: 8px; margin-top: 24px; padding-top: 20px; border-top: 1px solid #e3e7ed; }
+.new-user h3 { grid-column: 1 / -1; margin-bottom: 3px; }
+.new-user .generate { margin: 0; padding: 0 15px; }
+@media (max-width: 850px) { .account-toolbar span { display: none; } .user-row, .new-user { grid-template-columns: 1fr 1fr; } .new-user h3 { grid-column: 1 / -1; } }
