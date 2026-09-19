@@ -1,12 +1,15 @@
+import hashlib
 import json
+import os
+import secrets
 from io import BytesIO
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 
@@ -16,12 +19,16 @@ from .housing import build_housing_back, build_housing_body, orient_front_on_bed
 from .image_processing import InvalidImage, decode_image, prepare_image, preview_png, resample_luminance
 from .mesh import add_removable_support, apply_border, build_plate, removable_support_dimensions, validate_mesh
 from .models import HousingParams, LithophaneParams
+from .projects import CustomerProjectConfig, OrderReference, project_store
 
 app = FastAPI(title="Lithophane Generator API", version="1.0.0")
+cors_origins = [origin.strip() for origin in os.getenv(
+    "LITHO_CORS_ORIGINS", "http://localhost:3000,http://localhost:5173"
+).split(",") if origin.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
-    allow_methods=["GET", "POST"],
+    allow_origins=cors_origins,
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -64,9 +71,194 @@ def pipeline(raw: bytes, params: LithophaneParams):
     return image, mesh, (cols, rows)
 
 
+def load_customer_project(project_id: str, project_token: str | None) -> dict:
+    try:
+        metadata = project_store.load(project_id)
+    except (FileNotFoundError, OSError, ValueError, KeyError) as exc:
+        raise HTTPException(status_code=404, detail={"error_code": "PROJECT_NOT_FOUND", "message": "Projekt nie istnieje."}) from exc
+    if not project_store.authorize(metadata, project_token):
+        raise HTTPException(status_code=403, detail={"error_code": "PROJECT_ACCESS_DENIED", "message": "Nieprawidłowy token projektu."})
+    return metadata
+
+
+def require_admin(admin_key: str | None) -> None:
+    configured = os.getenv("LITHO_ADMIN_API_KEY", "")
+    if not configured:
+        raise HTTPException(status_code=503, detail={"error_code": "ADMIN_API_DISABLED", "message": "Panel administracyjny API nie został skonfigurowany."})
+    if not admin_key or not secrets.compare_digest(configured, admin_key):
+        raise HTTPException(status_code=403, detail={"error_code": "ADMIN_ACCESS_DENIED", "message": "Nieprawidłowy klucz administratora."})
+
+
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+@app.post("/api/customer/projects", status_code=201)
+def create_customer_project(config: CustomerProjectConfig):
+    metadata, token = project_store.create(config)
+    return {**project_store.public(metadata), "project_token": token}
+
+
+@app.get("/api/customer/projects/{project_id}")
+def get_customer_project(project_id: str, x_project_token: str | None = Header(None)):
+    return project_store.public(load_customer_project(project_id, x_project_token))
+
+
+@app.put("/api/customer/projects/{project_id}")
+def update_customer_project(project_id: str, config: CustomerProjectConfig, x_project_token: str | None = Header(None)):
+    load_customer_project(project_id, x_project_token)
+    try:
+        metadata = project_store.replace_config(project_id, config)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail={"error_code": "PROJECT_GENERATING", "message": "Poczekaj na zakończenie generowania."}) from exc
+    return project_store.public(metadata)
+
+
+@app.post("/api/customer/projects/{project_id}/image")
+async def upload_customer_project_image(
+    project_id: str,
+    image: UploadFile = File(...),
+    x_project_token: str | None = Header(None),
+):
+    load_customer_project(project_id, x_project_token)
+    raw = await read_image(image)
+    try:
+        decoded = decode_image(raw)
+    except InvalidImage as exc:
+        raise HTTPException(status_code=422, detail={"error_code": "INVALID_IMAGE_FORMAT", "message": "Nie można odczytać obrazu."}) from exc
+    is_png = raw.startswith(b"\x89PNG\r\n\x1a\n")
+    extension = ".png" if is_png else ".jpg"
+    detected_content_type = "image/png" if is_png else "image/jpeg"
+    filename = f"source{extension}"
+    image_metadata = {
+        "filename": filename,
+        "original_name": Path(image.filename or filename).name,
+        "content_type": detected_content_type,
+        "bytes": len(raw),
+        "sha256": hashlib.sha256(raw).hexdigest(),
+        "width_px": decoded.width,
+        "height_px": decoded.height,
+    }
+    try:
+        metadata = project_store.replace_image(project_id, filename, raw, image_metadata)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail={"error_code": "PROJECT_GENERATING", "message": "Poczekaj na zakończenie generowania."}) from exc
+    return project_store.public(metadata)
+
+
+def generate_project_artifacts(project_id: str, generation_id: str) -> None:
+    try:
+        metadata = project_store.load(project_id)
+        if metadata.get("generation_id") != generation_id or metadata["status"] != "generating":
+            return
+        raw = project_store.path(project_id, metadata["image"]["filename"]).read_bytes()
+        settings = CustomerProjectConfig.model_validate(metadata["config"]).lithophane_params()
+        _, mesh, (cols, rows) = pipeline(raw, settings)
+        payload = binary_stl(mesh)
+        filename = "lithophane.stl"
+        artifact = {
+            "filename": filename,
+            "content_type": "model/stl",
+            "bytes": len(payload),
+            "sha256": hashlib.sha256(payload).hexdigest(),
+            "triangles": len(mesh.faces),
+            "grid": f"{cols}x{rows}",
+            "generator_version": os.getenv("LITHO_GENERATOR_VERSION", app.version),
+        }
+        project_store.finish_generation(project_id, generation_id, payload, artifact)
+    except Exception:
+        try:
+            project_store.fail_generation(project_id, generation_id)
+        except (FileNotFoundError, OSError, ValueError, KeyError):
+            return
+
+
+@app.post("/api/customer/projects/{project_id}/generate", status_code=202)
+def generate_customer_project(
+    project_id: str,
+    background_tasks: BackgroundTasks,
+    x_project_token: str | None = Header(None),
+):
+    metadata = load_customer_project(project_id, x_project_token)
+    generation_id = secrets.token_hex(16)
+    try:
+        metadata = project_store.begin_generation(project_id, generation_id)
+    except RuntimeError as exc:
+        if str(exc) == "image_required":
+            raise HTTPException(status_code=409, detail={"error_code": "PROJECT_IMAGE_REQUIRED", "message": "Najpierw prześlij zdjęcie."}) from exc
+        raise HTTPException(status_code=409, detail={"error_code": "PROJECT_ALREADY_GENERATING", "message": "Projekt jest już generowany."}) from exc
+    background_tasks.add_task(generate_project_artifacts, project_id, generation_id)
+    return project_store.public(metadata)
+
+
+@app.get("/api/customer/projects/{project_id}/artifacts/{artifact_name}")
+def download_customer_artifact(project_id: str, artifact_name: str, x_project_token: str | None = Header(None)):
+    metadata = load_customer_project(project_id, x_project_token)
+    artifact = metadata.get("artifacts", {}).get(artifact_name)
+    if not artifact:
+        raise HTTPException(status_code=404, detail={"error_code": "ARTIFACT_NOT_FOUND", "message": "Plik nie jest dostępny."})
+    return FileResponse(project_store.path(project_id, artifact["filename"]), media_type=artifact["content_type"], filename=artifact["filename"])
+
+
+@app.get("/api/admin/projects")
+def list_customer_projects(x_litho_admin_key: str | None = Header(None)):
+    require_admin(x_litho_admin_key)
+    return {"projects": project_store.list()}
+
+
+@app.get("/api/admin/projects/{project_id}")
+def get_admin_project(project_id: str, x_litho_admin_key: str | None = Header(None)):
+    require_admin(x_litho_admin_key)
+    try:
+        return project_store.public(project_store.load(project_id))
+    except (FileNotFoundError, OSError, ValueError, KeyError) as exc:
+        raise HTTPException(status_code=404, detail={"error_code": "PROJECT_NOT_FOUND", "message": "Projekt nie istnieje."}) from exc
+
+
+@app.get("/api/admin/projects/{project_id}/artifacts/{artifact_name}")
+def download_admin_artifact(project_id: str, artifact_name: str, x_litho_admin_key: str | None = Header(None)):
+    require_admin(x_litho_admin_key)
+    try:
+        metadata = project_store.load(project_id)
+    except (FileNotFoundError, OSError, ValueError, KeyError) as exc:
+        raise HTTPException(status_code=404, detail={"error_code": "PROJECT_NOT_FOUND", "message": "Projekt nie istnieje."}) from exc
+    artifact = metadata.get("artifacts", {}).get(artifact_name)
+    if not artifact:
+        raise HTTPException(status_code=404, detail={"error_code": "ARTIFACT_NOT_FOUND", "message": "Plik nie jest dostępny."})
+    return FileResponse(project_store.path(project_id, artifact["filename"]), media_type=artifact["content_type"], filename=artifact["filename"])
+
+
+@app.get("/api/admin/projects/{project_id}/source")
+def download_admin_source(project_id: str, x_litho_admin_key: str | None = Header(None)):
+    require_admin(x_litho_admin_key)
+    try:
+        metadata = project_store.load(project_id)
+    except (FileNotFoundError, OSError, ValueError, KeyError) as exc:
+        raise HTTPException(status_code=404, detail={"error_code": "PROJECT_NOT_FOUND", "message": "Projekt nie istnieje."}) from exc
+    if not metadata.get("image"):
+        raise HTTPException(status_code=404, detail={"error_code": "PROJECT_IMAGE_NOT_FOUND", "message": "Zdjęcie nie jest dostępne."})
+    image = metadata["image"]
+    return FileResponse(project_store.path(project_id, image["filename"]), media_type=image["content_type"], filename=image["original_name"])
+
+
+@app.put("/api/admin/projects/{project_id}/order")
+def attach_project_order(project_id: str, reference: OrderReference, x_litho_admin_key: str | None = Header(None)):
+    require_admin(x_litho_admin_key)
+    try:
+        metadata = project_store.attach_order(project_id, reference.order_id)
+    except (FileNotFoundError, OSError, ValueError, KeyError) as exc:
+        raise HTTPException(status_code=404, detail={"error_code": "PROJECT_NOT_FOUND", "message": "Projekt nie istnieje."}) from exc
+    return project_store.public(metadata)
+
+
+@app.delete("/api/admin/projects/{project_id}", status_code=204)
+def delete_admin_project(project_id: str, x_litho_admin_key: str | None = Header(None)):
+    require_admin(x_litho_admin_key)
+    try:
+        project_store.delete(project_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail={"error_code": "PROJECT_NOT_FOUND", "message": "Projekt nie istnieje."}) from exc
 
 
 @app.exception_handler(RequestValidationError)

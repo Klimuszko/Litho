@@ -13,6 +13,11 @@ services:
     environment:
       TZ: ${TZ}
       PYTHONUNBUFFERED: "1"
+      LITHO_PROJECTS_DIR: /data/projects
+      LITHO_ADMIN_API_KEY: ${LITHO_ADMIN_API_KEY:-}
+      LITHO_CORS_ORIGINS: ${LITHO_CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
+    volumes:
+      - ${LITHOPHANE_DATA_PATH:-./data}:/data
     expose:
       - "8000"
     mem_limit: ${LITHOPHANE_MEM_LIMIT:-8g}

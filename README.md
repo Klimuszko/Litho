@@ -85,6 +85,10 @@ Najważniejsza bramka jakości sprawdza, że każda krawędź wygenerowanego mes
 
 Punkt startowy dla białego PLA: 0,6 mm / 4,0 mm / gamma 1,0. Wydrukuj tę samą fotografię z kilkoma wartościami gamma i maksymalnej grubości, zachowując ten sam filament, profil slicera oraz źródło światła. Wyniki są zależne od materiału — parametry są celowo konfigurowalne.
 
+## Projekty klientów i WooCommerce
+
+Backend udostępnia trwałe projekty klientów z prywatnym tokenem, generowaniem STL w tle oraz osobnym dostępem administracyjnym. Projekty i zdjęcia są zapisywane w prywatnym wolumenie `/data/projects`; nie trafiają do katalogu statycznego aplikacji. Kontrakt integracyjny, cykl życia projektu i wymagane zmienne środowiskowe opisuje [WOOCOMMERCE_API.md](WOOCOMMERCE_API.md).
+
 ## Ograniczenia V1
 
 - płaski model prostokątny;
