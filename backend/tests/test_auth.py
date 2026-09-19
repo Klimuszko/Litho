@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 
 from app.auth import auth_store
 from app.main import app
+from app.projects import project_store
 
 
 def configure_auth(tmp_path, monkeypatch):
@@ -10,6 +11,7 @@ def configure_auth(tmp_path, monkeypatch):
     monkeypatch.setenv("LITHO_BOOTSTRAP_ADMIN_PASSWORD", "correct-horse-battery-staple")
     monkeypatch.setenv("LITHO_BOOTSTRAP_ADMIN_DISPLAY_NAME", "Owner")
     monkeypatch.setenv("LITHO_ADMIN_API_KEY", "wordpress-service-key")
+    monkeypatch.setattr(project_store, "root", tmp_path / "projects")
     auth_store.database = tmp_path / "auth.sqlite3"
     auth_store._initialized_for = None
     auth_store.initialize()
