@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { automaticCrop, effectiveBorderHeight, effectiveGrid, imageArea, initial, inscribedSize, panCrop, Params, resolvedBorders, rotatedSize, validateParams, zoomCrop, zoomCropAt } from "./App";
-import { housingClipCount, housingOuterSize, initialHousing, validateHousing } from "./HousingGenerator";
+import { housingBackSnapCount, housingClipCount, housingOuterSize, initialHousing, validateHousing } from "./HousingGenerator";
 
 const valid: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .8, max_thickness_mm: 3, gamma: 1, brightness: 1, contrast: 1, nozzle_diameter_mm: .4, quality_profile: "optimal", orientation: "landscape", border_width_mm: 0, border_widths_mm: null, border_height_mm: 3, mounting_flange: false, removable_support: false, invert: false, mirror: false, rotation_degrees: 0, crop: {x: 0, y: 0, width: 1, height: 1}};
 
@@ -110,8 +110,12 @@ describe("housing generator", () => {
     expect(validateHousing({...initialHousing, kind: "frame", panel_width_mm: 240})).toContain("256");
   });
   it("scales clips independently for every panel edge", () => {
-    expect(housingClipCount(initialHousing)).toBe(6);
-    expect(housingClipCount({...initialHousing, panel_width_mm: 180, panel_height_mm: 130})).toBe(10);
-    expect(housingClipCount({...initialHousing, panel_width_mm: 200, panel_height_mm: 150})).toBe(10);
+    expect(housingClipCount(initialHousing)).toBe(10);
+    expect(housingClipCount({...initialHousing, panel_width_mm: 180, panel_height_mm: 130})).toBe(14);
+    expect(housingClipCount({...initialHousing, panel_width_mm: 200, panel_height_mm: 150})).toBe(14);
+  });
+  it("uses at least two rear-cover snaps on every edge", () => {
+    expect(housingBackSnapCount(initialHousing)).toBe(10);
+    expect(housingBackSnapCount({...initialHousing, panel_width_mm: 200, panel_height_mm: 150})).toBe(14);
   });
 });

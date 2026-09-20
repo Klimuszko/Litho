@@ -146,7 +146,6 @@ class HousingParams(BaseModel):
     back_thickness_mm: float = Field(2.4, ge=1.6, le=5.0)
     cable_width_mm: float = Field(12, ge=6, le=25)
     cable_height_mm: float = Field(8, ge=4, le=20)
-    magnets: bool = False
 
     @model_validator(mode="after")
     def printable_relations(self):
@@ -211,10 +210,10 @@ class HousingParams(BaseModel):
     @staticmethod
     def edge_clip_count(edge_length_mm: float) -> int:
         if edge_length_mm >= 175:
-            return 3
+            return 4
         if edge_length_mm >= 125:
-            return 2
-        return 1
+            return 3
+        return 2
 
     @property
     def panel_horizontal_clip_count(self) -> int:
@@ -282,25 +281,18 @@ class HousingParams(BaseModel):
 
     @property
     def back_snap_count(self) -> int:
-        return 6
+        return 2 * (
+            self.edge_clip_count(self.outer_width_mm)
+            + self.edge_clip_count(self.outer_height_mm)
+        )
 
     @property
-    def magnet_pocket_diameter_mm(self) -> float:
-        return 6.2
+    def back_horizontal_snap_count(self) -> int:
+        return self.edge_clip_count(self.outer_width_mm)
 
     @property
-    def magnet_pocket_depth_mm(self) -> float:
-        return 2.2
-
-    @property
-    def magnet_boss_radius_mm(self) -> float:
-        return 4.4
-
-    @property
-    def magnet_center_inset_mm(self) -> float:
-        # Clear the removable cover lip; the body post is tied to both walls
-        # with lower bridges that end before the lip enters the enclosure.
-        return self.wall_mm + self.back_clearance_mm + self.back_lip_mm + self.magnet_boss_radius_mm + 0.4
+    def back_vertical_snap_count(self) -> int:
+        return self.edge_clip_count(self.outer_height_mm)
 
     @property
     def body_depth_mm(self) -> float:

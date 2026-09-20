@@ -9,15 +9,12 @@ def _unique(values: Iterable[float]) -> list[float]:
     return sorted({round(float(value), 6) for value in values})
 
 
-def _circle_breaks(center: float, radius: float, segments: int = 20) -> list[float]:
-    """Axis breakpoints for a fine, deterministic FDM-friendly circle approximation."""
-    angles = np.linspace(0, 2 * np.pi, segments, endpoint=False)
-    return [center - radius, center + radius, *(center + radius * np.cos(angles))]
-
-
 def _centered_intervals(start: float, end: float, count: int, width: float) -> list[tuple[float, float]]:
-    half = width / 2
     span = end - start
+    # Keep the mandatory two-per-edge layout usable for very small custom
+    # housings without overlapping adjacent flexible features.
+    effective_width = min(width, span / (count + 1) * 0.8)
+    half = effective_width / 2
     return [
         (start + span * index / (count + 1) - half, start + span * index / (count + 1) + half)
         for index in range(1, count + 1)
@@ -105,19 +102,14 @@ def build_housing_body(params) -> Mesh:
         panel_x0, panel_x1, params.panel_horizontal_clip_count, params.panel_clip_width_mm,
     )
 
-    back_horizontal_snaps = _centered_intervals(wall, width - wall, 2, params.back_snap_width_mm)
-    back_vertical_snaps = _centered_intervals(wall, height - wall, 1, params.back_snap_width_mm)
+    back_horizontal_snaps = _centered_intervals(
+        wall, width - wall, params.back_horizontal_snap_count, params.back_snap_width_mm,
+    )
+    back_vertical_snaps = _centered_intervals(
+        wall, height - wall, params.back_vertical_snap_count, params.back_snap_width_mm,
+    )
     snap_y0, snap_y1 = depth - 2.1, depth - 0.9
     snap_socket_depth = 0.25
-    magnet_contact_y = depth - (params.magnet_pocket_depth_mm + 0.6)
-    magnet_post_y0 = magnet_contact_y - 6.0
-    magnet_pocket_y0 = magnet_contact_y - params.magnet_pocket_depth_mm
-    magnet_centers = [
-        (params.magnet_center_inset_mm, params.magnet_center_inset_mm),
-        (width - params.magnet_center_inset_mm, params.magnet_center_inset_mm),
-        (params.magnet_center_inset_mm, height - params.magnet_center_inset_mm),
-        (width - params.magnet_center_inset_mm, height - params.magnet_center_inset_mm),
-    ]
 
     clip_xs = [value for interval in horizontal_clips for value in interval]
     clip_zs = [value for interval in vertical_clips for value in interval]
@@ -128,18 +120,12 @@ def build_housing_body(params) -> Mesh:
     flex_xs = [pocket_x0 - flex - relief, pocket_x0 - flex, pocket_x1 + flex, pocket_x1 + flex + relief]
     flex_zs = [pocket_z0 - flex - relief, pocket_z0 - flex, pocket_z1 + flex, pocket_z1 + flex + relief]
 
-    magnet_xs = [value for cx, _ in magnet_centers for value in _circle_breaks(cx, params.magnet_boss_radius_mm)]
-    magnet_zs = [value for _, cz in magnet_centers for value in _circle_breaks(cz, params.magnet_boss_radius_mm)]
-    magnet_hole_xs = [value for cx, _ in magnet_centers for value in _circle_breaks(cx, params.magnet_pocket_diameter_mm / 2)]
-    magnet_hole_zs = [value for _, cz in magnet_centers for value in _circle_breaks(cz, params.magnet_pocket_diameter_mm / 2)]
-    bridge_xs = [value for cx, _ in magnet_centers for value in (cx - 2.0, cx, cx + 2.0)]
-    bridge_zs = [value for _, cz in magnet_centers for value in (cz - 2.0, cz, cz + 2.0)]
     snap_xs = [value for interval in back_horizontal_snaps for value in interval]
     snap_zs = [value for interval in back_vertical_snaps for value in interval]
-    xs = [0, wall - snap_socket_depth, wall, pocket_x0, panel_x0, opening_x0, opening_x1, panel_x1, pocket_x1, width - wall, width - wall + snap_socket_depth, width, *clip_xs, *reach_xs, *flex_xs, *snap_xs, *magnet_xs, *magnet_hole_xs, *bridge_xs]
+    xs = [0, wall - snap_socket_depth, wall, pocket_x0, panel_x0, opening_x0, opening_x1, panel_x1, pocket_x1, width - wall, width - wall + snap_socket_depth, width, *clip_xs, *reach_xs, *flex_xs, *snap_xs]
     clip_release_y1 = clip_ys[-1] + params.panel_clip_end_relief_mm
-    ys = [0, bezel_front, pocket_y1, clip_release_y1, depth, snap_y0, snap_y1, magnet_post_y0, magnet_pocket_y0, magnet_contact_y, *clip_ys]
-    zs = [0, wall - snap_socket_depth, wall, pocket_z0, panel_z0, opening_z0, opening_z1, panel_z1, pocket_z1, height - wall, height - wall + snap_socket_depth, height, *clip_zs, *reach_zs, *flex_zs, *snap_zs, *magnet_zs, *magnet_hole_zs, *bridge_zs]
+    ys = [0, bezel_front, pocket_y1, clip_release_y1, depth, snap_y0, snap_y1, *clip_ys]
+    zs = [0, wall - snap_socket_depth, wall, pocket_z0, panel_z0, opening_z0, opening_z1, panel_z1, pocket_z1, height - wall, height - wall + snap_socket_depth, height, *clip_zs, *reach_zs, *flex_zs, *snap_zs]
 
     def in_intervals(value: float, intervals: list[tuple[float, float]]) -> bool:
         return any(start < value < end for start, end in intervals)
@@ -213,25 +199,6 @@ def build_housing_body(params) -> Mesh:
             )
             if rear_snap_socket:
                 material = False
-        if params.magnets:
-            in_boss = any((x - cx) ** 2 + (z - cz) ** 2 < params.magnet_boss_radius_mm ** 2 for cx, cz in magnet_centers)
-            in_pocket = any((x - cx) ** 2 + (z - cz) ** 2 < (params.magnet_pocket_diameter_mm / 2) ** 2 for cx, cz in magnet_centers)
-            bridge_half_width = 2.0
-            in_bridge = any(
-                (
-                    (wall < x < cx if cx < width / 2 else cx < x < width - wall)
-                    and cz - bridge_half_width < z < cz + bridge_half_width
-                    or (wall < z < cz if cz < height / 2 else cz < z < height - wall)
-                    and cx - bridge_half_width < x < cx + bridge_half_width
-                )
-                for cx, cz in magnet_centers
-            )
-            if magnet_post_y0 < y < magnet_contact_y and in_boss:
-                material = True
-            if magnet_post_y0 < y < depth - params.back_lip_depth_mm and in_bridge:
-                material = True
-            if magnet_pocket_y0 < y < magnet_contact_y and in_pocket:
-                material = False
         return material
 
     return _cell_mesh(xs, ys, zs, solid)
@@ -246,26 +213,19 @@ def build_housing_back(params) -> Mesh:
     cable_x0 = (width - params.cable_width_mm) / 2
     cable_x1 = cable_x0 + params.cable_width_mm
 
-    horizontal_snaps = _centered_intervals(x0, x1, 2, params.back_snap_width_mm)
-    vertical_snaps = _centered_intervals(z0, z1, 1, params.back_snap_width_mm)
+    horizontal_snaps = _centered_intervals(
+        x0, x1, params.back_horizontal_snap_count, params.back_snap_width_mm,
+    )
+    vertical_snaps = _centered_intervals(
+        z0, z1, params.back_vertical_snap_count, params.back_snap_width_mm,
+    )
     snap_y0, snap_y1 = thickness + 1.0, thickness + 2.0
-    magnet_boss_depth = params.magnet_pocket_depth_mm + 0.6
-    magnet_centers = [
-        (params.magnet_center_inset_mm, params.magnet_center_inset_mm),
-        (width - params.magnet_center_inset_mm, params.magnet_center_inset_mm),
-        (params.magnet_center_inset_mm, height - params.magnet_center_inset_mm),
-        (width - params.magnet_center_inset_mm, height - params.magnet_center_inset_mm),
-    ]
 
     snap_xs = [value for interval in horizontal_snaps for value in interval]
     snap_zs = [value for interval in vertical_snaps for value in interval]
-    magnet_xs = [value for cx, _ in magnet_centers for value in _circle_breaks(cx, params.magnet_boss_radius_mm)]
-    magnet_zs = [value for _, cz in magnet_centers for value in _circle_breaks(cz, params.magnet_boss_radius_mm)]
-    hole_xs = [value for cx, _ in magnet_centers for value in _circle_breaks(cx, params.magnet_pocket_diameter_mm / 2)]
-    hole_zs = [value for _, cz in magnet_centers for value in _circle_breaks(cz, params.magnet_pocket_diameter_mm / 2)]
-    xs = [0, x0 - params.back_snap_reach_mm, x0, x0 + lip, cable_x0, cable_x1, x1 - lip, x1, x1 + params.back_snap_reach_mm, width, *snap_xs, *magnet_xs, *hole_xs]
-    ys = [0, thickness, thickness + lip_depth, snap_y0, snap_y1, thickness + 0.6, thickness + magnet_boss_depth]
-    zs = [0, params.cable_height_mm, z0 - params.back_snap_reach_mm, z0, z0 + lip, z1 - lip, z1, z1 + params.back_snap_reach_mm, height, *snap_zs, *magnet_zs, *hole_zs]
+    xs = [0, x0 - params.back_snap_reach_mm, x0, x0 + lip, cable_x0, cable_x1, x1 - lip, x1, x1 + params.back_snap_reach_mm, width, *snap_xs]
+    ys = [0, thickness, thickness + lip_depth, snap_y0, snap_y1]
+    zs = [0, params.cable_height_mm, z0 - params.back_snap_reach_mm, z0, z0 + lip, z1 - lip, z1, z1 + params.back_snap_reach_mm, height, *snap_zs]
 
     def solid(x: float, y: float, z: float) -> bool:
         cable_notch = cable_x0 < x < cable_x1 and z < params.cable_height_mm
@@ -286,15 +246,7 @@ def build_housing_back(params) -> Mesh:
             )
             and not cable_notch
         )
-        material = plate or ring or snap
-        if params.magnets:
-            in_boss = any((x - cx) ** 2 + (z - cz) ** 2 < params.magnet_boss_radius_mm ** 2 for cx, cz in magnet_centers)
-            in_pocket = any((x - cx) ** 2 + (z - cz) ** 2 < (params.magnet_pocket_diameter_mm / 2) ** 2 for cx, cz in magnet_centers)
-            if thickness < y < thickness + magnet_boss_depth and in_boss:
-                material = True
-            if thickness + 0.6 < y < thickness + magnet_boss_depth and in_pocket:
-                material = False
-        return material
+        return plate or ring or snap
 
     return _cell_mesh(xs, ys, zs, solid)
 
