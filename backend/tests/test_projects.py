@@ -23,7 +23,7 @@ def test_customer_configuration_maps_presets_to_locked_production_settings():
     assert portrait.dimensions_mm == (130, 180)
     params = portrait.lithophane_params()
     assert (params.width_mm, params.height_mm) == (130, 180)
-    assert (params.min_thickness_mm, params.max_thickness_mm) == (0.6, 4.0)
+    assert (params.min_thickness_mm, params.max_thickness_mm) == (1.0, 4.0)
     assert params.quality_profile == "maximum"
     assert params.mounting_flange is True
 

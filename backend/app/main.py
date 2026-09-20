@@ -490,6 +490,10 @@ async def generate_housing(settings: HousingParams):
             )
     output = BytesIO()
     prefix = f"litho-{settings.kind}-{settings.panel_width_mm:g}x{settings.panel_height_mm:g}"
+    magnet_note = (
+        "Opcja + Magnesy: wklej 4 pary magnesow 6 x 2 mm po sprawdzeniu polaryzacji.\n"
+        if settings.magnets else ""
+    )
     with ZipFile(output, "w", compression=ZIP_DEFLATED) as archive:
         archive.writestr(f"{prefix}-body.stl", binary_stl(body))
         archive.writestr(f"{prefix}-back.stl", binary_stl(back))
@@ -504,7 +508,9 @@ async def generate_housing(settings: HousingParams):
                 "Oba pliki STL sa juz obrocone plaska strona do stolu i nie wymagaja podpor.\n"
                 "Wloz panel od otwartego tylu i rownomiernie docisnij jego kolnierz do frontu.\n"
                 f"Panel przejdzie pod {settings.panel_clip_count} sprezystymi zatrzaskami i zablokuje sie bez kleju.\n"
-                "Po zwiazaniu kleju uloz oswietlenie i przewod, a nastepnie zamontuj tylna pokrywe.\n"
+                "Uloz oswietlenie i przewod, a nastepnie docisnij tylna pokrywe do szesciu zatrzaskow.\n"
+                + magnet_note
+                +
                 "Przed drukiem produkcyjnym wykonaj krotka probe pasowania kieszeni dla swojego filamentu.\n"
             ).encode("utf-8"),
         )
@@ -519,6 +525,8 @@ async def generate_housing(settings: HousingParams):
             "X-Housing-Outer-Size-Mm": f"{settings.outer_width_mm:g}x{settings.outer_height_mm:g}x{settings.depth_mm:g}",
             "X-Panel-Pocket-Depth-Mm": f"{settings.panel_pocket_depth_mm:g}",
             "X-Panel-Clip-Count": str(settings.panel_clip_count),
+            "X-Back-Snap-Count": str(settings.back_snap_count),
+            "X-Magnets": str(settings.magnets).lower(),
             "X-Print-Orientation": "front-face-down",
             "X-Body-Triangle-Count": str(len(body.faces)),
             "X-Back-Triangle-Count": str(len(back.faces)),

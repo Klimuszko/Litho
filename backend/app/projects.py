@@ -42,7 +42,7 @@ class CustomerProjectConfig(BaseModel):
             width_mm=width,
             height_mm=height,
             orientation=self.orientation,
-            min_thickness_mm=0.6,
+            min_thickness_mm=1.0,
             max_thickness_mm=4.0,
             gamma=self.gamma,
             brightness=self.brightness,

@@ -6,8 +6,8 @@ const valid: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .8, max_
 
 describe("client parameter validation", () => {
   it("uses a modest default contrast boost", () => expect(initial.contrast).toBe(1.25));
-  it("uses the calibrated 0.6 to 4.0 mm thickness range", () => {
-    expect(initial.min_thickness_mm).toBe(.6);
+  it("uses the calibrated 1.0 to 4.0 mm thickness range", () => {
+    expect(initial.min_thickness_mm).toBe(1);
     expect(initial.max_thickness_mm).toBe(4);
     expect(initial.border_height_mm).toBe(4);
   });
@@ -109,8 +109,9 @@ describe("housing generator", () => {
   it("rejects a frame that exceeds the 256 mm bed", () => {
     expect(validateHousing({...initialHousing, kind: "frame", panel_width_mm: 240})).toContain("256");
   });
-  it("uses four clips for the small panel and six for larger formats", () => {
-    expect(housingClipCount(initialHousing)).toBe(4);
-    expect(housingClipCount({...initialHousing, panel_width_mm: 180})).toBe(6);
+  it("scales clips independently for every panel edge", () => {
+    expect(housingClipCount(initialHousing)).toBe(6);
+    expect(housingClipCount({...initialHousing, panel_width_mm: 180, panel_height_mm: 130})).toBe(10);
+    expect(housingClipCount({...initialHousing, panel_width_mm: 200, panel_height_mm: 150})).toBe(10);
   });
 });

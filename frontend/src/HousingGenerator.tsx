@@ -15,6 +15,7 @@ export type HousingParams = {
   back_thickness_mm: number;
   cable_width_mm: number;
   cable_height_mm: number;
+  magnets: boolean;
 };
 
 export const HOUSING_FORMATS = [
@@ -27,7 +28,7 @@ export const initialHousing: HousingParams = {
   kind: "box", panel_width_mm: 150, panel_height_mm: 100,
   panel_thickness_mm: 1.6, clearance_mm: .4, depth_mm: 40,
   wall_mm: 2.4, frame_border_mm: 12, bezel_overlap_mm: 1.2,
-  back_thickness_mm: 2.4, cable_width_mm: 12, cable_height_mm: 8,
+  back_thickness_mm: 2.4, cable_width_mm: 12, cable_height_mm: 8, magnets: false,
 };
 
 export function housingOuterSize(params: HousingParams) {
@@ -36,7 +37,8 @@ export function housingOuterSize(params: HousingParams) {
 }
 
 export function housingClipCount(params: HousingParams) {
-  return Math.max(params.panel_width_mm, params.panel_height_mm) >= 175 ? 6 : 4;
+  const edgeCount = (length: number) => length >= 175 ? 3 : length >= 125 ? 2 : 1;
+  return 2 * (edgeCount(params.panel_width_mm) + edgeCount(params.panel_height_mm));
 }
 
 export function validateHousing(params: HousingParams): string {
@@ -121,9 +123,14 @@ export default function HousingGenerator({active, onOpenLithophane}: {active: bo
         <p className="quality-note flange-note">Wymagany panel z opcją „Kołnierz montażowy Litho Mount V1”. Panel wkłada się od tyłu i dociska pod sprężyste zatrzaski — bez kleju.</p>
         <h2><span>03</span> Głębokość</h2>
         <Range label="Głębokość obudowy" value={params.depth_mm} min={20} max={80} step={1} onChange={value => set("depth_mm", value)}/>
+        <label className="housing-option">
+          <input type="checkbox" checked={params.magnets} onChange={event => set("magnets", event.target.checked)}/>
+          <span><b>+ Magnesy</b><small>4 pary 6 × 2 mm · kieszenie Ø6,2 × 2,2 mm</small></span>
+        </label>
+        {params.magnets && <p className="quality-note flange-note">Wklej magnesy po próbie polaryzacji. Zatrzaski pokrywy pozostają aktywne.</p>}
         <div className="housing-spec">
           <span><small>KIESZEŃ PANELU</small><b>{(params.panel_thickness_mm + params.clearance_mm).toFixed(1)} mm</b></span>
-          <span><small>ZATRZASKI</small><b>{clipCount} × 0.4 mm</b></span>
+          <span><small>KLIPSY PANELU</small><b>{clipCount} × 0.4 mm</b></span>
           <span><small>PRZEWÓD</small><b>{params.cable_width_mm} × {params.cable_height_mm} mm</b></span>
         </div>
       </div>
@@ -131,7 +138,7 @@ export default function HousingGenerator({active, onOpenLithophane}: {active: bo
     </aside>
     <section className="workbench housing-workbench">
       <article className="preview housing-preview">
-        <div className="preview-head"><div><p className="eyebrow">PODGLĄD KONSTRUKCJI</p><h2>{params.kind === "box" ? "Podświetlany Box" : "Podświetlana ramka"}</h2></div><span className="housing-badge">{clipCount} zatrzasków · bez kleju</span></div>
+        <div className="preview-head"><div><p className="eyebrow">PODGLĄD KONSTRUKCJI</p><h2>{params.kind === "box" ? "Podświetlany Box" : "Podświetlana ramka"}</h2></div><span className="housing-badge">{clipCount} klipsów panelu · 6 zatrzasków pokrywy{params.magnets ? " · 4 pary magnesów" : ""}</span></div>
         <div className="housing-stage">
           <div className={`housing-model ${params.kind}`} style={{aspectRatio: `${outer.width} / ${outer.height}`, padding: `${visualBorder}px`}}>
             <div className="housing-panel"><span>LITHO</span><small>{params.panel_width_mm} × {params.panel_height_mm} mm</small></div>

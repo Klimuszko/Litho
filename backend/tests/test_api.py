@@ -163,7 +163,7 @@ def test_largest_landscape_format_reports_full_support_profile():
 def test_default_photo_contrast_is_slightly_enhanced():
     params = LithophaneParams()
     assert params.contrast == 1.25
-    assert params.min_thickness_mm == 0.6
+    assert params.min_thickness_mm == 1.0
     assert params.max_thickness_mm == 4.0
     assert params.quality_profile == "maximum"
 

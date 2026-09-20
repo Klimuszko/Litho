@@ -60,7 +60,7 @@ def test_box_and_frame_derive_outer_size_from_exact_panel_size():
 
 
 @pytest.mark.parametrize("width,height,expected", [
-    (150, 100, 4), (180, 130, 6), (200, 150, 6), (100, 150, 4), (130, 180, 6),
+    (150, 100, 6), (180, 130, 10), (200, 150, 10), (100, 150, 6), (130, 180, 10),
 ])
 def test_integrated_clip_count_scales_with_panel(width, height, expected):
     params = HousingParams(panel_width_mm=width, panel_height_mm=height)
@@ -69,6 +69,47 @@ def test_integrated_clip_count_scales_with_panel(width, height, expected):
     assert params.panel_clip_ramp_height_mm == pytest.approx(0.8)
     assert params.panel_clip_flex_thickness_mm == pytest.approx(0.8)
     assert params.panel_clip_relief_mm == pytest.approx(0.6)
+
+
+def test_largest_preset_has_three_clips_per_long_edge_and_two_per_short_edge():
+    params = HousingParams(panel_width_mm=200, panel_height_mm=150)
+    assert params.panel_horizontal_clip_count == 3
+    assert params.panel_vertical_clip_count == 2
+    assert params.panel_clip_count == 10
+
+
+@pytest.mark.parametrize("kind", ["box", "frame"])
+def test_magnet_option_preserves_manifold_body_and_back(kind):
+    params = HousingParams(kind=kind, panel_width_mm=200, panel_height_mm=150, magnets=True)
+    assert params.magnet_pocket_diameter_mm == pytest.approx(6.2)
+    assert params.magnet_pocket_depth_mm == pytest.approx(2.2)
+    for mesh in (build_housing_body(params), build_housing_back(params)):
+        validation = validate_mesh(mesh)
+        assert validation["watertight"]
+        assert validation["boundary_edges"] == 0
+        assert validation["winding_errors"] == 0
+        assert validation["positive_volume"]
+        assert component_count(mesh) == 1
+
+
+def test_magnet_faces_meet_without_boss_collision_and_leave_back_floor():
+    params = HousingParams(magnets=True)
+    boss_depth = params.magnet_pocket_depth_mm + 0.6
+    body_contact_y = params.body_depth_mm - boss_depth
+    assembled_back_contact_y = params.body_depth_mm - boss_depth
+    assert body_contact_y == pytest.approx(assembled_back_contact_y)
+    assert params.back_thickness_mm + 0.6 > params.back_thickness_mm
+    assert params.magnet_pocket_diameter_mm == pytest.approx(6.2)
+
+
+def test_rear_snap_has_positive_engagement_with_clearance_and_blind_socket():
+    params = HousingParams()
+    insertion_gap = params.back_clearance_mm
+    engagement = params.back_snap_reach_mm - insertion_gap
+    socket_depth = 0.25
+    assert engagement == pytest.approx(0.2)
+    assert socket_depth - engagement == pytest.approx(0.05)
+    assert params.wall_mm - socket_depth >= 2.0
 
 
 def test_clip_hook_reaches_over_panel_edge_at_controlled_clearance():
@@ -123,7 +164,9 @@ def test_housing_api_returns_body_and_back_as_separate_stls():
     assert response.headers["x-housing-kind"] == "frame"
     assert response.headers["x-housing-outer-size-mm"] == "174x124x40"
     assert response.headers["x-panel-pocket-depth-mm"] == "2"
-    assert response.headers["x-panel-clip-count"] == "4"
+    assert response.headers["x-panel-clip-count"] == "6"
+    assert response.headers["x-back-snap-count"] == "6"
+    assert response.headers["x-magnets"] == "false"
     assert response.headers["x-print-orientation"] == "front-face-down"
     with ZipFile(BytesIO(response.content)) as archive:
         assert sorted(archive.namelist()) == [

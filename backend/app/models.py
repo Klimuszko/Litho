@@ -29,7 +29,7 @@ class BorderWidths(BaseModel):
 class LithophaneParams(BaseModel):
     width_mm: float = Field(150, ge=20, le=256, description="Final model width, including the optional border")
     height_mm: float = Field(100, ge=20, le=256, description="Final model height, including the optional border")
-    min_thickness_mm: float = Field(0.6, ge=0.4, le=10)
+    min_thickness_mm: float = Field(1.0, ge=0.4, le=10)
     max_thickness_mm: float = Field(4.0, gt=0.4, le=22)
     gamma: float = Field(1.0, ge=0.1, le=5)
     brightness: float = Field(1.0, ge=0.25, le=2)
@@ -146,6 +146,7 @@ class HousingParams(BaseModel):
     back_thickness_mm: float = Field(2.4, ge=1.6, le=5.0)
     cable_width_mm: float = Field(12, ge=6, le=25)
     cable_height_mm: float = Field(8, ge=4, le=20)
+    magnets: bool = False
 
     @model_validator(mode="after")
     def printable_relations(self):
@@ -205,7 +206,23 @@ class HousingParams(BaseModel):
 
     @property
     def panel_clip_count(self) -> int:
-        return 6 if max(self.panel_width_mm, self.panel_height_mm) >= 175 else 4
+        return 2 * (self.panel_horizontal_clip_count + self.panel_vertical_clip_count)
+
+    @staticmethod
+    def edge_clip_count(edge_length_mm: float) -> int:
+        if edge_length_mm >= 175:
+            return 3
+        if edge_length_mm >= 125:
+            return 2
+        return 1
+
+    @property
+    def panel_horizontal_clip_count(self) -> int:
+        return self.edge_clip_count(self.panel_width_mm)
+
+    @property
+    def panel_vertical_clip_count(self) -> int:
+        return self.edge_clip_count(self.panel_height_mm)
 
     @property
     def panel_clip_width_mm(self) -> float:
@@ -254,6 +271,36 @@ class HousingParams(BaseModel):
     @property
     def back_clearance_mm(self) -> float:
         return 0.15
+
+    @property
+    def back_snap_reach_mm(self) -> float:
+        return 0.35
+
+    @property
+    def back_snap_width_mm(self) -> float:
+        return 12.0
+
+    @property
+    def back_snap_count(self) -> int:
+        return 6
+
+    @property
+    def magnet_pocket_diameter_mm(self) -> float:
+        return 6.2
+
+    @property
+    def magnet_pocket_depth_mm(self) -> float:
+        return 2.2
+
+    @property
+    def magnet_boss_radius_mm(self) -> float:
+        return 4.4
+
+    @property
+    def magnet_center_inset_mm(self) -> float:
+        # Clear the removable cover lip; the body post is tied to both walls
+        # with lower bridges that end before the lip enters the enclosure.
+        return self.wall_mm + self.back_clearance_mm + self.back_lip_mm + self.magnet_boss_radius_mm + 0.4
 
     @property
     def body_depth_mm(self) -> float:
