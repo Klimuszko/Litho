@@ -29,7 +29,7 @@ class LoginRequest(BaseModel):
 class UserCreate(BaseModel):
     username: str = Field(min_length=3, max_length=32)
     display_name: str = Field(min_length=1, max_length=80)
-    password: str = Field(min_length=12, max_length=256)
+    password: str = Field(min_length=8, max_length=256)
     role: Literal["admin", "operator"] = "operator"
 
 
@@ -41,11 +41,11 @@ class UserUpdate(BaseModel):
 
 class PasswordChange(BaseModel):
     current_password: str = Field(min_length=1, max_length=256)
-    new_password: str = Field(min_length=12, max_length=256)
+    new_password: str = Field(min_length=8, max_length=256)
 
 
 class PasswordReset(BaseModel):
-    new_password: str = Field(min_length=12, max_length=256)
+    new_password: str = Field(min_length=8, max_length=256)
 
 
 def _utc_timestamp() -> int:
@@ -172,7 +172,7 @@ class AuthStore:
                         )
                     except Exception as exc:
                         raise RuntimeError(
-                            "Invalid LITHO_BOOTSTRAP_ADMIN_* configuration; password must contain at least 12 characters"
+                            "Invalid LITHO_BOOTSTRAP_ADMIN_* configuration; password must contain at least 8 characters"
                         ) from exc
                     self._insert_user(connection, bootstrap)
             try:

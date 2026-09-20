@@ -8,7 +8,7 @@ Przed pierwszym wdrożeniem ustaw w `.env` lub edytorze stacka:
 
 ```env
 LITHO_BOOTSTRAP_ADMIN_USERNAME=admin
-LITHO_BOOTSTRAP_ADMIN_PASSWORD=unikalne-haslo-o-dlugosci-minimum-12-znakow
+LITHO_BOOTSTRAP_ADMIN_PASSWORD=unikalne-haslo-minimum-8-znakow
 LITHO_BOOTSTRAP_ADMIN_DISPLAY_NAME=Administrator
 ```
 

@@ -95,6 +95,20 @@ def test_user_can_change_own_password_and_sessions_are_invalidated(tmp_path, mon
     assert login(client, "owner", "replacement-strong-password")
 
 
+def test_password_minimum_is_eight_characters(tmp_path, monkeypatch):
+    configure_auth(tmp_path, monkeypatch)
+    client = TestClient(app, base_url="http://testserver")
+    csrf = login(client, "owner", "correct-horse-battery-staple")
+    payload = {"username": "eight", "display_name": "Eight", "password": "1234567", "role": "operator"}
+
+    too_short = client.post("/api/auth/users", headers={"X-CSRF-Token": csrf}, json=payload)
+    assert too_short.status_code == 422
+
+    payload["password"] = "12345678"
+    accepted = client.post("/api/auth/users", headers={"X-CSRF-Token": csrf}, json=payload)
+    assert accepted.status_code == 201
+
+
 def test_service_key_is_limited_to_wordpress_project_routes(tmp_path, monkeypatch):
     configure_auth(tmp_path, monkeypatch)
     client = TestClient(app, base_url="http://testserver")

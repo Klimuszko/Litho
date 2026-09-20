@@ -58,7 +58,7 @@ function UserManager({apiFetch}: {apiFetch: typeof fetch}) {
     await load();
   };
   const resetPassword = async (user: User) => {
-    const password = window.prompt(`Nowe hasło dla ${user.username} (minimum 12 znaków):`);
+    const password = window.prompt(`Nowe hasło dla ${user.username} (minimum 8 znaków):`);
     if (!password) return;
     const response = await apiFetch(`/api/auth/users/${user.id}/password`, {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify({new_password: password})});
     if (!response.ok) { const problem = await response.json(); setError(problem.detail?.message || "Nie udało się zmienić hasła."); }
@@ -78,7 +78,7 @@ function UserManager({apiFetch}: {apiFetch: typeof fetch}) {
         <h3>Dodaj konto</h3>
         <input placeholder="Login" value={form.username} onChange={event => setForm({...form, username: event.target.value})} required minLength={3}/>
         <input placeholder="Imię / nazwa" value={form.display_name} onChange={event => setForm({...form, display_name: event.target.value})} required/>
-        <input type="password" placeholder="Hasło — min. 12 znaków" value={form.password} onChange={event => setForm({...form, password: event.target.value})} required minLength={12}/>
+        <input type="password" placeholder="Hasło — min. 8 znaków" value={form.password} onChange={event => setForm({...form, password: event.target.value})} required minLength={8}/>
         <select value={form.role} onChange={event => setForm({...form, role: event.target.value as User["role"]})}><option value="operator">Operator</option><option value="admin">Administrator</option></select>
         <button className="generate">Dodaj konto</button>
       </form>
@@ -120,8 +120,8 @@ function Profile({user, apiFetch, onPasswordChanged}: {user: User; apiFetch: typ
       <form className="password-form" onSubmit={submit}>
         <h3>Zmień hasło</h3>
         <label>Obecne hasło<input type="password" autoComplete="current-password" value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} required/></label>
-        <label>Nowe hasło<input type="password" autoComplete="new-password" minLength={12} value={newPassword} onChange={event => setNewPassword(event.target.value)} required/></label>
-        <label>Powtórz nowe hasło<input type="password" autoComplete="new-password" minLength={12} value={confirmation} onChange={event => setConfirmation(event.target.value)} required/></label>
+        <label>Nowe hasło<input type="password" autoComplete="new-password" minLength={8} value={newPassword} onChange={event => setNewPassword(event.target.value)} required/></label>
+        <label>Powtórz nowe hasło<input type="password" autoComplete="new-password" minLength={8} value={confirmation} onChange={event => setConfirmation(event.target.value)} required/></label>
         {error && <p className="error">{error}</p>}
         <button className="generate" disabled={busy}>{busy ? "Zmienianie…" : "Zmień hasło"}</button>
         <p className="form-note">Po zmianie hasła nastąpi wylogowanie ze wszystkich urządzeń.</p>
