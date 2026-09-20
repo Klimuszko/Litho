@@ -1,7 +1,7 @@
 import { createContext, FormEvent, ReactNode, useCallback, useContext, useEffect, useState } from "react";
 
 type User = {id: number; username: string; display_name: string; role: "admin" | "operator"; active: boolean; created_at: string};
-type AuthContextValue = {user: User; apiFetch: typeof fetch; logout: () => Promise<void>; changePassword: () => Promise<void>};
+type AuthContextValue = {user: User; apiFetch: typeof fetch; logout: () => Promise<void>};
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -86,14 +86,58 @@ function UserManager({apiFetch}: {apiFetch: typeof fetch}) {
   </main>;
 }
 
+function Profile({user, apiFetch, onPasswordChanged}: {user: User; apiFetch: typeof fetch; onPasswordChanged: () => void}) {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setError("");
+    if (newPassword !== confirmation) { setError("Nowe hasła nie są identyczne."); return; }
+    setBusy(true);
+    try {
+      const response = await apiFetch("/api/auth/password", {
+        method: "PUT",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({current_password: currentPassword, new_password: newPassword}),
+      });
+      if (!response.ok) {
+        const problem = await response.json().catch(() => ({}));
+        throw new Error(problem.detail?.message || problem.message || `Nie udało się zmienić hasła (HTTP ${response.status}).`);
+      }
+      onPasswordChanged();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Nie udało się zmienić hasła.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return <main className="admin-page">
+    <section className="admin-panel profile-panel">
+      <header><div><p className="eyebrow">TWOJE KONTO</p><h1>{user.display_name}</h1><p>Login: {user.username} · {user.role === "admin" ? "Administrator" : "Operator"}</p></div></header>
+      <form className="password-form" onSubmit={submit}>
+        <h3>Zmień hasło</h3>
+        <label>Obecne hasło<input type="password" autoComplete="current-password" value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} required/></label>
+        <label>Nowe hasło<input type="password" autoComplete="new-password" minLength={12} value={newPassword} onChange={event => setNewPassword(event.target.value)} required/></label>
+        <label>Powtórz nowe hasło<input type="password" autoComplete="new-password" minLength={12} value={confirmation} onChange={event => setConfirmation(event.target.value)} required/></label>
+        {error && <p className="error">{error}</p>}
+        <button className="generate" disabled={busy}>{busy ? "Zmienianie…" : "Zmień hasło"}</button>
+        <p className="form-note">Po zmianie hasła nastąpi wylogowanie ze wszystkich urządzeń.</p>
+      </form>
+    </section>
+  </main>;
+}
+
 export default function AuthProvider({children}: {children: ReactNode}) {
   const [user, setUser] = useState<User | null>(null);
   const [csrf, setCsrf] = useState("");
   const [loading, setLoading] = useState(true);
-  const [manageUsers, setManageUsers] = useState(false);
+  const [section, setSection] = useState<"generator" | "profile" | "admin">("generator");
   useEffect(() => {
-    if (user?.role !== "admin") setManageUsers(false);
-  }, [user]);
+    if (section === "admin" && user?.role !== "admin") setSection("generator");
+  }, [section, user]);
   useEffect(() => {
     fetch("/api/auth/me", {credentials: "include"}).then(async response => {
       if (!response.ok) return;
@@ -111,30 +155,25 @@ export default function AuthProvider({children}: {children: ReactNode}) {
   const login = async (username: string, password: string) => {
     const response = await fetch("/api/auth/login", {method: "POST", credentials: "include", headers: {"Content-Type": "application/json"}, body: JSON.stringify({username, password})});
     if (!response.ok) { const problem = await response.json(); throw new Error(problem.detail?.message || problem.message || "Nieprawidłowy login lub hasło."); }
-    const data = await response.json(); setUser(data.user); setCsrf(data.csrf_token);
+    const data = await response.json(); setUser(data.user); setCsrf(data.csrf_token); setSection("generator");
   };
-  const logout = async () => { await apiFetch("/api/auth/logout", {method: "POST"}); setUser(null); setCsrf(""); };
-  const changePassword = async () => {
-    const current_password = window.prompt("Obecne hasło:"); if (!current_password) return;
-    const new_password = window.prompt("Nowe hasło (minimum 12 znaków):"); if (!new_password) return;
-    const response = await apiFetch("/api/auth/password", {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify({current_password, new_password})});
-    if (!response.ok) { const problem = await response.json(); window.alert(problem.detail?.message || "Nie udało się zmienić hasła."); return; }
-    setUser(null); setCsrf("");
-  };
+  const logout = async () => { await apiFetch("/api/auth/logout", {method: "POST"}); setUser(null); setCsrf(""); setSection("generator"); };
+  const passwordChanged = () => { setUser(null); setCsrf(""); setSection("generator"); };
   if (loading) return <main className="login-page"><div className="login-loader">Litho</div></main>;
   if (!user) return <Login onLogin={login}/>;
-  return <AuthContext.Provider value={{user, apiFetch, logout, changePassword}}>
+  return <AuthContext.Provider value={{user, apiFetch, logout}}>
     <div className="authenticated-app">
       <header className="topbar">
         <div className="topbar-brand"><span>L</span><strong>Litho</strong></div>
         <nav aria-label="Główna nawigacja">
-          <button className={!manageUsers ? "active" : ""} aria-current={!manageUsers ? "page" : undefined} onClick={() => setManageUsers(false)}>Generator</button>
-          {user.role === "admin" && <button className={manageUsers ? "active" : ""} aria-current={manageUsers ? "page" : undefined} onClick={() => setManageUsers(true)}>Administracja</button>}
+          <button className={section === "generator" ? "active" : ""} aria-current={section === "generator" ? "page" : undefined} onClick={() => setSection("generator")}>Generator</button>
+          {user.role === "admin" && <button className={section === "admin" ? "active" : ""} aria-current={section === "admin" ? "page" : undefined} onClick={() => setSection("admin")}>Administracja</button>}
         </nav>
-        <div className="topbar-account"><span><b>{user.display_name}</b><small>{user.role === "admin" ? "Administrator" : "Operator"}</small></span><button onClick={changePassword}>Hasło</button><button onClick={logout}>Wyloguj</button></div>
+        <div className="topbar-account"><button className={`account-button${section === "profile" ? " active" : ""}`} aria-current={section === "profile" ? "page" : undefined} onClick={() => setSection("profile")}><b>{user.display_name}</b><small>{user.role === "admin" ? "Administrator" : "Operator"}</small></button><button onClick={logout}>Wyloguj</button></div>
       </header>
-      <div className="app-content" hidden={manageUsers}>{children}</div>
-      {user.role === "admin" && <div hidden={!manageUsers}><UserManager apiFetch={apiFetch}/></div>}
+      <div className="app-content" hidden={section !== "generator"}>{children}</div>
+      {section === "profile" && <Profile user={user} apiFetch={apiFetch} onPasswordChanged={passwordChanged}/>}
+      {user.role === "admin" && <div hidden={section !== "admin"}><UserManager apiFetch={apiFetch}/></div>}
     </div>
   </AuthContext.Provider>;
 }

@@ -242,8 +242,9 @@ button { cursor: pointer; }
 .topbar nav button.active { color: #182337; }
 .topbar nav button.active::after { position: absolute; right: 8px; bottom: 0; left: 8px; height: 3px; border-radius: 3px 3px 0 0; background: #df7426; content: ""; }
 .topbar-account { margin-left: auto; display: flex; align-items: center; gap: 7px; }
-.topbar-account > span { display: grid; margin-right: 6px; color: #263247; font-size: 10px; text-align: right; }
-.topbar-account small { color: #8791a2; font-size: 8px; }
+.topbar-account .account-button { display: grid; padding: 6px 10px; color: #263247; font-size: 10px; text-align: right; }
+.topbar-account .account-button.active { border-color: #efb98f; background: #fff7f0; color: #a94e16; }
+.topbar-account small { display: block; color: #8791a2; font-size: 8px; font-weight: 500; }
 .topbar-account button, .admin-panel button { border-color: #d9dfe8; background: #fff; }
 .topbar button:hover, .admin-panel button:hover { border-color: #d9732f; color: #b75a20; }
 .admin-page { min-height: calc(100vh - 68px); padding: clamp(24px, 5vw, 64px); background: #eef1f5; }
@@ -251,6 +252,12 @@ button { cursor: pointer; }
 .admin-panel header { margin-bottom: 28px; }
 .admin-panel h1, .admin-panel h3 { margin: 4px 0 8px; color: #263247; }
 .admin-panel header p:last-child { margin: 0; color: #69758a; font-size: 12px; }
+.profile-panel { max-width: 720px; }
+.password-form { display: grid; gap: 16px; max-width: 480px; }
+.password-form h3 { margin-bottom: 0; }
+.password-form label { display: grid; gap: 7px; color: #4b586d; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.password-form .generate { width: auto; min-width: 180px; justify-self: start; margin-top: 2px; }
+.form-note { margin: -5px 0 0; color: #8791a2; font-size: 10px; }
 .user-list { display: grid; gap: 7px; }
 .user-row { display: grid; grid-template-columns: minmax(130px,1.5fr) minmax(90px,1fr) 130px 90px auto auto; align-items: center; gap: 7px; padding: 8px; border: 1px solid #e3e7ed; border-radius: 10px; }
 .user-row strong { color: #536075; font-size: 11px; }
@@ -258,5 +265,5 @@ button { cursor: pointer; }
 .new-user { display: grid; grid-template-columns: 1fr 1.2fr 1.4fr 130px auto; gap: 8px; margin-top: 24px; padding-top: 20px; border-top: 1px solid #e3e7ed; }
 .new-user h3 { grid-column: 1 / -1; margin-bottom: 3px; }
 .new-user .generate { margin: 0; padding: 0 15px; }
-@media (max-width: 850px) { .topbar-account > span { display: none; } .user-row, .new-user { grid-template-columns: 1fr 1fr; } .new-user h3 { grid-column: 1 / -1; } }
+@media (max-width: 850px) { .user-row, .new-user { grid-template-columns: 1fr 1fr; } .new-user h3 { grid-column: 1 / -1; } }
 @media (max-width: 620px) { .topbar { height: auto; min-height: 62px; flex-wrap: wrap; gap: 4px 12px; padding: 8px 12px; } .topbar-brand strong { display: none; } .topbar nav { height: 45px; order: 3; width: 100%; } .topbar nav button { flex: 1; } .topbar-account { margin-left: auto; } .topbar-account button { padding: 8px; } .admin-page { min-height: auto; padding: 16px; } .admin-panel { padding: 18px; } }

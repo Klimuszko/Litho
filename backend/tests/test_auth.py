@@ -72,6 +72,29 @@ def test_cannot_disable_last_admin(tmp_path, monkeypatch):
     assert response.status_code == 409
 
 
+def test_user_can_change_own_password_and_sessions_are_invalidated(tmp_path, monkeypatch):
+    configure_auth(tmp_path, monkeypatch)
+    client = TestClient(app, base_url="http://testserver")
+    csrf = login(client, "owner", "correct-horse-battery-staple")
+
+    incorrect = client.put(
+        "/api/auth/password",
+        headers={"X-CSRF-Token": csrf},
+        json={"current_password": "wrong-password", "new_password": "replacement-strong-password"},
+    )
+    assert incorrect.status_code == 403
+
+    changed = client.put(
+        "/api/auth/password",
+        headers={"X-CSRF-Token": csrf},
+        json={"current_password": "correct-horse-battery-staple", "new_password": "replacement-strong-password"},
+    )
+    assert changed.status_code == 204
+    assert client.get("/api/auth/me").status_code == 401
+    assert client.post("/api/auth/login", json={"username": "owner", "password": "correct-horse-battery-staple"}).status_code == 401
+    assert login(client, "owner", "replacement-strong-password")
+
+
 def test_service_key_is_limited_to_wordpress_project_routes(tmp_path, monkeypatch):
     configure_auth(tmp_path, monkeypatch)
     client = TestClient(app, base_url="http://testserver")
