@@ -13,14 +13,14 @@ button, input { font: inherit; }
 button { cursor: pointer; }
 
 .app-shell {
-  min-height: 100vh;
+  min-height: calc(100vh - 68px);
   display: grid;
   grid-template-columns: 390px minmax(0, 1fr);
   background: #eef1f5;
 }
 
 .sidebar {
-  height: 100vh;
+  height: calc(100vh - 68px);
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -134,7 +134,7 @@ button { cursor: pointer; }
 .check input { margin-top: 1px; accent-color: #df7426; }
 
 .workbench {
-  height: 100vh;
+  height: calc(100vh - 68px);
   min-width: 0;
   overflow-y: auto;
   padding: 20px clamp(24px, 4vw, 58px);
@@ -227,20 +227,30 @@ button { cursor: pointer; }
 .login-card h1 { margin: 5px 0 8px; color: #182337; font-size: 28px; }
 .login-copy { margin: 0 0 28px; color: #69758a; font-size: 13px; line-height: 1.5; }
 .login-card label { display: grid; gap: 7px; margin: 14px 0; color: #4b586d; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
-.login-card input, .account-modal input, .account-modal select { min-width: 0; padding: 11px 12px; border: 1px solid #d8dee8; border-radius: 8px; background: #f9fafc; color: #263247; font: inherit; outline: none; }
-.login-card input:focus, .account-modal input:focus, .account-modal select:focus { border-color: #d9732f; box-shadow: 0 0 0 3px rgba(217,115,47,.12); }
+.login-card input, .admin-panel input, .admin-panel select { min-width: 0; padding: 11px 12px; border: 1px solid #d8dee8; border-radius: 8px; background: #f9fafc; color: #263247; font: inherit; outline: none; }
+.login-card input:focus, .admin-panel input:focus, .admin-panel select:focus { border-color: #d9732f; box-shadow: 0 0 0 3px rgba(217,115,47,.12); }
 .login-card .generate { margin-top: 22px; }
 .login-loader { color: #182337; font-size: 28px; font-weight: 900; letter-spacing: -.04em; }
-.account-toolbar { position: fixed; z-index: 30; top: 15px; right: 20px; display: flex; align-items: center; gap: 8px; padding: 6px 7px 6px 13px; border: 1px solid #dce2eb; border-radius: 12px; background: rgba(255,255,255,.94); box-shadow: 0 8px 25px rgba(25,36,54,.09); backdrop-filter: blur(12px); }
-.account-toolbar span { display: grid; margin-right: 4px; color: #263247; font-size: 10px; }
-.account-toolbar small { color: #8791a2; font-size: 8px; }
-.account-toolbar button, .account-modal button { padding: 8px 10px; border: 1px solid #d9dfe8; border-radius: 7px; background: #fff; color: #536075; font-size: 9px; font-weight: 700; cursor: pointer; }
-.account-toolbar button:hover, .account-modal button:hover { border-color: #d9732f; color: #b75a20; }
-.account-backdrop { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(17,25,38,.58); backdrop-filter: blur(5px); }
-.account-modal { width: min(1050px, 100%); max-height: 88vh; overflow: auto; padding: 26px; border-radius: 18px; background: #fff; box-shadow: 0 30px 90px rgba(0,0,0,.3); }
-.account-modal header { display: flex; align-items: flex-start; justify-content: space-between; }
-.account-modal h2, .account-modal h3 { margin: 4px 0 18px; color: #263247; }
-.account-modal header > button { width: 34px; height: 34px; padding: 0; font-size: 22px; }
+.authenticated-app { min-height: 100vh; background: #eef1f5; }
+.topbar { position: sticky; z-index: 40; top: 0; height: 68px; display: flex; align-items: center; gap: 26px; padding: 0 22px; border-bottom: 1px solid #dce2eb; background: rgba(255,255,255,.97); box-shadow: 0 5px 20px rgba(25,36,54,.06); backdrop-filter: blur(12px); }
+.topbar-brand { display: flex; align-items: center; gap: 10px; color: #182337; }
+.topbar-brand span { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 10px; background: #182337; color: #f08a3c; font-size: 17px; font-weight: 900; }
+.topbar-brand strong { font-size: 18px; letter-spacing: -.03em; }
+.topbar nav { display: flex; align-self: stretch; gap: 4px; }
+.topbar button, .admin-panel button { padding: 9px 12px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: #667186; font-size: 10px; font-weight: 750; cursor: pointer; }
+.topbar nav button { position: relative; border-radius: 0; }
+.topbar nav button.active { color: #182337; }
+.topbar nav button.active::after { position: absolute; right: 8px; bottom: 0; left: 8px; height: 3px; border-radius: 3px 3px 0 0; background: #df7426; content: ""; }
+.topbar-account { margin-left: auto; display: flex; align-items: center; gap: 7px; }
+.topbar-account > span { display: grid; margin-right: 6px; color: #263247; font-size: 10px; text-align: right; }
+.topbar-account small { color: #8791a2; font-size: 8px; }
+.topbar-account button, .admin-panel button { border-color: #d9dfe8; background: #fff; }
+.topbar button:hover, .admin-panel button:hover { border-color: #d9732f; color: #b75a20; }
+.admin-page { min-height: calc(100vh - 68px); padding: clamp(24px, 5vw, 64px); background: #eef1f5; }
+.admin-panel { width: min(1180px, 100%); margin: 0 auto; padding: clamp(22px, 3vw, 36px); border: 1px solid #dde2ea; border-radius: 18px; background: #fff; box-shadow: 0 18px 50px rgba(27,38,57,.08); }
+.admin-panel header { margin-bottom: 28px; }
+.admin-panel h1, .admin-panel h3 { margin: 4px 0 8px; color: #263247; }
+.admin-panel header p:last-child { margin: 0; color: #69758a; font-size: 12px; }
 .user-list { display: grid; gap: 7px; }
 .user-row { display: grid; grid-template-columns: minmax(130px,1.5fr) minmax(90px,1fr) 130px 90px auto auto; align-items: center; gap: 7px; padding: 8px; border: 1px solid #e3e7ed; border-radius: 10px; }
 .user-row strong { color: #536075; font-size: 11px; }
@@ -248,4 +258,5 @@ button { cursor: pointer; }
 .new-user { display: grid; grid-template-columns: 1fr 1.2fr 1.4fr 130px auto; gap: 8px; margin-top: 24px; padding-top: 20px; border-top: 1px solid #e3e7ed; }
 .new-user h3 { grid-column: 1 / -1; margin-bottom: 3px; }
 .new-user .generate { margin: 0; padding: 0 15px; }
-@media (max-width: 850px) { .account-toolbar span { display: none; } .user-row, .new-user { grid-template-columns: 1fr 1fr; } .new-user h3 { grid-column: 1 / -1; } }
+@media (max-width: 850px) { .topbar-account > span { display: none; } .user-row, .new-user { grid-template-columns: 1fr 1fr; } .new-user h3 { grid-column: 1 / -1; } }
+@media (max-width: 620px) { .topbar { height: auto; min-height: 62px; flex-wrap: wrap; gap: 4px 12px; padding: 8px 12px; } .topbar-brand strong { display: none; } .topbar nav { height: 45px; order: 3; width: 100%; } .topbar nav button { flex: 1; } .topbar-account { margin-left: auto; } .topbar-account button { padding: 8px; } .admin-page { min-height: auto; padding: 16px; } .admin-panel { padding: 18px; } }

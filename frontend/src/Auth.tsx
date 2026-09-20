@@ -1,7 +1,7 @@
 import { createContext, FormEvent, ReactNode, useCallback, useContext, useEffect, useState } from "react";
 
 type User = {id: number; username: string; display_name: string; role: "admin" | "operator"; active: boolean; created_at: string};
-type AuthContextValue = {user: User; apiFetch: typeof fetch; logout: () => Promise<void>};
+type AuthContextValue = {user: User; apiFetch: typeof fetch; logout: () => Promise<void>; changePassword: () => Promise<void>};
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -36,7 +36,7 @@ function Login({onLogin}: {onLogin: (username: string, password: string) => Prom
   </main>;
 }
 
-function UserManager({apiFetch, onClose}: {apiFetch: typeof fetch; onClose: () => void}) {
+function UserManager({apiFetch}: {apiFetch: typeof fetch}) {
   const [users, setUsers] = useState<User[]>([]);
   const [error, setError] = useState("");
   const [form, setForm] = useState({username: "", display_name: "", password: "", role: "operator" as "admin" | "operator"});
@@ -63,9 +63,9 @@ function UserManager({apiFetch, onClose}: {apiFetch: typeof fetch; onClose: () =
     const response = await apiFetch(`/api/auth/users/${user.id}/password`, {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify({new_password: password})});
     if (!response.ok) { const problem = await response.json(); setError(problem.detail?.message || "Nie udało się zmienić hasła."); }
   };
-  return <div className="account-backdrop" role="dialog" aria-modal="true">
-    <section className="account-modal">
-      <header><div><p className="eyebrow">ADMINISTRACJA</p><h2>Konta zespołu</h2></div><button onClick={onClose} aria-label="Zamknij">×</button></header>
+  return <main className="admin-page">
+    <section className="admin-panel">
+      <header><div><p className="eyebrow">ADMINISTRACJA</p><h1>Konta zespołu</h1><p>Zarządzaj dostępem administratorów i operatorów do aplikacji.</p></div></header>
       {error && <p className="error">{error}</p>}
       <div className="user-list">{users.map((user, index) => <div className="user-row" key={user.id}>
         <input aria-label="Nazwa" value={user.display_name} onChange={event => setUsers(current => current.map((item, i) => i === index ? {...item, display_name: event.target.value} : item))}/>
@@ -83,7 +83,7 @@ function UserManager({apiFetch, onClose}: {apiFetch: typeof fetch; onClose: () =
         <button className="generate">Dodaj konto</button>
       </form>
     </section>
-  </div>;
+  </main>;
 }
 
 export default function AuthProvider({children}: {children: ReactNode}) {
@@ -91,6 +91,9 @@ export default function AuthProvider({children}: {children: ReactNode}) {
   const [csrf, setCsrf] = useState("");
   const [loading, setLoading] = useState(true);
   const [manageUsers, setManageUsers] = useState(false);
+  useEffect(() => {
+    if (user?.role !== "admin") setManageUsers(false);
+  }, [user]);
   useEffect(() => {
     fetch("/api/auth/me", {credentials: "include"}).then(async response => {
       if (!response.ok) return;
@@ -120,9 +123,18 @@ export default function AuthProvider({children}: {children: ReactNode}) {
   };
   if (loading) return <main className="login-page"><div className="login-loader">Litho</div></main>;
   if (!user) return <Login onLogin={login}/>;
-  return <AuthContext.Provider value={{user, apiFetch, logout}}>
-    <div className="account-toolbar"><span><b>{user.display_name}</b><small>{user.role === "admin" ? "Administrator" : "Operator"}</small></span>{user.role === "admin" && <button onClick={() => setManageUsers(true)}>Konta</button>}<button onClick={changePassword}>Hasło</button><button onClick={logout}>Wyloguj</button></div>
-    {children}
-    {manageUsers && <UserManager apiFetch={apiFetch} onClose={() => setManageUsers(false)}/>} 
+  return <AuthContext.Provider value={{user, apiFetch, logout, changePassword}}>
+    <div className="authenticated-app">
+      <header className="topbar">
+        <div className="topbar-brand"><span>L</span><strong>Litho</strong></div>
+        <nav aria-label="Główna nawigacja">
+          <button className={!manageUsers ? "active" : ""} aria-current={!manageUsers ? "page" : undefined} onClick={() => setManageUsers(false)}>Generator</button>
+          {user.role === "admin" && <button className={manageUsers ? "active" : ""} aria-current={manageUsers ? "page" : undefined} onClick={() => setManageUsers(true)}>Administracja</button>}
+        </nav>
+        <div className="topbar-account"><span><b>{user.display_name}</b><small>{user.role === "admin" ? "Administrator" : "Operator"}</small></span><button onClick={changePassword}>Hasło</button><button onClick={logout}>Wyloguj</button></div>
+      </header>
+      <div className="app-content" hidden={manageUsers}>{children}</div>
+      {user.role === "admin" && <div hidden={!manageUsers}><UserManager apiFetch={apiFetch}/></div>}
+    </div>
   </AuthContext.Provider>;
 }
