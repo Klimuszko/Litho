@@ -16,6 +16,7 @@ final class Litho_WC_Settings {
         add_action('admin_menu', array($this, 'admin_menu'));
         add_action('admin_init', array($this, 'register_settings'));
         add_filter('option_page_capability_litho_wc', array($this, 'settings_capability'));
+        add_action('admin_post_litho_test_api', array($this, 'test_api'));
         add_action('woocommerce_product_options_general_product_data', array($this, 'product_fields'));
         add_action('woocommerce_process_product_meta', array($this, 'save_product_fields'));
     }
@@ -71,9 +72,19 @@ final class Litho_WC_Settings {
         if (!current_user_can('manage_options')) {
             return;
         }
+        $api_test = isset($_GET['litho_api_test'])
+            ? sanitize_key(wp_unslash($_GET['litho_api_test']))
+            : '';
         ?>
         <div class="wrap">
             <h1><?php esc_html_e('Litho — integracja WooCommerce', 'litho-wc'); ?></h1>
+            <?php if ($api_test !== '') : ?>
+                <div class="notice <?php echo $api_test === 'success' ? 'notice-success' : 'notice-error'; ?> is-dismissible"><p>
+                    <?php echo $api_test === 'success'
+                        ? esc_html__('Połączenie z API Litho oraz klucz administratora działają poprawnie.', 'litho-wc')
+                        : esc_html__('Test API nie powiódł się. Sprawdź adres API, klucz administratora oraz dostępność serwera Litho.', 'litho-wc'); ?>
+                </p></div>
+            <?php endif; ?>
             <p><?php esc_html_e('Klucz API pozostaje wyłącznie na serwerze WordPress i nigdy nie jest wysyłany do przeglądarki klienta.', 'litho-wc'); ?></p>
             <form method="post" action="options.php">
                 <?php settings_fields('litho_wc'); ?>
@@ -89,6 +100,7 @@ final class Litho_WC_Settings {
                 </table>
                 <?php submit_button(); ?>
             </form>
+            <p><a class="button button-secondary" href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=litho_test_api'), 'litho_test_api')); ?>"><?php esc_html_e('Testuj połączenie z API', 'litho-wc'); ?></a></p>
         </div>
         <?php
     }
@@ -105,20 +117,25 @@ final class Litho_WC_Settings {
             'label' => __('Typ produktu Litho', 'litho-wc'),
             'options' => array('frame' => __('Ramka', 'litho-wc'), 'box' => __('Box', 'litho-wc')),
         ));
-        woocommerce_wp_select(array(
-            'id' => '_litho_power_source',
-            'label' => __('Zasilanie produktu', 'litho-wc'),
-            'options' => array('wired' => __('Przewodowe', 'litho-wc'), 'battery' => __('Bateryjne', 'litho-wc')),
-        ));
         echo '</div>';
     }
 
     public function save_product_fields($product_id) {
         update_post_meta($product_id, '_litho_enabled', isset($_POST['_litho_enabled']) ? 'yes' : 'no');
         $housing = sanitize_key(wp_unslash($_POST['_litho_housing_type'] ?? 'frame'));
-        $power = sanitize_key(wp_unslash($_POST['_litho_power_source'] ?? 'wired'));
         update_post_meta($product_id, '_litho_housing_type', in_array($housing, array('frame', 'box'), true) ? $housing : 'frame');
-        update_post_meta($product_id, '_litho_power_source', in_array($power, array('wired', 'battery'), true) ? $power : 'wired');
+        delete_post_meta($product_id, '_litho_power_source');
+    }
+
+    public function test_api() {
+        if (!current_user_can('manage_options')) {
+            wp_die(esc_html__('Brak uprawnień.', 'litho-wc'), '', array('response' => 403));
+        }
+        check_admin_referer('litho_test_api');
+        $result = $this->api->admin_request('GET', '/api/admin/projects');
+        $status = is_wp_error($result) ? 'failure' : 'success';
+        wp_safe_redirect(add_query_arg(array('page' => 'litho-settings', 'litho_api_test' => $status), admin_url('admin.php')));
+        exit;
     }
 
     public function choices($option, $defaults) {

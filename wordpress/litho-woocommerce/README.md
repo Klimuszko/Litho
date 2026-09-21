@@ -1,6 +1,6 @@
 # Litho for WooCommerce
 
-Wtyczka dodaje do wskazanych produktów WooCommerce uproszczony konfigurator litofanii. Klient wybiera zdjęcie, kadr, rozmiar, orientację, kolor obudowy i barwę LED. Typ obudowy oraz sposób zasilania są przypisane do produktu przez obsługę sklepu i nie są prezentowane jako opcje klienta.
+Wtyczka dodaje do wskazanych produktów WooCommerce uproszczony konfigurator litofanii. Klient wybiera zdjęcie, kadr, rozmiar, orientację, kolor obudowy i barwę LED. Typ obudowy jest przypisany do produktu przez obsługę sklepu. Rodzaj zasilania wynika z nazwy i opisu produktu — wtyczka nie tworzy dla niego dodatkowego pola.
 
 ## Instalacja
 
@@ -16,10 +16,9 @@ Wtyczka dodaje do wskazanych produktów WooCommerce uproszczony konfigurator lit
 Ustawienia adresu API i sekretu są dostępne wyłącznie dla administratora WordPressa (`manage_options`). Obsługa sklepu nadal może korzystać z projektów i pobierać pliki z poziomu zamówień.
 5. Edytuj każdy odpowiedni produkt WooCommerce. W sekcji danych produktu:
    - zaznacz **Konfigurator Litho**,
-   - przypisz `Ramka` albo `Box`,
-   - przypisz `Przewodowe` albo `Bateryjne`.
+   - przypisz `Ramka` albo `Box`.
 
-Najprostsza oferta składa się z czterech produktów: ramka przewodowa, ramka bateryjna, box przewodowy i box bateryjny.
+Zasilanie oraz pozostałe cechy handlowe opisz standardowymi mechanizmami WooCommerce: nazwą, opisem, atrybutami lub wariantami produktu.
 
 W środowisku produkcyjnym najlepiej przechowywać sekret poza bazą WordPressa. Dodaj go do `wp-config.php`; pole klucza w ustawieniach wtyczki może wtedy pozostać puste:
 
@@ -35,13 +34,13 @@ define('LITHO_ADMIN_API_KEY', 'ten-sam-dlugi-sekret-co-w-kontenerze-litho');
 - Strony produktów z aktywnym konfiguratorem wysyłają nagłówki `no-cache`, ponieważ zawierają token sesji klienta.
 - Dodanie projektu do koszyka wymaga podpisu HMAC i ponownego potwierdzenia projektu przez API.
 - WordPress akceptuje wyłącznie JPG/PNG do 20 MB.
-- Typ obudowy i zasilanie są ponownie odczytywane z produktu po stronie serwera.
+- Typ obudowy jest ponownie odczytywany z produktu po stronie serwera.
 - Po utworzeniu zamówienia WordPress przypisuje jego ID do projektu w Litho.
 - Pobranie zdjęcia albo STL przez administratora wymaga uprawnienia, nonce oraz zgodności projektu z konkretnym zamówieniem.
 
 ## Dane zamówienia
 
-Pozycja zamówienia przechowuje identyfikator projektu oraz migawkę konfiguracji. Administrator widzi rozmiar, orientację, kolor obudowy i barwę LED, a także przyciski pobrania zdjęcia źródłowego i STL. Typ obudowy i zasilanie wynikają z zakupionego produktu.
+Pozycja zamówienia przechowuje identyfikator projektu oraz migawkę konfiguracji. Administrator widzi rozmiar, orientację, kolor obudowy i barwę LED, a także przyciski pobrania zdjęcia źródłowego i STL. Typ obudowy wynika z zakupionego produktu, a informacje o zasilaniu pozostają w jego nazwie, opisie lub wariancie WooCommerce.
 
 ## Ograniczenia V1
 

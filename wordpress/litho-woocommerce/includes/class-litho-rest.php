@@ -194,14 +194,12 @@ final class Litho_WC_REST {
         $housing_color = sanitize_title((string) $request->get_param('housing_color'));
         $led = sanitize_title((string) $request->get_param('light_temperature'));
         $housing = get_post_meta($product_id, '_litho_housing_type', true) ?: 'frame';
-        $power = get_post_meta($product_id, '_litho_power_source', true) ?: 'wired';
         if (!in_array($size, array('100x150', '130x180', '150x200'), true)
             || !in_array($orientation, array('landscape', 'portrait'), true)
             || !isset($this->settings->housing_colors()[$housing_color])
             || !isset($this->settings->led_colors()[$led])
             || !in_array($led, array('warm', 'neutral', 'cool'), true)
-            || !in_array($housing, array('frame', 'box'), true)
-            || !in_array($power, array('wired', 'battery'), true)) {
+            || !in_array($housing, array('frame', 'box'), true)) {
             return new WP_Error('litho_config_invalid', __('Wybrana konfiguracja jest nieprawidłowa.', 'litho-wc'), array('status' => 400));
         }
         $crop = $request->get_param('crop');
@@ -228,7 +226,6 @@ final class Litho_WC_REST {
             'orientation' => $orientation,
             'housing_type' => $housing,
             'housing_color' => $housing_color,
-            'power_source' => $power,
             'light_temperature' => $led,
             'crop' => $normalized,
             'rotation_degrees' => $rotation,

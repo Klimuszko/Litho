@@ -14,7 +14,6 @@ Całe API projektów jest zamknięte za uwierzytelnieniem. Do czasu wdrożenia k
   "orientation": "portrait",
   "housing_type": "frame",
   "housing_color": "black-matte",
-  "power_source": "wired",
   "light_temperature": "warm",
   "crop": {"x": 0, "y": 0, "width": 1, "height": 1},
   "rotation_degrees": 0,
@@ -24,7 +23,7 @@ Całe API projektów jest zamknięte za uwierzytelnieniem. Do czasu wdrożenia k
 }
 ```
 
-Dozwolone formaty to `100x150`, `130x180` i `150x200`; orientacja może być `landscape` albo `portrait`. Typ obudowy to `frame` lub `box`, a zasilanie `wired` lub `battery`.
+Dozwolone formaty to `100x150`, `130x180` i `150x200`; orientacja może być `landscape` albo `portrait`. Typ obudowy to `frame` lub `box`. Sposób zasilania nie jest częścią konfiguracji projektu klienta.
 
 Odpowiedź zawiera niezmienny `project_id` oraz `project_token`. Token jest zwracany tylko przy utworzeniu projektu i należy go trzymać po stronie sesji kreatora, a nie w publicznych metadanych WooCommerce.
 
@@ -72,7 +71,7 @@ Przypisanie tego samego projektu ponownie do tego samego `order_id` jest idempot
 
 ## WooCommerce
 
-Typ obudowy i sposób zasilania są przypisane przez obsługę do osobnego produktu WooCommerce, np. „Ramka przewodowa” albo „Box bateryjny”. Klient nie wybiera tych parametrów w konfiguratorze, ale WordPress przekazuje je do Litho jako zaufane metadane produktu.
+Typ obudowy (`frame` albo `box`) jest przypisany przez obsługę do produktu WooCommerce. Sposób zasilania nie jest osobnym polem konfiguratora ani ustawieniem integracji — wynika z nazwy, opisu, atrybutu lub wariantu produktu WooCommerce i nie jest wysyłany do API projektu.
 
 Do pozycji koszyka i zamówienia należy skopiować:
 
@@ -82,7 +81,6 @@ size
 orientation
 housing_type
 housing_color
-power_source
 light_temperature
 ```
 
@@ -90,6 +88,6 @@ light_temperature
 
 ## Obudowy i oświetlenie
 
-V1 zapisuje wybór zasilania i obudowy, ale generuje wyłącznie STL litofanii. Generowanie korpusu dla wariantu stałego i bateryjnego zostanie włączone po ustaleniu konkretnych wymiarów modułu LED, złącza, przełącznika, koszyka/ogniwa oraz wymaganej przestrzeni serwisowej. Do tego czasu metadane mają wartość `housing_generation: pending_component_specification`.
+V1 zapisuje typ obudowy, ale generuje wyłącznie STL litofanii. Informacje handlowe o sposobie zasilania pozostają po stronie produktu WooCommerce i nie sterują generowaniem.
 
 Referencyjna wtyczka znajduje się w `wordpress/litho-woocommerce`. Wszystkie wywołania przechodzą przez proxy WordPressa; klucz administratora i `project_token` nie są ujawniane w JavaScript.

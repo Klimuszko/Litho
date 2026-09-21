@@ -30,7 +30,7 @@ final class Litho_WC_Integration {
         if (!is_product()) {
             return;
         }
-        global $product;
+        $product = wc_get_product(get_queried_object_id());
         if (!$product || get_post_meta($product->get_id(), '_litho_enabled', true) !== 'yes') {
             return;
         }
@@ -65,6 +65,9 @@ final class Litho_WC_Integration {
 
     public function render_configurator() {
         global $product;
+        if (!is_a($product, 'WC_Product')) {
+            $product = wc_get_product(get_queried_object_id());
+        }
         if (!$product || get_post_meta($product->get_id(), '_litho_enabled', true) !== 'yes') {
             return;
         }
@@ -119,8 +122,7 @@ final class Litho_WC_Integration {
             return false;
         }
         $config = $project['config'] ?? array();
-        if (($config['housing_type'] ?? '') !== (get_post_meta($product_id, '_litho_housing_type', true) ?: 'frame')
-            || ($config['power_source'] ?? '') !== (get_post_meta($product_id, '_litho_power_source', true) ?: 'wired')) {
+        if (($config['housing_type'] ?? '') !== (get_post_meta($product_id, '_litho_housing_type', true) ?: 'frame')) {
             wc_add_notice(__('Projekt nie pasuje do wybranego produktu.', 'litho-wc'), 'error');
             return false;
         }
