@@ -25,7 +25,7 @@ from .housing import build_housing_back, build_housing_body, orient_front_on_bed
 from .image_processing import InvalidImage, decode_image, prepare_image, preview_png, resample_luminance
 from .mesh import add_removable_support, apply_border, build_plate, removable_support_dimensions, validate_mesh
 from .models import HousingParams, LithophaneParams
-from .projects import CustomerProjectConfig, OrderReference, project_store
+from .projects import CustomerProjectConfig, OrderReference, ProjectAlreadyAttached, project_store
 
 app = FastAPI(title="Lithophane Generator API", version="1.0.0", docs_url=None, redoc_url=None, openapi_url=None)
 cors_origins = [origin.strip() for origin in os.getenv(
@@ -353,6 +353,8 @@ def generate_customer_project(
     except RuntimeError as exc:
         if str(exc) == "image_required":
             raise HTTPException(status_code=409, detail={"error_code": "PROJECT_IMAGE_REQUIRED", "message": "Najpierw prześlij zdjęcie."}) from exc
+        if str(exc) == "already_completed":
+            raise HTTPException(status_code=409, detail={"error_code": "PROJECT_ALREADY_COMPLETED", "message": "Projekt został już wygenerowany."}) from exc
         raise HTTPException(status_code=409, detail={"error_code": "PROJECT_ALREADY_GENERATING", "message": "Projekt jest już generowany."}) from exc
     background_tasks.add_task(generate_project_artifacts, project_id, generation_id)
     return project_store.public(metadata)
@@ -413,6 +415,11 @@ def attach_project_order(project_id: str, reference: OrderReference, request: Re
     require_admin(x_litho_admin_key, request)
     try:
         metadata = project_store.attach_order(project_id, reference.order_id)
+    except ProjectAlreadyAttached as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"error_code": "PROJECT_ALREADY_ATTACHED", "message": "Projekt jest już przypisany do innego zamówienia."},
+        ) from exc
     except (FileNotFoundError, OSError, ValueError, KeyError) as exc:
         raise HTTPException(status_code=404, detail={"error_code": "PROJECT_NOT_FOUND", "message": "Projekt nie istnieje."}) from exc
     return project_store.public(metadata)

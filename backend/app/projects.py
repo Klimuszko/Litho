@@ -18,6 +18,10 @@ PROJECTS_DIR = Path(os.getenv("LITHO_PROJECTS_DIR", "/data/projects"))
 _write_lock = RLock()
 
 
+class ProjectAlreadyAttached(RuntimeError):
+    pass
+
+
 class CustomerProjectConfig(BaseModel):
     size: Literal["100x150", "130x180", "150x200"] = "100x150"
     orientation: Literal["landscape", "portrait"] = "landscape"
@@ -138,6 +142,8 @@ class ProjectStore:
             metadata = self.load(project_id)
             if metadata["status"] == "generating":
                 raise RuntimeError("already_generating")
+            if metadata["status"] == "completed":
+                raise RuntimeError("already_completed")
             if not metadata.get("image"):
                 raise RuntimeError("image_required")
             metadata["status"] = "generating"
@@ -208,6 +214,9 @@ class ProjectStore:
     def attach_order(self, project_id: str, order_id: str) -> dict:
         with _write_lock:
             metadata = self.load(project_id)
+            existing = metadata.get("customer_ref")
+            if existing and existing != order_id:
+                raise ProjectAlreadyAttached(existing)
             metadata["customer_ref"] = order_id
             self.save(metadata)
             return metadata

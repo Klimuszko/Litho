@@ -34,6 +34,20 @@ jobs:
         working-directory: frontend
       - run: npm run build
         working-directory: frontend
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "7.4"
+      - name: Validate WordPress plugin PHP
+        run: find wordpress/litho-woocommerce -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Validate configurator JavaScript
+        run: node --check wordpress/litho-woocommerce/assets/configurator.js
+      - name: Package WordPress plugin
+        run: cd wordpress && zip -r ../litho-woocommerce.zip litho-woocommerce
+      - uses: actions/upload-artifact@v6
+        with:
+          name: litho-woocommerce
+          path: litho-woocommerce.zip
+          if-no-files-found: error
 
   build:
     needs: verify

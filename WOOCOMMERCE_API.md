@@ -47,7 +47,7 @@ Statusy projektu: `awaiting_image`, `ready`, `generating`, `completed`, `failed`
 
 Po odpowiedzi 202 kreator odpytuje endpoint statusu, aż otrzyma `completed` albo `failed`. Dzięki temu żądanie WordPressa nie musi pozostawać otwarte przez cały czas budowania dużego STL.
 
-Produkcja klienta jest celowo zablokowana na sprawdzonych parametrach: dysza 0,4 mm, geometria maksymalna, grubość 0,6–4,0 mm oraz kołnierz Litho Mount V1. Klient nie może ich przypadkowo zmienić.
+Produkcja klienta jest celowo zablokowana na sprawdzonych parametrach: dysza 0,4 mm, geometria maksymalna, grubość 1,0–4,0 mm oraz kołnierz Litho Mount V1. Klient nie może ich przypadkowo zmienić.
 
 ## Dostęp administratora
 
@@ -68,7 +68,11 @@ Endpointy:
 
 Jeśli `LITHO_ADMIN_API_KEY` nie jest ustawiony, endpointy administracyjne odpowiadają kodem 503. Pliki nie są publikowane przez serwer statyczny.
 
+Przypisanie tego samego projektu ponownie do tego samego `order_id` jest idempotentne. Próba przypisania projektu do innego zamówienia zwraca HTTP 409 i nie nadpisuje pierwotnego powiązania.
+
 ## WooCommerce
+
+Typ obudowy i sposób zasilania są przypisane przez obsługę do osobnego produktu WooCommerce, np. „Ramka przewodowa” albo „Box bateryjny”. Klient nie wybiera tych parametrów w konfiguratorze, ale WordPress przekazuje je do Litho jako zaufane metadane produktu.
 
 Do pozycji koszyka i zamówienia należy skopiować:
 
@@ -87,3 +91,5 @@ light_temperature
 ## Obudowy i oświetlenie
 
 V1 zapisuje wybór zasilania i obudowy, ale generuje wyłącznie STL litofanii. Generowanie korpusu dla wariantu stałego i bateryjnego zostanie włączone po ustaleniu konkretnych wymiarów modułu LED, złącza, przełącznika, koszyka/ogniwa oraz wymaganej przestrzeni serwisowej. Do tego czasu metadane mają wartość `housing_generation: pending_component_specification`.
+
+Referencyjna wtyczka znajduje się w `wordpress/litho-woocommerce`. Wszystkie wywołania przechodzą przez proxy WordPressa; klucz administratora i `project_token` nie są ujawniane w JavaScript.

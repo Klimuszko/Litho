@@ -77,6 +77,13 @@ def test_project_lifecycle_and_admin_access(tmp_path, monkeypatch):
     assert completed.json()["status"] == "completed"
     assert completed.json()["artifacts"]["lithophane_stl"]["grid"] == "11x9"
 
+    repeated_generation = client.post(
+        f"/api/customer/projects/{project_id}/generate",
+        headers={"X-Project-Token": token},
+    )
+    assert repeated_generation.status_code == 409
+    assert repeated_generation.json()["detail"]["error_code"] == "PROJECT_ALREADY_COMPLETED"
+
     artifact = client.get(
         f"/api/customer/projects/{project_id}/artifacts/lithophane_stl",
         headers={"X-Project-Token": token},
@@ -97,6 +104,21 @@ def test_project_lifecycle_and_admin_access(tmp_path, monkeypatch):
     )
     assert attached.status_code == 200
     assert attached.json()["customer_ref"] == "WC-1234"
+
+    same_order = client.put(
+        f"/api/admin/projects/{project_id}/order",
+        headers={"X-Litho-Admin-Key": "admin-secret"},
+        json={"order_id": "WC-1234"},
+    )
+    assert same_order.status_code == 200
+
+    different_order = client.put(
+        f"/api/admin/projects/{project_id}/order",
+        headers={"X-Litho-Admin-Key": "admin-secret"},
+        json={"order_id": "WC-9999"},
+    )
+    assert different_order.status_code == 409
+    assert different_order.json()["detail"]["error_code"] == "PROJECT_ALREADY_ATTACHED"
 
     deleted = client.delete(
         f"/api/admin/projects/{project_id}",
