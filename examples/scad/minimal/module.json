@@ -1,0 +1,10 @@
+{
+  "id": "minimal_box",
+  "name": "Minimal Parametric Box",
+  "version": "1.0.0",
+  "engine": "openscad",
+  "entry": "main.scad",
+  "category": "Other",
+  "author": "Litho",
+  "description": "Minimal example demonstrating automatic Customizer parsing"
+}

@@ -11,6 +11,12 @@
   const housingInput = root.querySelector('#litho-housing-color');
   const ledInput = root.querySelector('#litho-led-color');
   const zoomInput = root.querySelector('#litho-zoom');
+  const brightnessInput = root.querySelector('#litho-brightness');
+  const contrastInput = root.querySelector('#litho-contrast');
+  const gammaInput = root.querySelector('#litho-gamma');
+  const brightnessValue = root.querySelector('#litho-brightness-value');
+  const contrastValue = root.querySelector('#litho-contrast-value');
+  const gammaValue = root.querySelector('#litho-gamma-value');
   const approve = root.querySelector('#litho-approve');
   const status = root.querySelector('#litho-status');
   const projectIdInput = root.querySelector('#litho-project-id');
@@ -107,6 +113,29 @@
     ctx.scale(g.scale, g.scale);
     ctx.drawImage(state.image, -state.image.width / 2, -state.image.height / 2);
     ctx.restore();
+    applyImageAdjustments();
+  }
+
+  function applyImageAdjustments() {
+    const brightness = Number(brightnessInput.value);
+    const contrast = Number(contrastInput.value);
+    const gamma = Number(gammaInput.value);
+    const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const lookup = new Uint8ClampedArray(256);
+    for (let value = 0; value < 256; value += 1) {
+      let light = value / 255;
+      light = light * brightness;
+      light = (light - 0.5) * contrast + 0.5;
+      light = Math.max(0, Math.min(1, light));
+      light = 1 - Math.pow(1 - light, gamma);
+      lookup[value] = Math.round(255 * light);
+    }
+    for (let index = 0; index < pixels.data.length; index += 4) {
+      pixels.data[index] = lookup[pixels.data[index]];
+      pixels.data[index + 1] = lookup[pixels.data[index + 1]];
+      pixels.data[index + 2] = lookup[pixels.data[index + 2]];
+    }
+    ctx.putImageData(pixels, 0, 0);
   }
 
   function crop() {
@@ -157,6 +186,15 @@
   housingInput.addEventListener('change', invalidate);
   ledInput.addEventListener('change', invalidate);
   zoomInput.addEventListener('input', () => { state.zoom = Number(zoomInput.value); clampPan(); draw(); invalidate(); });
+  [
+    [brightnessInput, brightnessValue],
+    [contrastInput, contrastValue],
+    [gammaInput, gammaValue],
+  ].forEach(([input, output]) => input.addEventListener('input', () => {
+    output.textContent = Number(input.value).toFixed(2);
+    draw();
+    invalidate();
+  }));
 
   root.querySelectorAll('[data-orientation]').forEach(button => button.addEventListener('click', () => {
     state.orientation = button.dataset.orientation;
@@ -194,7 +232,7 @@
   async function request(path, options, browserToken) {
     const headers = Object.assign({'X-Litho-Nonce': LithoConfig.nonce, 'X-Litho-CSRF-Token': LithoConfig.csrf}, options.headers || {});
     if (browserToken) headers['X-Litho-Project-Key'] = browserToken;
-    const response = await fetch(apiRoot + path, Object.assign({}, options, {headers}));
+    const response = await fetch(apiRoot + path, Object.assign({}, options, {headers, credentials: 'same-origin'}));
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.message || LithoConfig.messages.failed);
     return data;
@@ -225,6 +263,9 @@
           orientation: state.orientation,
           housing_color: housingInput.value,
           light_temperature: ledInput.value,
+          brightness: Number(brightnessInput.value),
+          contrast: Number(contrastInput.value),
+          gamma: Number(gammaInput.value),
           rotation_degrees: state.rotation,
           crop: crop(),
         }),

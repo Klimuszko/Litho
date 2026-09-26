@@ -91,6 +91,15 @@ Backend udostępnia trwałe projekty klientów z prywatnym tokenem, generowaniem
 
 Dostęp do generatora jest chroniony lokalnymi kontami administratorów i operatorów. Pierwsze konto, role, sesje oraz wdrożenie opisuje [AUTHENTICATION.md](AUTHENTICATION.md).
 
+## Parametryczne moduły OpenSCAD
+
+Litho zawiera wieloużytkownikową bibliotekę generatorów SCAD z dynamicznym UI,
+podglądem 3D, eksportem STL/3MF, presetami, wersjami draft/published, rolami,
+moderacją, audytem, kolejką, anulowaniem i cache. Instrukcja importowania modułów,
+składnia Customizera i model bezpieczeństwa są opisane w
+[SCAD_MODULES.md](SCAD_MODULES.md). Przykładowy moduł minimalny oraz planetary
+fidget znajdują się w `examples/scad/`.
+
 ## Ograniczenia V1
 
 - płaski model prostokątny;

@@ -1,7 +1,9 @@
-import { ChangeEvent, PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
+import { ChangeEvent, lazy, PointerEvent as ReactPointerEvent, Suspense, useEffect, useRef, useState } from "react";
 import "./formats.css";
 import HousingGenerator from "./HousingGenerator";
 import {useAuth} from "./Auth";
+
+const ScadModules = lazy(() => import("./ScadModules"));
 
 export type Params = {
   width_mm: number; height_mm: number; min_thickness_mm: number; max_thickness_mm: number;
@@ -414,7 +416,9 @@ function LithophaneGenerator({active, onOpenHousing}: {active: boolean; onOpenHo
 }
 
 export default function App() {
+  const {section} = useAuth();
   const [product, setProduct] = useState<"lithophane" | "housing">("lithophane");
+  if (section === "modules") return <Suspense fallback={<main className="module-loading">Ładowanie biblioteki modułów…</main>}><ScadModules/></Suspense>;
   return <>
     <LithophaneGenerator active={product === "lithophane"} onOpenHousing={() => setProduct("housing")}/>
     <HousingGenerator active={product === "housing"} onOpenLithophane={() => setProduct("lithophane")}/>

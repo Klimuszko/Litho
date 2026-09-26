@@ -1,0 +1,10 @@
+{
+  "id": "planetary_fidget",
+  "name": "Planetary Fidget",
+  "version": "1.0.0",
+  "engine": "openscad",
+  "entry": "main.scad",
+  "category": "Fidgets",
+  "author": "Litho",
+  "description": "Parametric print-in-place planetary fidget generator"
+}

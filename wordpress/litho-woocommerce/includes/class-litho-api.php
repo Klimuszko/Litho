@@ -14,6 +14,10 @@ final class Litho_WC_API {
         return untrailingslashit((string) get_option(self::OPTION_URL, ''));
     }
 
+    public function uses_config_key() {
+        return defined('LITHO_ADMIN_API_KEY') && LITHO_ADMIN_API_KEY !== '';
+    }
+
     private function api_key() {
         if (defined('LITHO_ADMIN_API_KEY') && LITHO_ADMIN_API_KEY !== '') {
             return (string) LITHO_ADMIN_API_KEY;
@@ -37,6 +41,16 @@ final class Litho_WC_API {
             'Accept' => 'application/json',
             'X-Litho-Admin-Key' => $this->api_key(),
         ));
+    }
+
+    public function test_connection($base_url, $api_key) {
+        $base_url = untrailingslashit((string) $base_url);
+        $api_key = $this->uses_config_key() ? (string) LITHO_ADMIN_API_KEY : (string) $api_key;
+        return $this->request_with_configuration(
+            'GET', '/api/admin/projects', null,
+            array('Accept' => 'application/json', 'X-Litho-Admin-Key' => $api_key),
+            $base_url, $api_key
+        );
     }
 
     public function upload_image($project_id, $project_token, $file) {
@@ -95,7 +109,11 @@ final class Litho_WC_API {
     }
 
     private function request($method, $path, $body, $headers) {
-        if (!$this->configured()) {
+        return $this->request_with_configuration($method, $path, $body, $headers, $this->base_url(), $this->api_key());
+    }
+
+    private function request_with_configuration($method, $path, $body, $headers, $base_url, $api_key) {
+        if ($base_url === '' || $api_key === '') {
             return new WP_Error('litho_not_configured', __('Połączenie z API Litho nie jest skonfigurowane.', 'litho-wc'));
         }
         $args = array(
@@ -112,9 +130,9 @@ final class Litho_WC_API {
                 $args['body'] = $body;
             }
         }
-        $response = wp_remote_request($this->base_url() . '/' . ltrim($path, '/'), $args);
+        $response = wp_remote_request($base_url . '/' . ltrim($path, '/'), $args);
         if (is_wp_error($response)) {
-            return new WP_Error('litho_api_unavailable', __('API Litho jest chwilowo niedostępne.', 'litho-wc'));
+            return new WP_Error('litho_api_unavailable', __('API Litho jest chwilowo niedostępne.', 'litho-wc'), array('transport_error' => $response->get_error_message()));
         }
         $status = (int) wp_remote_retrieve_response_code($response);
         $response_body = wp_remote_retrieve_body($response);

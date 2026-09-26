@@ -5,6 +5,7 @@ defined('ABSPATH') || exit;
 final class Litho_WC_Integration {
     private $api;
     private $settings;
+    private $csrf = '';
 
     public function __construct(Litho_WC_API $api, Litho_WC_Settings $settings) {
         $this->api = $api;
@@ -12,6 +13,7 @@ final class Litho_WC_Integration {
     }
 
     public function register() {
+        add_action('wp', array($this, 'prepare_product_session'), 1);
         add_action('wp_enqueue_scripts', array($this, 'enqueue'));
         add_action('woocommerce_before_add_to_cart_button', array($this, 'render_configurator'));
         add_filter('woocommerce_add_to_cart_validation', array($this, 'validate_add_to_cart'), 10, 3);
@@ -24,6 +26,24 @@ final class Litho_WC_Integration {
         add_filter('woocommerce_update_cart_validation', array($this, 'validate_cart_quantity'), 10, 4);
         add_action('woocommerce_after_order_itemmeta', array($this, 'admin_item_actions'), 10, 3);
         add_action('admin_post_litho_download', array($this, 'download'));
+    }
+
+    public function prepare_product_session() {
+        if (!is_product()) {
+            return;
+        }
+        $product = wc_get_product(get_queried_object_id());
+        if (!$product || get_post_meta($product->get_id(), '_litho_enabled', true) !== 'yes') {
+            return;
+        }
+        if (!defined('DONOTCACHEPAGE')) {
+            define('DONOTCACHEPAGE', true);
+        }
+        nocache_headers();
+        $this->csrf = $this->ensure_csrf_cookie();
+        if (WC()->session && is_callable(array(WC()->session, 'set_customer_session_cookie'))) {
+            WC()->session->set_customer_session_cookie(true);
+        }
     }
 
     public function enqueue() {
@@ -40,13 +60,7 @@ final class Litho_WC_Integration {
         nocache_headers();
         wp_enqueue_style('litho-configurator', LITHO_WC_URL . 'assets/configurator.css', array(), LITHO_WC_VERSION);
         wp_enqueue_script('litho-configurator', LITHO_WC_URL . 'assets/configurator.js', array(), LITHO_WC_VERSION, true);
-        $csrf = WC()->session ? (string) WC()->session->get('litho_csrf') : '';
-        if ($csrf === '') {
-            $csrf = bin2hex(random_bytes(32));
-            if (WC()->session) {
-                WC()->session->set('litho_csrf', $csrf);
-            }
-        }
+        $csrf = $this->csrf !== '' ? $this->csrf : $this->ensure_csrf_cookie();
         wp_localize_script('litho-configurator', 'LithoConfig', array(
             'restUrl' => esc_url_raw(rest_url(Litho_WC_REST::REST_NAMESPACE)),
             'nonce' => wp_create_nonce('litho_configurator'),
@@ -61,6 +75,20 @@ final class Litho_WC_Integration {
                 'failed' => __('Nie udało się przygotować projektu.', 'litho-wc'),
             ),
         ));
+    }
+
+    private function ensure_csrf_cookie() {
+        $token = isset($_COOKIE[Litho_WC_REST::CSRF_COOKIE])
+            ? (string) wp_unslash($_COOKIE[Litho_WC_REST::CSRF_COOKIE])
+            : '';
+        if (preg_match('/^[a-f0-9]{64}$/', $token)) {
+            return $token;
+        }
+        $token = bin2hex(random_bytes(32));
+        $secure = wp_parse_url(home_url('/'), PHP_URL_SCHEME) === 'https';
+        wc_setcookie(Litho_WC_REST::CSRF_COOKIE, $token, time() + DAY_IN_SECONDS, $secure, true);
+        $_COOKIE[Litho_WC_REST::CSRF_COOKIE] = $token;
+        return $token;
     }
 
     public function render_configurator() {
@@ -83,6 +111,9 @@ final class Litho_WC_Integration {
                     <div class="litho-field"><label for="litho-led-color"><?php esc_html_e('Barwa LED', 'litho-wc'); ?></label><select id="litho-led-color"></select></div>
                     <div class="litho-field"><label><?php esc_html_e('Obrót zdjęcia', 'litho-wc'); ?></label><div class="litho-segment"><button type="button" data-rotate="-90">↶ 90°</button><button type="button" data-rotate="90">90° ↷</button></div></div>
                     <div class="litho-field"><label for="litho-zoom"><?php esc_html_e('Powiększenie', 'litho-wc'); ?></label><input id="litho-zoom" type="range" min="1" max="3" value="1" step="0.01"></div>
+                    <div class="litho-field litho-adjustment"><label for="litho-brightness"><?php esc_html_e('Jasność', 'litho-wc'); ?>: <output id="litho-brightness-value">1.00</output></label><input id="litho-brightness" type="range" min="0.5" max="1.5" value="1" step="0.05"></div>
+                    <div class="litho-field litho-adjustment"><label for="litho-contrast"><?php esc_html_e('Kontrast', 'litho-wc'); ?>: <output id="litho-contrast-value">1.25</output></label><input id="litho-contrast" type="range" min="0.5" max="2" value="1.25" step="0.05"></div>
+                    <div class="litho-field litho-adjustment"><label for="litho-gamma"><?php esc_html_e('Gamma', 'litho-wc'); ?>: <output id="litho-gamma-value">1.00</output></label><input id="litho-gamma" type="range" min="0.5" max="2" value="1" step="0.05"></div>
                 </div>
                 <div class="litho-preview-wrap"><canvas id="litho-preview" width="900" height="600"></canvas><p><?php esc_html_e('Przeciągnij zdjęcie, aby ustawić kadr. Kółko myszy zmienia powiększenie.', 'litho-wc'); ?></p></div>
             </div>
@@ -104,9 +135,10 @@ final class Litho_WC_Integration {
         }
         $project_id = sanitize_text_field(wp_unslash($_POST['litho_project_id'] ?? ''));
         $signature = sanitize_text_field(wp_unslash($_POST['litho_project_signature'] ?? ''));
+        $session_id = Litho_WC_REST::browser_session_id();
         if (!preg_match('/^LTH-[0-9]{8}-[A-F0-9]{8}$/', $project_id)
-            || !WC()->session
-            || !hash_equals(Litho_WC_REST::cart_signature($project_id, $product_id, WC()->session->get_customer_id()), $signature)) {
+            || $session_id === ''
+            || !hash_equals(Litho_WC_REST::cart_signature($project_id, $product_id, $session_id), $signature)) {
             wc_add_notice(__('Zatwierdź projekt Litho przed dodaniem produktu do koszyka.', 'litho-wc'), 'error');
             return false;
         }
@@ -311,6 +343,9 @@ final class Litho_WC_Integration {
             __('Orientacja', 'litho-wc') => ($config['orientation'] ?? '') === 'portrait' ? __('Pionowa', 'litho-wc') : __('Pozioma', 'litho-wc'),
             __('Kolor obudowy', 'litho-wc') => $housing_colors[$config['housing_color'] ?? ''] ?? ($config['housing_color'] ?? ''),
             __('Barwa LED', 'litho-wc') => $led_colors[$config['light_temperature'] ?? ''] ?? ($config['light_temperature'] ?? ''),
+            __('Jasność', 'litho-wc') => number_format((float) ($config['brightness'] ?? 1), 2, '.', ''),
+            __('Kontrast', 'litho-wc') => number_format((float) ($config['contrast'] ?? 1.25), 2, '.', ''),
+            __('Gamma', 'litho-wc') => number_format((float) ($config['gamma'] ?? 1), 2, '.', ''),
         );
     }
 }

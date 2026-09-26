@@ -4,6 +4,7 @@ import logging
 import os
 import secrets
 import sqlite3
+from contextlib import asynccontextmanager
 from io import BytesIO
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -26,8 +27,18 @@ from .image_processing import InvalidImage, decode_image, prepare_image, preview
 from .mesh import add_removable_support, apply_border, build_plate, removable_support_dimensions, validate_mesh
 from .models import HousingParams, LithophaneParams
 from .projects import CustomerProjectConfig, OrderReference, ProjectAlreadyAttached, project_store
+from .scad.router import router as scad_router
+from .scad.repository import scad_repository
 
-app = FastAPI(title="Lithophane Generator API", version="1.0.0", docs_url=None, redoc_url=None, openapi_url=None)
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    auth_store.initialize()
+    scad_repository.initialize()
+    scad_repository.seed_bundled_examples()
+    yield
+
+
+app = FastAPI(title="Litho API", version="2.0.0", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 cors_origins = [origin.strip() for origin in os.getenv(
     "LITHO_CORS_ORIGINS", "http://localhost:3000,http://localhost:5173"
 ).split(",") if origin.strip()]
@@ -38,6 +49,7 @@ app.add_middleware(
     allow_headers=["*"],
     allow_credentials=True,
 )
+
 
 AUTH_COOKIE_SECURE = os.getenv("LITHO_SECURE_COOKIES", "true").lower() not in {"0", "false", "no"}
 AUTH_COOKIE_NAME = "__Host-litho_session" if AUTH_COOKIE_SECURE else "litho_session"
@@ -532,6 +544,11 @@ async def generate_housing(settings: HousingParams):
             "X-Back-Triangle-Count": str(len(back.faces)),
         },
     )
+
+
+app.include_router(scad_router)
+
+
 # W obrazie produkcyjnym frontend React jest kopiowany do /app/static.
 # Montowanie następuje po trasach API, więc /api/* zachowuje pierwszeństwo.
 STATIC_DIR = Path("/app/static")

@@ -17,6 +17,17 @@ services:
       LITHO_ADMIN_API_KEY: ${LITHO_ADMIN_API_KEY:-}
       LITHO_CORS_ORIGINS: ${LITHO_CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
       LITHO_AUTH_DB: /data/auth.sqlite3
+      LITHO_SCAD_STORAGE: /data/scad
+      OPENSCAD_BINARY: /usr/bin/openscad
+      LITHO_SCAD_RENDER_TIMEOUT: ${LITHO_SCAD_RENDER_TIMEOUT:-120}
+      LITHO_SCAD_MEMORY_MB: ${LITHO_SCAD_MEMORY_MB:-2048}
+      LITHO_SCAD_MAX_CONCURRENT_RENDERS: ${LITHO_SCAD_MAX_CONCURRENT_RENDERS:-2}
+      LITHO_SCAD_MAX_CONCURRENT_PER_USER: ${LITHO_SCAD_MAX_CONCURRENT_PER_USER:-1}
+      LITHO_SCAD_MAX_SOURCE_BYTES: ${LITHO_SCAD_MAX_SOURCE_BYTES:-10485760}
+      LITHO_SCAD_MAX_OUTPUT_BYTES: ${LITHO_SCAD_MAX_OUTPUT_BYTES:-262144000}
+      LITHO_SCAD_MAX_MODULES_PER_USER: ${LITHO_SCAD_MAX_MODULES_PER_USER:-100}
+      LITHO_SCAD_CATEGORIES: ${LITHO_SCAD_CATEGORIES:-Fidgets,Lithophane,Storage,Home,Games,Electronics,Tools,Plants,Other}
+      LITHO_SCAD_SEED_EXAMPLES: ${LITHO_SCAD_SEED_EXAMPLES:-true}
       LITHO_SECURE_COOKIES: "true"
       LITHO_BOOTSTRAP_ADMIN_USERNAME: ${LITHO_BOOTSTRAP_ADMIN_USERNAME:-}
       LITHO_BOOTSTRAP_ADMIN_PASSWORD: ${LITHO_BOOTSTRAP_ADMIN_PASSWORD:-}
@@ -27,6 +38,9 @@ services:
       - "8000"
     mem_limit: ${LITHOPHANE_MEM_LIMIT:-8g}
     mem_reservation: ${LITHOPHANE_MEM_RESERVATION:-512m}
+    pids_limit: 256
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
       interval: 15s

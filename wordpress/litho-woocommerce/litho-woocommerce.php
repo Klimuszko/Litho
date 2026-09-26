@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Litho for WooCommerce
  * Description: Bezpieczny konfigurator litofanii połączony z prywatnym API Litho.
- * Version: 0.1.1
+ * Version: 0.1.7
  * Author: Litho
  * Requires at least: 6.4
  * Requires PHP: 7.4
@@ -11,7 +11,7 @@
 
 defined('ABSPATH') || exit;
 
-define('LITHO_WC_VERSION', '0.1.1');
+define('LITHO_WC_VERSION', '0.1.7');
 define('LITHO_WC_FILE', __FILE__);
 define('LITHO_WC_DIR', plugin_dir_path(__FILE__));
 define('LITHO_WC_URL', plugin_dir_url(__FILE__));

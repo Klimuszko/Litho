@@ -5,6 +5,7 @@ defined('ABSPATH') || exit;
 final class Litho_WC_REST {
     const REST_NAMESPACE = 'litho/v1';
     const TRANSIENT_PREFIX = 'litho_wc_project_';
+    const CSRF_COOKIE = 'litho_wc_csrf';
 
     private $api;
     private $settings;
@@ -46,9 +47,13 @@ final class Litho_WC_REST {
         if ($nonce === '' || !wp_verify_nonce($nonce, 'litho_configurator')) {
             return new WP_Error('litho_invalid_nonce', __('Sesja konfiguratora wygasła. Odśwież stronę.', 'litho-wc'), array('status' => 403));
         }
-        $expected = WC()->session ? (string) WC()->session->get('litho_csrf') : '';
+        $expected = isset($_COOKIE[self::CSRF_COOKIE])
+            ? (string) wp_unslash($_COOKIE[self::CSRF_COOKIE])
+            : '';
         $received = (string) $request->get_header('X-Litho-CSRF-Token');
-        if ($expected === '' || $received === '' || !hash_equals($expected, $received)) {
+        if (!preg_match('/^[a-f0-9]{64}$/', $expected)
+            || !preg_match('/^[a-f0-9]{64}$/', $received)
+            || !hash_equals($expected, $received)) {
             return new WP_Error('litho_invalid_session', __('Sesja konfiguratora wygasła. Odśwież stronę.', 'litho-wc'), array('status' => 403));
         }
         $origin = (string) ($request->get_header('Origin') ?: $request->get_header('Referer'));
@@ -83,7 +88,7 @@ final class Litho_WC_REST {
         if (is_wp_error($encrypted_token)) {
             return $encrypted_token;
         }
-        $session_id = WC()->session ? (string) WC()->session->get_customer_id() : '';
+        $session_id = self::browser_session_id();
         $record = array(
             'project_id' => $created['project_id'],
             'project_token_encrypted' => $encrypted_token,
@@ -221,6 +226,20 @@ final class Litho_WC_REST {
         if (!in_array($rotation, array(-270.0, -180.0, -90.0, 0.0, 90.0, 180.0, 270.0), true)) {
             return new WP_Error('litho_rotation_invalid', __('Nieprawidłowy obrót zdjęcia.', 'litho-wc'), array('status' => 400));
         }
+        $brightness_raw = $request->get_param('brightness');
+        $contrast_raw = $request->get_param('contrast');
+        $gamma_raw = $request->get_param('gamma');
+        if (!is_numeric($brightness_raw) || !is_numeric($contrast_raw) || !is_numeric($gamma_raw)) {
+            return new WP_Error('litho_adjustment_invalid', __('Nieprawidłowe ustawienia obrazu.', 'litho-wc'), array('status' => 400));
+        }
+        $brightness = (float) $brightness_raw;
+        $contrast = (float) $contrast_raw;
+        $gamma = (float) $gamma_raw;
+        if (!is_finite($brightness) || $brightness < 0.5 || $brightness > 1.5
+            || !is_finite($contrast) || $contrast < 0.5 || $contrast > 2
+            || !is_finite($gamma) || $gamma < 0.5 || $gamma > 2) {
+            return new WP_Error('litho_adjustment_invalid', __('Ustawienia obrazu są poza dozwolonym zakresem.', 'litho-wc'), array('status' => 400));
+        }
         return array(
             'size' => $size,
             'orientation' => $orientation,
@@ -229,9 +248,9 @@ final class Litho_WC_REST {
             'light_temperature' => $led,
             'crop' => $normalized,
             'rotation_degrees' => $rotation,
-            'brightness' => 1,
-            'contrast' => 1.25,
-            'gamma' => 1,
+            'brightness' => round($brightness, 2),
+            'contrast' => round($contrast, 2),
+            'gamma' => round($gamma, 2),
         );
     }
 
@@ -239,7 +258,7 @@ final class Litho_WC_REST {
         $project_id = sanitize_text_field((string) $request['project_id']);
         $browser_token = (string) $request->get_header('X-Litho-Project-Key');
         $record = get_transient($this->transient_key($project_id));
-        $session_id = WC()->session ? (string) WC()->session->get_customer_id() : '';
+        $session_id = self::browser_session_id();
         if (!is_array($record) || $browser_token === ''
             || !hash_equals((string) ($record['browser_token_hash'] ?? ''), hash('sha256', $browser_token))
             || empty($record['session_id']) || !hash_equals((string) $record['session_id'], $session_id)) {
@@ -249,7 +268,7 @@ final class Litho_WC_REST {
     }
 
     private function allow_create() {
-        $session_id = WC()->session ? (string) WC()->session->get_customer_id() : '';
+        $session_id = self::browser_session_id();
         $address = sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
         $limits = array(
             array('identity' => 'session|' . ($session_id !== '' ? $session_id : $address), 'limit' => 10),
@@ -275,6 +294,13 @@ final class Litho_WC_REST {
 
     public static function cart_signature($project_id, $product_id, $session_id) {
         return hash_hmac('sha256', $project_id . '|' . absint($product_id) . '|' . $session_id, wp_salt('auth'));
+    }
+
+    public static function browser_session_id() {
+        $token = isset($_COOKIE[self::CSRF_COOKIE])
+            ? (string) wp_unslash($_COOKIE[self::CSRF_COOKIE])
+            : '';
+        return preg_match('/^[a-f0-9]{64}$/', $token) ? hash('sha256', $token) : '';
     }
 
     private function encrypt_token($token) {

@@ -1,7 +1,8 @@
 import { createContext, FormEvent, ReactNode, useCallback, useContext, useEffect, useState } from "react";
 
-type User = {id: number; username: string; display_name: string; role: "admin" | "operator"; active: boolean; created_at: string};
-type AuthContextValue = {user: User; apiFetch: typeof fetch; logout: () => Promise<void>};
+export type User = {id: number; username: string; display_name: string; role: "admin" | "operator"; active: boolean; created_at: string};
+export type AppSection = "generator" | "modules" | "profile" | "admin";
+type AuthContextValue = {user: User; apiFetch: typeof fetch; logout: () => Promise<void>; section: AppSection; setSection: (section: AppSection) => void};
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -134,7 +135,7 @@ export default function AuthProvider({children}: {children: ReactNode}) {
   const [user, setUser] = useState<User | null>(null);
   const [csrf, setCsrf] = useState("");
   const [loading, setLoading] = useState(true);
-  const [section, setSection] = useState<"generator" | "profile" | "admin">("generator");
+  const [section, setSection] = useState<AppSection>(() => location.hash.startsWith("#module:") ? "modules" : "generator");
   useEffect(() => {
     if (section === "admin" && user?.role !== "admin") setSection("generator");
   }, [section, user]);
@@ -155,23 +156,24 @@ export default function AuthProvider({children}: {children: ReactNode}) {
   const login = async (username: string, password: string) => {
     const response = await fetch("/api/auth/login", {method: "POST", credentials: "include", headers: {"Content-Type": "application/json"}, body: JSON.stringify({username, password})});
     if (!response.ok) { const problem = await response.json(); throw new Error(problem.detail?.message || problem.message || "Nieprawidłowy login lub hasło."); }
-    const data = await response.json(); setUser(data.user); setCsrf(data.csrf_token); setSection("generator");
+    const data = await response.json(); setUser(data.user); setCsrf(data.csrf_token); setSection(location.hash.startsWith("#module:") ? "modules" : "generator");
   };
   const logout = async () => { await apiFetch("/api/auth/logout", {method: "POST"}); setUser(null); setCsrf(""); setSection("generator"); };
   const passwordChanged = () => { setUser(null); setCsrf(""); setSection("generator"); };
   if (loading) return <main className="login-page"><div className="login-loader">Litho</div></main>;
   if (!user) return <Login onLogin={login}/>;
-  return <AuthContext.Provider value={{user, apiFetch, logout}}>
+  return <AuthContext.Provider value={{user, apiFetch, logout, section, setSection}}>
     <div className="authenticated-app">
       <header className="topbar">
         <div className="topbar-brand"><span>L</span><strong>Litho</strong></div>
         <nav aria-label="Główna nawigacja">
           <button className={section === "generator" ? "active" : ""} aria-current={section === "generator" ? "page" : undefined} onClick={() => setSection("generator")}>Generator</button>
+          <button className={section === "modules" ? "active" : ""} aria-current={section === "modules" ? "page" : undefined} onClick={() => setSection("modules")}>Moduły</button>
           {user.role === "admin" && <button className={section === "admin" ? "active" : ""} aria-current={section === "admin" ? "page" : undefined} onClick={() => setSection("admin")}>Administracja</button>}
         </nav>
         <div className="topbar-account"><button className={`account-button${section === "profile" ? " active" : ""}`} aria-current={section === "profile" ? "page" : undefined} onClick={() => setSection("profile")}><b>{user.display_name}</b><small>{user.role === "admin" ? "Administrator" : "Operator"}</small></button><button onClick={logout}>Wyloguj</button></div>
       </header>
-      <div className="app-content" hidden={section !== "generator"}>{children}</div>
+      <div className="app-content" hidden={section !== "generator" && section !== "modules"}>{children}</div>
       {section === "profile" && <Profile user={user} apiFetch={apiFetch} onPasswordChanged={passwordChanged}/>}
       {user.role === "admin" && <div hidden={section !== "admin"}><UserManager apiFetch={apiFetch}/></div>}
     </div>
