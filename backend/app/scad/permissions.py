@@ -18,24 +18,14 @@ class ModulePermissionService:
         admin = self._admin(user)
         owner = self._owner(user, module)
         status = module.get("status")
-        visibility = module.get("visibility")
-
         if operation == "read":
             if status == "deleted":
                 return admin or owner
-            return admin or owner or (
-                visibility in {"public", "unlisted", "system"}
-                and status not in {"hidden", "blocked"}
-                and bool(module.get("published_version_id"))
-            ) or (bool(module.get("shared_with_user")) and status not in {"hidden", "blocked"} and bool(module.get("published_version_id")))
+            return admin or owner or status != "hidden"
         if operation in {"use", "execute"}:
-            if status in {"deleted", "blocked"}:
+            if status in {"deleted", "hidden", "blocked"}:
                 return False
-            return admin or owner or (
-                visibility in {"public", "unlisted", "system"}
-                and status == "published"
-                and bool(module.get("published_version_id"))
-            ) or (bool(module.get("shared_with_user")) and status == "published" and bool(module.get("published_version_id")))
+            return bool(module.get("working_version_id") or module.get("published_version_id"))
         if operation in {"publish", "unpublish"}:
             return admin or (owner and status not in {"deleted", "hidden", "blocked"})
         if operation in {"update", "delete", "version", "preset"}:

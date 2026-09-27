@@ -51,7 +51,10 @@ def test_multi_user_publish_duplicate_and_admin_moderation(tmp_path, monkeypatch
     assert module["active_version"]["parameters"][0]["name"] == "size"
 
     bob, bob_headers = login("bob", "password123")
-    assert bob.get(f"/api/scad/modules/{module['id']}").status_code == 403
+    draft_for_bob = bob.get(f"/api/scad/modules/{module['id']}")
+    assert draft_for_bob.status_code == 200
+    assert draft_for_bob.json()["status"] == "draft"
+    assert module["id"] in [item["id"] for item in bob.get("/api/scad/modules?scope=all&status=draft").json()["modules"]]
     assert bob.delete(f"/api/scad/modules/{module['id']}", headers=bob_headers).status_code == 403
 
     published = alice.post(
@@ -71,11 +74,6 @@ def test_multi_user_publish_duplicate_and_admin_moderation(tmp_path, monkeypatch
     assert duplicate.json()["owner_username"] == "bob"
     assert duplicate.json()["forked_from_module_id"] == module["id"]
 
-    shared = alice.post(f"/api/scad/modules/{module['id']}/shares", headers=alice_headers, data={"username":"bob"})
-    assert shared.status_code == 201, shared.text
-    shared_list = bob.get("/api/scad/modules?scope=shared")
-    assert module["id"] in [item["id"] for item in shared_list.json()["modules"]]
-
     preview = alice.post(
         f"/api/scad/modules/{module['id']}/preview", headers=alice_headers,
         files={"preview": ("preview.png", preview_png(), "image/png")},
@@ -86,8 +84,8 @@ def test_multi_user_publish_duplicate_and_admin_moderation(tmp_path, monkeypatch
     admin, admin_headers = login("owner", "correct-horse-battery-staple")
     blocked = admin.post(f"/api/scad/modules/{module['id']}/moderate", headers=admin_headers, json={"action": "block"})
     assert blocked.status_code == 200 and blocked.json()["status"] == "blocked"
-    render = bob.post(f"/api/scad/modules/{module['id']}/renders", headers=bob_headers, json={"parameters": {"size": 20, "style": "Round", "enabled": True}})
-    assert render.status_code == 403
+    render = bob.post(f"/api/scad/modules/{module['id']}/renders", headers=bob_headers, json={"parameters": {"size": 20}})
+    assert render.status_code == 404
     audit = admin.get(f"/api/scad/modules/{module['id']}/audit")
     assert audit.status_code == 200
     assert "module.blocked" in [item["action"] for item in audit.json()["audit"]]
@@ -122,4 +120,30 @@ def test_published_version_stays_stable_while_owner_adds_draft(tmp_path, monkeyp
     assert bob.post(
         f"/api/scad/modules/{module['id']}/renders", headers=bob_headers,
         json={"version_id":version.json()["id"],"parameters":{"size":21,"style":"Round","enabled":True}},
-    ).status_code == 403
+    ).status_code == 404
+
+
+def test_create_and_edit_source_in_browser(tmp_path, monkeypatch):
+    setup_users(tmp_path, monkeypatch)
+    alice, headers = login("alice", "password123")
+    created = alice.post("/api/scad/modules/code", headers=headers, json={
+        "name": "Browser module", "description": "No upload", "category": "Other", "source": SOURCE.decode(),
+    })
+    assert created.status_code == 201, created.text
+    module = created.json()
+    assert module["status"] == "draft"
+    code = alice.get(f"/api/scad/modules/{module['id']}/code")
+    assert code.status_code == 200 and "cube" in code.json()["source"]
+
+    changed = SOURCE.decode().replace("size = 20", "size = 24")
+    saved = alice.put(f"/api/scad/modules/{module['id']}/code", headers=headers, json={"source": changed})
+    assert saved.status_code == 201, saved.text
+    assert saved.json()["version_number"] == 2
+
+    bob, bob_headers = login("bob", "password123")
+    assert bob.get(f"/api/scad/modules/{module['id']}/code").status_code == 200
+    assert bob.put(f"/api/scad/modules/{module['id']}/code", headers=bob_headers, json={"source": changed}).status_code == 403
+
+    admin, admin_headers = login("owner", "correct-horse-battery-staple")
+    admin_save = admin.put(f"/api/scad/modules/{module['id']}/code", headers=admin_headers, json={"source": changed.replace("24", "25")})
+    assert admin_save.status_code == 201, admin_save.text

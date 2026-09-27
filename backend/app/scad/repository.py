@@ -157,7 +157,7 @@ class ScadRepository:
                 "SELECT * FROM scad_module_versions WHERE module_id=? ORDER BY version_number DESC", (module_id,)
             )]
 
-    def list_modules(self, user: dict, scope: str, search: str = "", category: str = "", author: str = "", sort: str = "updated") -> list[dict]:
+    def list_modules(self, user: dict, scope: str, search: str = "", category: str = "", author: str = "", sort: str = "updated", status: str = "") -> list[dict]:
         self.initialize()
         order = {"updated": "m.updated_at DESC", "newest": "m.created_at DESC", "name": "m.name COLLATE NOCASE"}.get(sort, "m.updated_at DESC")
         with self._connect() as connection:
@@ -170,17 +170,11 @@ class ScadRepository:
             module = self._decode(row) or {}
             if scope == "my" and module["owner_user_id"] != user["id"]:
                 continue
-            if scope == "official" and not module["official"]:
+            if module["status"] == "deleted":
                 continue
-            if scope == "public" and not (
-                module["visibility"] in {"public", "system"} and module["status"] == "published"
-            ):
+            if not module_permissions.can("read", user, module):
                 continue
-            if scope == "shared" and not module.get("shared_with_user"):
-                continue
-            if scope == "all" and user.get("role") != "admin":
-                continue
-            if scope != "all" and not module_permissions.can("read", user, module):
+            if status and module["status"] != status:
                 continue
             haystack = f"{module['name']} {module['description']} {module['owner_username']}".lower()
             if search and search.lower() not in haystack:
@@ -396,6 +390,28 @@ class ScadRepository:
             entry, manifest = self._prepare_payload(payload, filename, staging)
             with self._lock, self._connect() as connection:
                 return self._create_version_record(connection, module_id, user["id"], staging, entry, manifest, label, changelog)
+        except Exception:
+            shutil.rmtree(staging, ignore_errors=True)
+            raise
+
+    def update_code(self, user: dict, module_id: str, source: str, label: str = "", changelog: str = "") -> dict:
+        self.initialize()
+        module = self.get_module(module_id)
+        module_permissions.require("version", user, module)
+        current = self.version(module["working_version_id"])
+        staging = self.storage / "tmp" / str(uuid.uuid4())
+        try:
+            shutil.copytree(current["storage_path"], staging)
+            entry = staging / current["entry_file"]
+            entry.write_text(source, encoding="utf-8")
+            missing = validate_source_tree(staging)
+            if missing:
+                raise ValueError("Brak lokalnych zależności: " + ", ".join(missing))
+            with self._lock, self._connect() as connection:
+                return self._create_version_record(
+                    connection, module_id, user["id"], staging, current["entry_file"], current["manifest"],
+                    label or "Edycja w przeglądarce", changelog or "Kod zmieniony w edytorze Litho",
+                )
         except Exception:
             shutil.rmtree(staging, ignore_errors=True)
             raise

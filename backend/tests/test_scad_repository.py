@@ -32,11 +32,11 @@ def test_create_publish_duplicate_and_version_isolation(system):
     assert created["owner_user_id"] == alice["id"]
     first_version = repository.version(created["working_version_id"])
     assert [item["name"] for item in first_version["parameters"]] == ["width", "rounded"]
-    assert repository.list_modules(bob, "public") == []
+    assert repository.list_modules(bob, "all")[0]["id"] == created["id"]
 
     published = repository.publish(alice, created["id"], None, "public")
     assert published["published_version_id"] == first_version["id"]
-    assert repository.list_modules(bob, "public")[0]["id"] == created["id"]
+    assert repository.list_modules(bob, "all")[0]["id"] == created["id"]
 
     second = repository.add_version(alice, created["id"], SOURCE.replace(b"50", b"60"), "box.scad", "v2")
     unchanged = repository.get_module(created["id"])
@@ -70,7 +70,7 @@ def test_bundled_examples_are_seeded_as_official_modules(system, monkeypatch):
     monkeypatch.setenv("LITHO_SCAD_SEED_EXAMPLES", "true")
     created = repository.seed_bundled_examples()
     assert len(created) == 2
-    official = repository.list_modules(bob, "official")
+    official = [item for item in repository.list_modules(bob, "all") if item["official"]]
     assert {item["slug"] for item in official} == {"minimal-parametric-box", "planetary-fidget"}
     assert all(item["official"] and item["visibility"] == "system" for item in official)
 

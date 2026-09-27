@@ -8,7 +8,6 @@ from pydantic import BaseModel, Field, field_validator
 ParameterType = Literal["integer", "float", "boolean", "string", "enum"]
 Visibility = Literal["private", "public", "unlisted", "system"]
 ModuleStatus = Literal["draft", "published", "hidden", "blocked", "deleted"]
-RenderStatus = Literal["queued", "running", "completed", "failed", "cancelled", "timed_out"]
 
 
 class ScadParameter(BaseModel):
@@ -38,6 +37,19 @@ class ModuleCreate(BaseModel):
     visibility: Visibility = "private"
 
 
+class ModuleCodeCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    description: str = Field(default="", max_length=4000)
+    category: str = Field(default="Other", min_length=1, max_length=80)
+    source: str = Field(min_length=1, max_length=10 * 1024 * 1024)
+
+
+class ModuleCodeUpdate(BaseModel):
+    source: str = Field(min_length=1, max_length=10 * 1024 * 1024)
+    version_label: str = Field(default="", max_length=80)
+    changelog: str = Field(default="", max_length=4000)
+
+
 class ModuleUpdate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     description: str = Field(default="", max_length=4000)
@@ -60,13 +72,6 @@ class PresetUpdate(PresetCreate):
     pass
 
 
-class RenderCreate(BaseModel):
-    parameters: dict[str, Any] = Field(default_factory=dict)
-    output_format: Literal["stl", "3mf"] = "stl"
-    mode: Literal["model", "metadata"] = "model"
-    version_id: str | None = None
-
-
 class ModerationRequest(BaseModel):
     action: Literal["hide", "unhide", "block", "unblock", "official", "unofficial"]
 
@@ -84,11 +89,12 @@ class SourceReplace(BaseModel):
 
 
 class ListQuery(BaseModel):
-    scope: Literal["my", "public", "official", "all", "shared"] = "public"
+    scope: Literal["my", "all"] = "all"
     search: str = ""
     category: str = ""
     author: str = ""
     sort: Literal["updated", "newest", "name"] = "updated"
+    status: Literal["", "draft", "published", "blocked"] = ""
 
     @field_validator("search", "category", "author")
     @classmethod

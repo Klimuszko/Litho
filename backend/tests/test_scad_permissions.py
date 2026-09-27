@@ -11,11 +11,13 @@ def module(**changes):
     return {"owner_user_id": 1, "visibility": "private", "status": "draft", "published_version_id": None, **changes}
 
 
-def test_private_module_is_visible_only_to_owner_and_admin():
-    item = module()
+def test_draft_module_is_visible_and_usable_but_not_editable_by_other_user():
+    item = module(working_version_id="v1")
     assert policy.can("read", owner, item)
     assert policy.can("read", admin, item)
-    assert not policy.can("read", other, item)
+    assert policy.can("read", other, item)
+    assert policy.can("execute", other, item)
+    assert not policy.can("update", other, item)
 
 
 def test_public_module_can_be_used_but_not_edited_by_other_user():

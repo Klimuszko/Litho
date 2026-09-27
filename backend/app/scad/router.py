@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import io
-import json
 import sqlite3
 import difflib
 from pathlib import Path
@@ -10,9 +9,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 
-from .engine import scad_engine
-from .jobs import scad_render_service
-from .models import ModerationRequest, ModuleCreate, ModuleUpdate, PresetCreate, PresetUpdate, PublishRequest, RenderCreate
+from .models import ModuleCodeCreate, ModuleCodeUpdate, ModerationRequest, ModuleCreate, ModuleUpdate, PresetCreate, PresetUpdate, PublishRequest
 from .permissions import module_permissions
 from .repository import CATEGORIES, scad_repository
 
@@ -44,7 +41,7 @@ def version_or_404(version_id: str) -> dict:
 def enriched(module: dict, current: dict) -> dict:
     owner = module["owner_user_id"] == current["id"]
     editable = owner or current.get("role") == "admin"
-    version_id = module["working_version_id"] if editable else module["published_version_id"]
+    version_id = module["working_version_id"] if editable or module["status"] == "draft" else (module["published_version_id"] or module["working_version_id"])
     result = dict(module)
     result["preview_url"] = f"/api/scad/modules/{module['id']}/preview" if module.get("preview_path") else None
     result.pop("preview_path", None)
@@ -59,12 +56,6 @@ def problem(exc: Exception, code: str = "MODULE_INVALID", status: int = 422):
     raise HTTPException(status_code=status, detail={"error_code": code, "message": str(exc)}) from exc
 
 
-@router.get("/engine")
-def engine_status(request: Request):
-    user(request)
-    return scad_engine.status()
-
-
 @router.get("/categories")
 def categories(request: Request):
     user(request)
@@ -72,10 +63,11 @@ def categories(request: Request):
 
 
 @router.get("/modules")
-def modules(request: Request, scope: str = Query("public"), search: str = "", category: str = "", author: str = "", sort: str = "updated"):
+def modules(request: Request, scope: str = Query("all"), search: str = "", category: str = "", author: str = "", sort: str = "updated", status: str = ""):
     current = user(request)
-    if scope not in {"my", "public", "official", "all", "shared"}: problem(ValueError("Nieprawidłowy zakres"))
-    return {"modules": [enriched(item, current) for item in scad_repository.list_modules(current, scope, search[:120], category[:80], author[:120], sort)]}
+    if scope not in {"my", "all"}: problem(ValueError("Nieprawidłowy zakres"))
+    if status not in {"", "draft", "published", "blocked"}: problem(ValueError("Nieprawidłowy status"))
+    return {"modules": [enriched(item, current) for item in scad_repository.list_modules(current, scope, search[:120], category[:80], author[:120], sort, status)]}
 
 
 @router.post("/modules", status_code=201)
@@ -88,11 +80,39 @@ async def create_module(request: Request, source: UploadFile = File(...), name: 
     except (ValueError, PermissionError) as exc: problem(exc)
 
 
+@router.post("/modules/code", status_code=201)
+def create_module_from_code(data: ModuleCodeCreate, request: Request):
+    current = user(request)
+    try:
+        create = ModuleCreate(name=data.name, description=data.description, category=data.category, visibility="public")
+        return enriched(scad_repository.create_module(current, create, data.source.encode("utf-8"), "main.scad"), current)
+    except (ValueError, PermissionError) as exc: problem(exc)
+
+
 @router.get("/modules/{module_id}")
 def get_module(module_id: str, request: Request):
     current = user(request); module = accessible_module(module_id, current)
     module_permissions.require("read", current, module)
     return enriched(module, current)
+
+
+@router.get("/modules/{module_id}/code")
+def get_module_code(module_id: str, request: Request, version_id: str | None = None):
+    current = user(request); module = accessible_module(module_id, current)
+    module_permissions.require("read", current, module)
+    editable = current.get("role") == "admin" or current["id"] == module["owner_user_id"]
+    selected_id = version_id or (module["working_version_id"] if editable or module["status"] == "draft" else (module["published_version_id"] or module["working_version_id"]))
+    selected = version_or_404(selected_id)
+    if selected["module_id"] != module_id: problem(ValueError("Wersja nie należy do modułu"), status=404)
+    path = Path(selected["storage_path"]) / selected["entry_file"]
+    return {"source": path.read_text(encoding="utf-8"), "entry_file": selected["entry_file"], "version_id": selected["id"], "editable": module_permissions.can("update", current, module)}
+
+
+@router.put("/modules/{module_id}/code", status_code=201)
+def update_module_code(module_id: str, data: ModuleCodeUpdate, request: Request):
+    try:
+        return scad_repository.update_code(user(request), module_id, data.source, data.version_label, data.changelog)
+    except (ValueError, PermissionError) as exc: problem(exc, "SOURCE_INVALID", 403 if isinstance(exc, PermissionError) else 422)
 
 
 @router.put("/modules/{module_id}")
@@ -186,9 +206,11 @@ def restore_version(module_id: str, version_id: str, request: Request):
 def download_source(module_id: str, request: Request, version_id: str | None = None):
     current = user(request); module = accessible_module(module_id, current)
     module_permissions.require("read", current, module)
-    selected = version_or_404(version_id or (module["working_version_id"] if current["id"] == module["owner_user_id"] or current.get("role") == "admin" else module["published_version_id"]))
+    editable = current["id"] == module["owner_user_id"] or current.get("role") == "admin"
+    selected = version_or_404(version_id or (module["working_version_id"] if editable or module["status"] == "draft" else (module["published_version_id"] or module["working_version_id"])))
     if selected["module_id"] != module_id: problem(ValueError("Wersja nie należy do modułu"), status=404)
-    if current.get("role") != "admin" and current["id"] != module["owner_user_id"] and selected["id"] != module["published_version_id"]:
+    allowed_version = module["working_version_id"] if module["status"] == "draft" else module["published_version_id"]
+    if not editable and selected["id"] != allowed_version:
         problem(PermissionError("Wersja robocza nie jest publiczna"), "VERSION_FORBIDDEN", 403)
     output = io.BytesIO()
     with ZipFile(output, "w", ZIP_DEFLATED) as archive:
@@ -258,50 +280,3 @@ def delete_preset(module_id: str, preset_id: str, request: Request):
 @router.get("/modules/{module_id}/audit")
 def audit(module_id: str, request: Request):
     return {"audit": scad_repository.audit(user(request), module_id)}
-
-
-@router.post("/modules/{module_id}/renders", status_code=202)
-def render(module_id: str, data: RenderCreate, request: Request):
-    current = user(request); module = accessible_module(module_id, current)
-    module_permissions.require("execute", current, module)
-    editable = current.get("role") == "admin" or current["id"] == module["owner_user_id"]
-    version_id = data.version_id or (module["working_version_id"] if editable else module["published_version_id"])
-    version = version_or_404(version_id)
-    if version["module_id"] != module_id: problem(ValueError("Wersja nie należy do modułu"))
-    if not editable and version["id"] != module["published_version_id"]:
-        problem(PermissionError("Wersja robocza nie jest publiczna"), "VERSION_FORBIDDEN", 403)
-    try: return scad_render_service.create(current, module, version, data.parameters, data.output_format, data.mode)
-    except ValueError as exc: problem(exc, "PARAMETERS_INVALID")
-
-
-def owned_job(job_id: str, current: dict) -> dict:
-    try: job = scad_render_service.get(job_id)
-    except KeyError as exc: problem(exc, "RENDER_NOT_FOUND", 404)
-    if job["user_id"] != current["id"] and current.get("role") != "admin": problem(PermissionError(), "RENDER_FORBIDDEN", 403)
-    return job
-
-
-@router.get("/renders")
-def render_history(request: Request, limit: int = Query(50, ge=1, le=200)):
-    return {"renders": scad_render_service.list(user(request), limit)}
-
-
-@router.get("/renders/{job_id}")
-def render_status(job_id: str, request: Request):
-    return owned_job(job_id, user(request))
-
-
-@router.delete("/renders/{job_id}")
-def cancel_render(job_id: str, request: Request):
-    current = user(request); owned_job(job_id, current)
-    return scad_render_service.cancel(job_id)
-
-
-@router.get("/renders/{job_id}/download")
-def download_render(job_id: str, request: Request):
-    job = owned_job(job_id, user(request))
-    if job["mode"] == "metadata": problem(ValueError("Tryb metadata nie tworzy modelu"), "METADATA_HAS_NO_MODEL", 409)
-    if job["status"] != "completed" or not job.get("output_path"): problem(ValueError("Render nie jest gotowy"), "RENDER_NOT_READY", 409)
-    path = Path(job["output_path"])
-    if not path.is_file(): problem(FileNotFoundError(), "OUTPUT_MISSING", 404)
-    return FileResponse(path, media_type="model/stl" if job["output_format"] == "stl" else "model/3mf", filename=f"litho-{job['module_id']}.{job['output_format']}")
