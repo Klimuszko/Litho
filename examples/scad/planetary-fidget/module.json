@@ -2,7 +2,7 @@
   "id": "planetary_fidget",
   "slug": "planetary-fidget",
   "name": "Fidget planetarny",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "engine": "openscad",
   "entry": "main.scad",
   "category": "Fidgety",
