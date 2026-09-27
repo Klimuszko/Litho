@@ -20,16 +20,8 @@ output_mode = 0; // [0:Kompletny print-in-place,1:Kolorowy podgląd mechanizmu,2
 // Gotowa maksymalna średnica zewnętrzna modelu.
 outer_diameter = 60; // [45:1:110] @unit:mm @label:"Średnica zewnętrzna"
 
-// Układ Custom pozwala swobodnie ustawić liczbę planet i automatycznie dobiera
-// bezpieczne proporcje kół. Warianty trójkątny
-// i kwadratowy tworzą planety oraz koło centralne o jednakowej wielkości.
-gear_layout = 0; // [0:Custom — pełna konfiguracja,1:Trójkąt — 3 równe koła,2:Kwadrat — 4 równe koła,3:Krąg — równe koła] @label:"Układ przekładni"
-
-// Liczba planet używana w układzie Custom.
-planet_count = 6; // [3:1:12] @label:"Liczba planet — Custom"
-
-// Liczba jednakowych planet w wariancie „Krąg — równe koła”.
-equal_planet_count = 5; // [3:1:5] @label:"Liczba planet — krąg równych kół"
+// Liczba planet. Generator automatycznie dobiera prawidłową liczbę zębów.
+planet_count = 6; // [3:1:12] @label:"Liczba planet"
 
 // Drobne zęby dają więcej detali, grube są łatwiejsze do wydrukowania.
 tooth_style = 1; // [0:Drobne,1:Standardowe,2:Grube] @label:"Rodzaj zębów"
@@ -96,11 +88,6 @@ planet_spacing_clearance = fit_profile == 0 ? 0.25 : fit_profile == 1 ? 0.40 : 0
 target_module = tooth_style == 0 ? 0.72 : tooth_style == 1 ? 0.95 : 1.20;
 min_sun_wall = 1.20;
 min_grip_wall = 1.8;
-equal_inner_gears = gear_layout > 0;
-active_planet_count = gear_layout == 1 ? 3
-    : gear_layout == 2 ? 4
-    : gear_layout == 3 ? equal_planet_count
-    : planet_count;
 
 // Rozbudowane obudowy potrzebują szerszej obręczy. Solver uwzględnia ją
 // przed doborem zębów, dzięki czemu ozdoby nigdy nie przecinają przekładni.
@@ -130,15 +117,13 @@ gear_candidates = [
             let(
                 zr = zs + 2*zp,
                 m = solved_module(outer_diameter, zr),
-                margin = spacing_margin(zs, zp, m, active_planet_count),
+                margin = spacing_margin(zs, zp, m, planet_count),
                 score = candidate_score(zs, zp, zr, m)
             )
-            if ((!equal_inner_gears || zs == zp)
-                && phase_valid(zs, zr, active_planet_count)
+            if (phase_valid(zs, zr, planet_count)
                 && m >= 0.50 && m <= 2.00
                 && margin >= 0
-                && (equal_inner_gears
-                    || (m*zs/2 - (1.25*m + extra_tip_clearance)) >= finger_hole_diameter/2 + min_sun_wall))
+                && (m*zs/2 - (1.25*m + extra_tip_clearance)) >= finger_hole_diameter/2 + min_sun_wall)
                 [score, zs, zp, zr, m, margin]
 ];
 
@@ -166,14 +151,10 @@ ring_root_r = ring_pitch_r + 1.25*module_mm + extra_tip_clearance;
 ring_outer_r = ring_root_r + effective_ring_rim;
 actual_outer_d = 2*ring_outer_r;
 
-planet_chord = 2 * planet_center_r * sin(180 / active_planet_count);
-phase_ok = phase_valid(sun_teeth, ring_teeth, active_planet_count);
+planet_chord = 2 * planet_center_r * sin(180 / planet_count);
+phase_ok = phase_valid(sun_teeth, ring_teeth, planet_count);
 spacing_ok = planet_chord >= (2*planet_outer_r + planet_spacing_clearance);
-max_finger_hole_diameter = max(0, 2*(sun_root_r - min_sun_wall));
-actual_finger_hole_diameter = equal_inner_gears
-    ? min(finger_hole_diameter, max_finger_hole_diameter)
-    : finger_hole_diameter;
-hole_ok = actual_finger_hole_diameter/2 <= sun_root_r - min_sun_wall;
+hole_ok = finger_hole_diameter/2 <= sun_root_r - min_sun_wall;
 planet_hole_diameter = planet_holes ? max(0, 2*planet_root_r*(planet_hole_percent/100)) : 0;
 planet_hole_ok = !planet_holes || planet_hole_diameter/2 <= planet_root_r - 0.80;
 geometry_ok = ring_tip_r > planet_outer_r*0.25 && module_mm > 0 && gear_thickness >= 6;
@@ -439,7 +420,7 @@ module herringbone_ring() {
 }
 
 module sun_gear() {
-    herringbone_external_gear(sun_teeth, +1, actual_finger_hole_diameter);
+    herringbone_external_gear(sun_teeth, +1, finger_hole_diameter);
 }
 
 module planet_gear() {
@@ -457,8 +438,8 @@ module moving_gears() {
     rotate([0, 0, sun_rot])
         sun_gear();
 
-    for (i = [0:active_planet_count - 1]) {
-        th = i*360/active_planet_count;
+    for (i = [0:planet_count - 1]) {
+        th = i*360/planet_count;
         pr = planet_phase(th, sun_rot);
         translate([planet_center_r*cos(th), planet_center_r*sin(th), 0])
             rotate([0, 0, pr])
@@ -481,8 +462,8 @@ module mechanism_preview() {
         rotate([0, 0, sun_rot])
             sun_gear();
 
-    for (i = [0:active_planet_count - 1]) {
-        th = i*360/active_planet_count;
+    for (i = [0:planet_count - 1]) {
+        th = i*360/planet_count;
         pr = planet_phase(th, sun_rot);
         color([0.18, 0.55, 0.90])
             translate([planet_center_r*cos(th), planet_center_r*sin(th), 0])
@@ -496,9 +477,7 @@ module validation_report() {
     echo(str("INFO:zęby_pierścienia=", ring_teeth));
     echo(str("INFO:zęby_koła_centralnego=", sun_teeth));
     echo(str("INFO:zęby_planety=", planet_teeth));
-    echo(str("INFO:układ_przekładni=", gear_layout == 0 ? "custom" : gear_layout == 1 ? "trójkąt_równych_kół" : gear_layout == 2 ? "kwadrat_równych_kół" : "krąg_równych_kół"));
-    echo(str("INFO:liczba_planet=", active_planet_count));
-    echo(str("INFO:rzeczywisty_otwór_centralny=", actual_finger_hole_diameter, " mm"));
+    echo(str("INFO:liczba_planet=", planet_count));
     echo(str("INFO:moduł_zęba=", module_mm, " mm"));
     echo(str("INFO:rzeczywista_średnica=", actual_outer_d, " mm"));
     echo(str("INFO:luz_zazębienia=", mesh_backlash, " mm"));
@@ -507,17 +486,13 @@ module validation_report() {
     echo(str("INFO:głębokość_wzoru=", safe_grip_depth, " mm"));
     if (grip_depth > available_grip_depth)
         echo("WARNING:Głębokość wzoru została zmniejszona, aby zachować bezpieczną grubość obręczy");
-    if (actual_finger_hole_diameter < finger_hole_diameter)
-        echo(str("WARNING:Otwór centralny został zmniejszony do ", actual_finger_hole_diameter, " mm, aby wszystkie koła mogły mieć jednakowy rozmiar"));
 }
 
 validation_report();
 
 assert(
     solver_ok,
-    equal_inner_gears
-        ? "Nie znaleziono zestawu jednakowych kół. Zwiększ średnicę zewnętrzną albo wybierz drobniejsze zęby."
-        : "Nie znaleziono prawidłowego zestawu kół. Zwiększ średnicę zewnętrzną albo zmniejsz liczbę planet."
+    "Nie znaleziono prawidłowego zestawu kół. Zwiększ średnicę zewnętrzną albo zmniejsz liczbę planet."
 );
 assert(phase_ok, "Błąd solvera: nieprawidłowe fazowanie przekładni.");
 assert(spacing_ok, "Błąd solvera: planety nachodzą na siebie.");
