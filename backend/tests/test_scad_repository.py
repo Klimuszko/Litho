@@ -71,11 +71,27 @@ def test_bundled_examples_are_seeded_as_official_modules(system, monkeypatch):
     monkeypatch.setenv("LITHO_SCAD_EXAMPLES_DIR", str(examples))
     monkeypatch.setenv("LITHO_SCAD_SEED_EXAMPLES", "true")
     created = repository.seed_bundled_examples()
-    assert len(created) == 2
+    assert len(created) == 1
     official = [item for item in repository.list_modules(bob, "all") if item["official"]]
-    assert {item["slug"] for item in official} == {"minimal-parametric-box", "planetary-fidget"}
+    assert {item["slug"] for item in official} == {"planetary-fidget"}
     assert all(item["official"] and item["visibility"] == "system" for item in official)
     assert repository.seed_bundled_examples() == []
+
+
+def test_retired_bundled_example_is_soft_deleted_without_removing_files(system, monkeypatch):
+    repository, admin, alice, bob = system
+    retired = repository.create_module(admin, ModuleCreate(name="Minimal Parametric Box"), SOURCE, "main.scad")
+    repository.publish(admin, retired["id"], None, "system")
+    repository.moderate(admin, retired["id"], "official")
+    source_path = Path(repository.version(retired["working_version_id"])["storage_path"])
+    examples = Path(__file__).resolve().parents[2] / "examples" / "scad"
+    monkeypatch.setenv("LITHO_SCAD_EXAMPLES_DIR", str(examples))
+
+    repository.seed_bundled_examples()
+
+    assert repository.get_module(retired["id"])["status"] == "deleted"
+    assert source_path.is_dir()
+    assert all(item["id"] != retired["id"] for item in repository.list_modules(bob, "all"))
 
 
 def test_new_bundle_version_updates_only_the_official_module(system, monkeypatch, tmp_path):

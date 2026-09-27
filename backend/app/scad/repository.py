@@ -335,12 +335,37 @@ class ScadRepository:
             return []
         actor = dict(admin)
         created: list[str] = []
+
+        # Ten dawny moduł demonstracyjny nie jest już częścią domyślnej biblioteki.
+        # Stosujemy soft delete, aby wdrożenie nie usuwało jego plików z woluminu.
+        with self._lock, self._connect() as connection:
+            for retired_slug in {"minimal-parametric-box"}:
+                retired = connection.execute(
+                    "SELECT id,status,official FROM scad_modules WHERE slug=?",
+                    (retired_slug,),
+                ).fetchone()
+                if retired and bool(retired["official"]) and retired["status"] != "deleted":
+                    now = utc_now()
+                    connection.execute(
+                        "UPDATE scad_modules SET status_before_delete=status,status='deleted',deleted_at=?,deleted_by=?,updated_at=?,updated_by=?,revision=revision+1 WHERE id=?",
+                        (now, actor["id"], now, actor["id"], retired["id"]),
+                    )
+                    self._audit(
+                        connection,
+                        actor["id"],
+                        retired["id"],
+                        "module.deleted",
+                        old={"status": retired["status"]},
+                        new={"status": "deleted"},
+                        metadata={"reason": "retired_bundled_example"},
+                    )
+
         for directory in sorted(item for item in root.iterdir() if item.is_dir()):
             manifest_path = directory / "module.json"
             if not manifest_path.is_file():
                 continue
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            expected_slug = slugify(str(manifest.get("name", directory.name)))
+            expected_slug = str(manifest.get("slug", "")).strip() or slugify(str(manifest.get("name", directory.name)))
             with self._connect() as connection:
                 existing_row = connection.execute(
                     "SELECT id,official,working_version_id FROM scad_modules WHERE slug=?",
@@ -385,6 +410,12 @@ class ScadRepository:
                 category=str(manifest.get("category", "Other")),
                 visibility="private",
             ), archive.getvalue(), f"{directory.name}.zip")
+            if module["slug"] != expected_slug:
+                with self._lock, self._connect() as connection:
+                    connection.execute(
+                        "UPDATE scad_modules SET slug=? WHERE id=?",
+                        (expected_slug, module["id"]),
+                    )
             self.publish(actor, module["id"], None, "system")
             self.moderate(actor, module["id"], "official")
             created.append(module["id"])
