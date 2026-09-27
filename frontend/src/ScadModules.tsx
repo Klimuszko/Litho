@@ -4,11 +4,23 @@ import ScadPreview from "./ScadPreview";
 import "./scad.css";
 
 type Parameter = {name: string; label: string; description: string; section: string; type: "integer"|"float"|"boolean"|"string"|"enum"; defaultValue: unknown; min?: number; max?: number; step?: number; options: string[]; hidden: boolean; advanced: boolean; unit: string};
-type Version = {id: string; version_number: number; version_label: string; changelog: string; created_at: string; parameters: Parameter[]; parser_warnings: string[]; source_hash: string};
+type Version = {id: string; version_number: number; version_label: string; changelog: string; created_at: string; parameters: Parameter[]; parser_warnings: string[]; source_hash: string; entry_file: string};
 type Permissions = Record<"read"|"use"|"execute"|"update"|"publish"|"delete"|"restore"|"duplicate"|"moderate"|"permanent_delete", boolean>;
 type ScadModule = {id: string; name: string; slug: string; description: string; category: string; owner_user_id: number; owner_username: string; owner_display_name: string; visibility: string; status: string; official: boolean; revision: number; working_version_id: string; published_version_id: string|null; active_version_id: string; active_version: Version; updated_at: string; preview_url?: string|null; permissions: Permissions};
 type RenderJob = {id: string; status: "queued"|"running"|"completed"|"failed"|"cancelled"|"timed_out"; output_format: "stl"|"3mf"; duration_seconds?: number; metadata?: {messages?: {level: string; message: string; key?: string; value?: string}[]}; error_message?: string; stdout?: string; stderr?: string; command?: string[]; cached?: boolean};
 type Preset = {id: string; name: string; parameters: Record<string, unknown>};
+type RenderEngine = "browser" | "server";
+
+function parseLocalMetadata(stdout = "", stderr = "") {
+  const messages: {level: string; message: string; key?: string; value?: string}[] = [];
+  for (const line of `${stdout}\n${stderr}`.split("\n")) {
+    const match = line.match(/(?:ECHO:\s*)?["']?(INFO|WARNING|ERROR|DEBUG):\s*([^"']*)/i);
+    if (!match) continue;
+    const message = match[2].trim(); const separator = message.indexOf("=");
+    messages.push({level: match[1].toUpperCase(), message, ...(separator >= 0 ? {key: message.slice(0, separator).trim(), value: message.slice(separator + 1).trim()} : {})});
+  }
+  return messages;
+}
 
 async function errorMessage(response: Response) {
   const body = await response.json().catch(() => ({}));
@@ -60,6 +72,9 @@ function ModuleEditor({moduleId, onBack, onOpen}: {moduleId: string; onBack: () 
   const [job, setJob] = useState<RenderJob|null>(null); const [error, setError] = useState(""); const [technical, setTechnical] = useState(false);
   const [presets, setPresets] = useState<Preset[]>([]); const [selectedPreset,setSelectedPreset]=useState(""); const [versions, setVersions] = useState<Version[]>([]); const [showVersions, setShowVersions] = useState(false);
   const [developer, setDeveloper] = useState(false); const [audit, setAudit] = useState<{id:string;action:string;timestamp:string;actor_username:string}[]>([]); const [showAudit,setShowAudit]=useState(false); const poll = useRef<number|undefined>(undefined);
+  const [renderEngine, setRenderEngine] = useState<RenderEngine>(() => localStorage.getItem("litho-scad-engine") === "server" ? "server" : "browser");
+  const [localOutput, setLocalOutput] = useState<{url: string; format: "stl"|"3mf"; name: string}|null>(null);
+  const wasmWorker = useRef<Worker|null>(null);
   const load = useCallback(async () => {
     const response = await apiFetch(`/api/scad/modules/${moduleId}`); if (!response.ok) throw new Error(await errorMessage(response));
     const data: ScadModule = await response.json(); setModule(data);
@@ -67,17 +82,56 @@ function ModuleEditor({moduleId, onBack, onOpen}: {moduleId: string; onBack: () 
     const [presetResponse, versionResponse] = await Promise.all([apiFetch(`/api/scad/modules/${moduleId}/presets`), apiFetch(`/api/scad/modules/${moduleId}/versions`)]);
     if (presetResponse.ok) setPresets((await presetResponse.json()).presets); if (versionResponse.ok) setVersions((await versionResponse.json()).versions);
   }, [apiFetch, moduleId]);
-  useEffect(() => { load().catch(reason => setError(String(reason))); return () => window.clearTimeout(poll.current); }, [load]);
+  useEffect(() => { load().catch(reason => setError(String(reason))); return () => { window.clearTimeout(poll.current); wasmWorker.current?.terminate(); }; }, [load]);
+  useEffect(() => () => { if (localOutput) URL.revokeObjectURL(localOutput.url); }, [localOutput]);
 
   const watch = useCallback(async (id: string) => {
     const response = await apiFetch(`/api/scad/renders/${id}`); if (!response.ok) {setError(await errorMessage(response)); return;}
     const next: RenderJob = await response.json(); setJob(next);
     if (["queued", "running"].includes(next.status)) poll.current = window.setTimeout(() => watch(id), 700);
   }, [apiFetch]);
-  const generate = async (format: "stl"|"3mf" = "stl") => {
-    setError(""); setTechnical(false); setJob(null);
+  const generateOnServer = async (format: "stl"|"3mf") => {
+    setError(""); setTechnical(false); setJob(null); setLocalOutput(current => {if(current) URL.revokeObjectURL(current.url); return null;});
     const response = await apiFetch(`/api/scad/modules/${moduleId}/renders`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({parameters: values, output_format: format})});
     if (!response.ok) {setError(await errorMessage(response)); return;} const created = await response.json(); setJob(created); watch(created.id);
+  };
+  const generateInBrowser = async (format: "stl"|"3mf") => {
+    if (!module) return;
+    setError(""); setTechnical(false); setLocalOutput(current => {if(current) URL.revokeObjectURL(current.url); return null;});
+    setJob({id: `wasm-${Date.now()}`, status: "running", output_format: format, stdout: "Pobieranie źródeł modułu…", metadata: {messages: []}});
+    const source = await apiFetch(`/api/scad/modules/${moduleId}/source?version_id=${encodeURIComponent(module.active_version_id)}`);
+    if (!source.ok) {setError(await errorMessage(source)); setJob(null); return;}
+    const archive = await source.arrayBuffer();
+    const worker = new Worker(new URL("./scadWasm.worker.ts", import.meta.url), {type: "module"});
+    wasmWorker.current?.terminate(); wasmWorker.current = worker;
+    worker.onmessage = event => {
+      const result = event.data;
+      if (result.type === "progress") {
+        setJob(current => current ? {...current, status: "running", stdout: result.stage === "engine" ? "Ładowanie silnika WebAssembly…" : "Generowanie modelu na tym komputerze…"} : current);
+        return;
+      }
+      worker.terminate(); wasmWorker.current = null;
+      if (result.type === "complete") {
+        const blob = new Blob([result.output], {type: format === "stl" ? "model/stl" : "model/3mf"});
+        const url = URL.createObjectURL(blob);
+        setLocalOutput({url, format, name: `${module.slug}.${format}`});
+        setJob({id: `wasm-${Date.now()}`, status: "completed", output_format: format, duration_seconds: result.durationSeconds, stdout: result.stdout, stderr: result.stderr, command: result.command, metadata: {messages: parseLocalMetadata(result.stdout, result.stderr)}});
+      } else {
+        setJob({id: `wasm-${Date.now()}`, status: "failed", output_format: format, duration_seconds: result.durationSeconds, stdout: result.stdout, stderr: result.stderr, error_message: result.message});
+      }
+    };
+    worker.onerror = event => {
+      worker.terminate(); wasmWorker.current = null;
+      setJob({id: `wasm-${Date.now()}`, status: "failed", output_format: format, error_message: event.message || "Nie udało się uruchomić OpenSCAD WebAssembly."});
+    };
+    worker.postMessage({archive, entryFile: module.active_version.entry_file, outputFormat: format, parameters: module.active_version.parameters, values}, [archive]);
+  };
+  const generate = (format: "stl"|"3mf" = "stl") => renderEngine === "browser" ? generateInBrowser(format) : generateOnServer(format);
+  const cancelRender = async () => {
+    if (renderEngine === "browser") {
+      wasmWorker.current?.terminate(); wasmWorker.current = null;
+      setJob(current => current ? {...current, status: "cancelled", error_message: "Render anulowany."} : current);
+    } else if (job) await apiFetch(`/api/scad/renders/${job.id}`, {method: "DELETE"});
   };
   const action = async (path: string, body?: object, method = "POST") => {
     const response = await apiFetch(`/api/scad/modules/${moduleId}${path}`, {method, headers: body ? {"Content-Type": "application/json"} : undefined, body: body ? JSON.stringify(body) : undefined});
@@ -138,7 +192,7 @@ function ModuleEditor({moduleId, onBack, onOpen}: {moduleId: string; onBack: () 
     return groups;
   }, {}));
   const running = job && ["queued", "running"].includes(job.status);
-  const previewUrl = job?.status === "completed" && job.output_format === "stl" ? `/api/scad/renders/${job.id}/download` : null;
+  const previewUrl = job?.status === "completed" && job.output_format === "stl" ? (localOutput?.url || `/api/scad/renders/${job.id}/download`) : null;
   const owner = module.owner_user_id === user.id;
   return <main className="scad-editor-page">
     <header className="scad-editor-header"><button onClick={onBack}>← Moduły</button><div><span>{module.category}</span><h1>{module.name}</h1><p>Created by: {module.owner_display_name || module.owner_username} · v{module.active_version.version_number}</p></div>
@@ -151,7 +205,7 @@ function ModuleEditor({moduleId, onBack, onOpen}: {moduleId: string; onBack: () 
     </aside><section className="scad-stage"><ScadPreview url={previewUrl}/>
       {job?.metadata?.messages && job.metadata.messages.length > 0 && <div className="geometry-info"><b>Obliczona geometria</b>{job.metadata.messages.filter(item=>item.level!=="DEBUG").map((item,index)=><span className={item.level.toLowerCase()} key={index}>{item.key ? `${item.key.replaceAll("_"," ")}: ${item.value}` : item.message}</span>)}</div>}
       {(error || job && ["failed","timed_out","cancelled"].includes(job.status)) && <div className="render-error"><b>Model nie mógł zostać wygenerowany</b><span>{error || job?.error_message}</span>{job && <button onClick={()=>setTechnical(!technical)}>Pokaż szczegóły techniczne</button>}{technical && <pre>{JSON.stringify({command:job?.command,stdout:job?.stdout,stderr:job?.stderr,duration:job?.duration_seconds},null,2)}</pre>}</div>}
-      <div className="scad-actions"><button className="scad-primary" disabled={Boolean(running)} onClick={()=>generate("stl")}>{running ? "Generowanie…" : "Generuj podgląd STL"}</button>{running && <button onClick={()=>apiFetch(`/api/scad/renders/${job!.id}`,{method:"DELETE"})}>Anuluj</button>}{job?.status === "completed" && <><a href={`/api/scad/renders/${job.id}/download`} download>Pobierz {job.output_format.toUpperCase()}</a><button onClick={()=>generate("3mf")}>Generuj 3MF</button></>}</div>
+      <div className="scad-actions"><label className="render-engine">Miejsce generowania<select value={renderEngine} disabled={Boolean(running)} onChange={e=>{const value=e.target.value as RenderEngine;setRenderEngine(value);localStorage.setItem("litho-scad-engine",value)}}><option value="browser">Ten komputer (WebAssembly)</option><option value="server">Serwer Litho</option></select></label><button className="scad-primary" disabled={Boolean(running)} onClick={()=>generate("stl")}>{running ? "Generowanie…" : "Generuj podgląd STL"}</button>{running && <button onClick={cancelRender}>Anuluj</button>}{job?.status === "completed" && <><a href={localOutput?.url || `/api/scad/renders/${job.id}/download`} download={localOutput?.name}>Pobierz {job.output_format.toUpperCase()}</a><button onClick={()=>generate("3mf")}>Generuj 3MF</button></>}</div>
       <div className="module-owner-actions"><button onClick={savePreset}>Zapisz preset</button><button onClick={duplicate}>Duplikuj do moich</button><a href={`/api/scad/modules/${moduleId}/source`}>Pobierz źródła</a>
         {module.permissions.update && <button onClick={editMetadata}>Edytuj dane</button>}
         {module.permissions.update && <button onClick={shareModule}>Udostępnij</button>}

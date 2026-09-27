@@ -120,6 +120,23 @@ przypisane konkretnemu loginowi.
 
 ## Bezpieczeństwo
 
+### Renderowanie w przeglądarce (WebAssembly)
+
+Domyślną opcją w generatorze jest **Ten komputer (WebAssembly)**. Przeglądarka
+pobiera źródła dostępnej wersji modułu, rozpakowuje je w pamięci i uruchamia
+headless OpenSCAD w osobnym Web Workerze. Wynik STL/3MF pozostaje lokalnym
+obiektem `Blob` i jest przekazywany bezpośrednio do podglądu lub pobierania —
+backend nie wykonuje wtedy obliczeń i nie przechowuje pliku wynikowego.
+
+Pierwsze uruchomienie pobiera około 11 MB WASM (około 3,4 MB po kompresji HTTP).
+Kolejne użycia korzystają z cache przeglądarki. Zamknięcie lub anulowanie kończy
+worker. Opcja **Serwer Litho** pozostaje dostępna jako ręczny fallback dla
+urządzeń o zbyt małej ilości pamięci albo niezgodnych modułów.
+
+Kod SCAD w trybie przeglądarkowym działa w sandboxie WebAssembly i nie otrzymuje
+dostępu do systemu plików użytkownika. Widzi tylko pliki pobranego modułu w
+wirtualnym systemie plików Emscripten.
+
 Każdy render działa w oddzielnym katalogu tymczasowym jako osobny proces bez
 `shell=True`. Na Linuksie ustawiane są limity CPU, pamięci, rozmiaru pliku i liczby
 procesów; timeout i anulowanie kończą grupę procesu. Kontener ma
