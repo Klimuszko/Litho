@@ -43,11 +43,11 @@ planet_holes = true; // @label:"Otwory w planetach"
 // Wielkość otworów jako procent dostępnej średnicy u podstawy zębów.
 planet_hole_percent = 52; // [30:1:68] @unit:% @label:"Wielkość otworów w planetach"
 
-// Kształt zewnętrznej krawędzi pierścienia.
-grip_style = 1; // [0:Gładka,1:Delikatne zagłębienia,2:Głębokie zagłębienia,3:Zaokrąglone wypustki,4:Płaskie fasety,5:Nacięcia V,6:Grupowe okrągłe,7:Grupowe V,8:Nacięcia naprzemienne] @label:"Kształt obudowy"
+// Kształt zewnętrznej obudowy. Trzy pierwsze warianty to klasyczne wzory Litho.
+grip_style = 0; // [0:Delikatne zagłębienia,1:Głębokie zagłębienia,2:Grupowe okrągłe,3:Zaokrąglone segmenty,4:Kanciaste segmenty,5:Segmenty z oknami,6:Zewnętrzne ząbki,7:Korona trójkątna,8:Sześciokąt techniczny] @label:"Kształt obudowy"
 
 // Liczba zagłębień, wypustek albo faset dla wzorów regularnych.
-grip_count = 18; // [6:1:40] @label:"Liczba elementów wzoru"
+grip_count = 18; // [8:1:40] @label:"Liczba zagłębień lub ząbków"
 
 // Głębokość wzoru. Wartość jest automatycznie ograniczana dla ochrony ścianki.
 grip_depth = 1.2; // [0.2:0.1:2.0] @unit:mm @label:"Głębokość wzoru"
@@ -57,6 +57,16 @@ grip_width = 3.2; // [1.2:0.2:7] @unit:mm @label:"Szerokość wzoru"
 
 // Obrót całego wzoru względem położenia planet.
 grip_phase = 0; // [-15:1:15] @unit:° @label:"Obrót wzoru"
+
+/* [Obudowy segmentowe] */
+// Liczba dużych segmentów dla obudów inspirowanych przedstawionymi modelami.
+segment_count = 10; // [6:1:16] @label:"Liczba segmentów"
+
+// Wielkość otworów w wariancie „Segmenty z oknami”.
+segment_window_percent = 58; // [35:1:72] @unit:% @label:"Wielkość okien"
+
+// Zaokrąglenie narożników okien i sześciokątnej obudowy.
+housing_rounding = 0.8; // [0.2:0.1:1.8] @unit:mm @label:"Zaokrąglenie obudowy"
 
 /* [Nacięcia grupowe] */
 // Liczba grup rozłożonych równomiernie na obwodzie.
@@ -73,7 +83,7 @@ grip_group_spread = 4.0; // [1:0.5:10] @unit:° @label:"Odstęp w grupie"
 helix_angle = 26; // [20:1:32] @unit:° @advanced @label:"Kąt skręcenia zębów"
 
 // Szerokość pełnego materiału na zewnątrz zębów pierścienia.
-ring_rim = 3.8; // [3.0:0.2:5.5] @unit:mm @advanced @label:"Szerokość obręczy"
+ring_rim = 3.8; // [3.0:0.2:8.5] @unit:mm @advanced @label:"Minimalna szerokość obręczy"
 
 /* [Ukryte] */
 PI_ = 3.14159265358979323846;
@@ -91,9 +101,20 @@ target_module = tooth_style == 0 ? 0.72 : tooth_style == 1 ? 0.95 : 1.20;
 min_sun_wall = 1.20;
 min_grip_wall = 1.8;
 
+// Rozbudowane obudowy potrzebują szerszej obręczy. Solver uwzględnia ją
+// przed doborem zębów, dzięki czemu ozdoby nigdy nie przecinają przekładni.
+function required_ring_rim(style) =
+    style == 3 ? 4.8 :
+    style == 4 ? 5.4 :
+    style == 5 ? 7.2 :
+    style == 6 ? 4.6 :
+    style == 7 ? 5.0 :
+    style == 8 ? 8.0 : 3.8;
+effective_ring_rim = max(ring_rim, required_ring_rim(grip_style));
+
 // ---------- automatyczny dobór przekładni ----------
 function rad_to_deg(x) = x * 180 / PI_;
-function solved_module(d, zr) = (d - 2*ring_rim - 2*extra_tip_clearance) / (zr + 2.5);
+function solved_module(d, zr) = (d - 2*effective_ring_rim - 2*extra_tip_clearance) / (zr + 2.5);
 function phase_valid(zs, zr, n) = ((zs + zr) % n) == 0;
 function spacing_margin(zs, zp, m, n) =
     m*(zs + zp)*sin(180/n) - (m*(zp + 2) + planet_spacing_clearance);
@@ -143,7 +164,7 @@ sun_root_r = max(0.20*module_mm, sun_pitch_r - (1.25*module_mm + extra_tip_clear
 planet_root_r = max(0.20*module_mm, planet_pitch_r - (1.25*module_mm + extra_tip_clearance));
 ring_tip_r = ring_pitch_r - module_mm;
 ring_root_r = ring_pitch_r + 1.25*module_mm + extra_tip_clearance;
-ring_outer_r = ring_root_r + ring_rim;
+ring_outer_r = ring_root_r + effective_ring_rim;
 actual_outer_d = 2*ring_outer_r;
 
 planet_chord = 2 * planet_center_r * sin(180 / planet_count);
@@ -157,6 +178,8 @@ valid_model = solver_ok && phase_ok && spacing_ok && hole_ok && planet_hole_ok &
 
 available_grip_depth = max(0, ring_outer_r - (ring_root_r + min_grip_wall));
 safe_grip_depth = min(grip_depth, available_grip_depth);
+housing_core_r = ring_root_r + min_grip_wall;
+decorative_span = ring_outer_r - housing_core_r;
 
 $fn = round_fn;
 
@@ -276,27 +299,12 @@ module round_recess_2d(angle, depth=safe_grip_depth, width=grip_width) {
             circle(r = cutter_r, $fn = 28);
 }
 
-module v_recess_2d(angle, depth=safe_grip_depth, width=grip_width) {
-    rotate(angle)
-        translate([ring_outer_r - depth, 0])
-            polygon(points = [
-                [0, -width/2],
-                [depth + 0.5, 0],
-                [0, width/2]
-            ]);
-}
-
 module regular_round_recesses(depth_multiplier=1) {
     for (i = [0:grip_count - 1])
         round_recess_2d(
             grip_phase + i*360/grip_count,
             safe_grip_depth*depth_multiplier
         );
-}
-
-module regular_v_recesses() {
-    for (i = [0:grip_count - 1])
-        v_recess_2d(grip_phase + i*360/grip_count);
 }
 
 module grouped_round_recesses() {
@@ -309,61 +317,156 @@ module grouped_round_recesses() {
             );
 }
 
-module grouped_v_recesses() {
-    for (group = [0:grip_group_count - 1])
-        for (member = [0:grip_group_size - 1])
-            v_recess_2d(
-                grip_phase
-                + group*360/grip_group_count
-                + (member - (grip_group_size - 1)/2)*grip_group_spread
-            );
+module rounded_rectangle_2d(size_x, size_y, radius) {
+    safe_radius = max(0.01, min(radius, min(size_x, size_y)/2 - 0.01));
+    offset(r = safe_radius)
+        square(
+            [max(0.02, size_x - 2*safe_radius), max(0.02, size_y - 2*safe_radius)],
+            center = true
+        );
 }
 
-module rounded_lobes_2d() {
-    lobe_r = min(max(0.7, grip_width/2), max(0.7, ring_rim - min_grip_wall/2));
-    core_r = max(ring_root_r + min_grip_wall, ring_outer_r - min(safe_grip_depth, lobe_r*0.8));
+module rounded_segments_2d() {
+    lobe_r = min(
+        decorative_span*0.92,
+        2*PI_*ring_outer_r/segment_count*0.34
+    );
     union() {
-        circle(r = core_r, $fn = max(round_fn, ring_teeth*4));
-        for (i = [0:grip_count - 1])
-            rotate(grip_phase + i*360/grip_count)
+        circle(r = housing_core_r, $fn = max(round_fn, ring_teeth*4));
+        for (i = [0:segment_count - 1])
+            rotate(grip_phase + i*360/segment_count)
                 translate([ring_outer_r - lobe_r, 0])
                     circle(r = lobe_r, $fn = 28);
     }
 }
 
+module angular_segment_2d(angle) {
+    inner_angle = 180/segment_count*0.55;
+    outer_angle = 180/segment_count*0.78;
+    rotate(angle)
+        polygon(points = [
+            [housing_core_r*cos(inner_angle), -housing_core_r*sin(inner_angle)],
+            [ring_outer_r*cos(outer_angle), -ring_outer_r*sin(outer_angle)],
+            [ring_outer_r*cos(outer_angle), ring_outer_r*sin(outer_angle)],
+            [housing_core_r*cos(inner_angle), housing_core_r*sin(inner_angle)]
+        ]);
+}
+
+module angular_segments_2d() {
+    union() {
+        circle(r = housing_core_r, $fn = max(round_fn, ring_teeth*4));
+        for (i = [0:segment_count - 1])
+            angular_segment_2d(grip_phase + i*360/segment_count);
+    }
+}
+
+module segment_window_2d(angle) {
+    radial_wall = 0.65;
+    radial_size = max(0.4, decorative_span - 2*radial_wall);
+    center_r = housing_core_r + radial_wall + radial_size/2;
+    available_tangent = 2*center_r*tan(180/segment_count*0.52);
+    tangent_size = max(0.8, available_tangent*segment_window_percent/100);
+    rotate(angle)
+        translate([center_r, 0])
+            rounded_rectangle_2d(radial_size, tangent_size, housing_rounding);
+}
+
+module windowed_segments_2d() {
+    difference() {
+        angular_segments_2d();
+        for (i = [0:segment_count - 1])
+            segment_window_2d(grip_phase + i*360/segment_count);
+    }
+}
+
+module radial_tooth_2d(angle) {
+    root_r = max(housing_core_r, ring_outer_r - min(1.8, decorative_span));
+    root_angle = 180/grip_count*0.62;
+    tip_angle = 180/grip_count*0.28;
+    rotate(angle)
+        polygon(points = [
+            [root_r*cos(root_angle), -root_r*sin(root_angle)],
+            [ring_outer_r*cos(tip_angle), -ring_outer_r*sin(tip_angle)],
+            [ring_outer_r*cos(tip_angle), ring_outer_r*sin(tip_angle)],
+            [root_r*cos(root_angle), root_r*sin(root_angle)]
+        ]);
+}
+
+module external_teeth_2d() {
+    root_r = max(housing_core_r, ring_outer_r - min(1.8, decorative_span));
+    union() {
+        circle(r = root_r, $fn = max(round_fn, ring_teeth*4));
+        for (i = [0:grip_count - 1])
+            radial_tooth_2d(grip_phase + i*360/grip_count);
+    }
+}
+
+module triangular_crown_2d() {
+    base_r = max(housing_core_r, ring_outer_r - min(2.4, decorative_span));
+    half_angle = 180/segment_count*0.58;
+    union() {
+        circle(r = base_r, $fn = max(round_fn, ring_teeth*4));
+        for (i = [0:segment_count - 1])
+            rotate(grip_phase + i*360/segment_count)
+                polygon(points = [
+                    [base_r*cos(half_angle), -base_r*sin(half_angle)],
+                    [ring_outer_r, 0],
+                    [base_r*cos(half_angle), base_r*sin(half_angle)]
+                ]);
+    }
+}
+
+module rounded_hexagon_2d() {
+    corner = min(housing_rounding, 1.8);
+    offset(r = corner)
+        circle(r = ring_outer_r - corner, $fn = 6);
+}
+
+module technical_hexagon_2d() {
+    corner = min(housing_rounding, 1.8);
+    flat_r = (ring_outer_r - corner)*cos(30) + corner;
+    radial_wall = 0.55;
+    radial_size = max(0.45, flat_r - housing_core_r - 2*radial_wall);
+    center_r = housing_core_r + radial_wall + radial_size/2;
+    slot_tangent = max(0.7, center_r*0.075);
+    slot_gap = slot_tangent*1.45;
+    difference() {
+        rounded_hexagon_2d();
+        for (side = [0:5])
+            for (slot = [-1:1])
+                rotate(grip_phase + 30 + side*60)
+                    translate([center_r, slot*slot_gap])
+                        rounded_rectangle_2d(
+                            radial_size,
+                            slot_tangent,
+                            min(housing_rounding, 0.45)
+                        );
+    }
+}
+
 module outer_grip_profile_2d() {
-    if (grip_style == 0) {
-        circle(r = ring_outer_r, $fn = max(round_fn, ring_teeth*4));
-    } else if (grip_style == 3) {
-        rounded_lobes_2d();
-    } else if (grip_style == 4) {
-        rotate(grip_phase)
-            circle(r = ring_outer_r, $fn = max(6, grip_count));
-    } else {
+    if (grip_style == 0 || grip_style == 1 || grip_style == 2) {
         difference() {
             circle(r = ring_outer_r, $fn = max(round_fn, ring_teeth*4));
-            if (grip_style == 1)
+            if (grip_style == 0)
                 regular_round_recesses(0.65);
-            else if (grip_style == 2)
+            else if (grip_style == 1)
                 regular_round_recesses(1);
-            else if (grip_style == 5)
-                regular_v_recesses();
-            else if (grip_style == 6)
+            else
                 grouped_round_recesses();
-            else if (grip_style == 7)
-                grouped_v_recesses();
-            else if (grip_style == 8)
-                for (i = [0:grip_count - 1])
-                    if (i % 2 == 0)
-                        round_recess_2d(grip_phase + i*360/grip_count);
-                    else
-                        v_recess_2d(
-                            grip_phase + i*360/grip_count,
-                            safe_grip_depth*0.72,
-                            grip_width*0.8
-                        );
         }
-    }
+    } else if (grip_style == 3)
+        rounded_segments_2d();
+    else if (grip_style == 4)
+        angular_segments_2d();
+    else if (grip_style == 5)
+        windowed_segments_2d();
+    else if (grip_style == 6)
+        external_teeth_2d();
+    else if (grip_style == 7)
+        triangular_crown_2d();
+    else
+        technical_hexagon_2d();
 }
 
 module herringbone_ring() {
@@ -470,6 +573,8 @@ module validation_report() {
     echo(str("INFO:moduł_zęba=", module_mm, " mm"));
     echo(str("INFO:rzeczywista_średnica=", actual_outer_d, " mm"));
     echo(str("INFO:luz_zazębienia=", mesh_backlash, " mm"));
+    echo(str("INFO:wariant_obudowy=", grip_style));
+    echo(str("INFO:szerokość_obudowy=", effective_ring_rim, " mm"));
     echo(str("INFO:głębokość_wzoru=", safe_grip_depth, " mm"));
     if (grip_depth > available_grip_depth)
         echo("WARNING:Głębokość wzoru została zmniejszona, aby zachować bezpieczną grubość obręczy");
