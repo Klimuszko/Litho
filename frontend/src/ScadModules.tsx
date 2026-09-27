@@ -10,6 +10,14 @@ type ScadModule = {id: string; name: string; slug: string; description: string; 
 type RenderJob = {id: string; status: "queued"|"running"|"completed"|"failed"|"cancelled"|"timed_out"; output_format: "stl"|"3mf"; duration_seconds?: number; metadata?: {messages?: {level: string; message: string; key?: string; value?: string}[]}; error_message?: string; stdout?: string; stderr?: string; command?: string[]; cached?: boolean};
 type Preset = {id: string; name: string; parameters: Record<string, unknown>};
 
+const STATUS_LABELS: Record<string, string> = {
+  draft: "Szkic",
+  published: "Opublikowany",
+  hidden: "Ukryty",
+  blocked: "Zablokowany",
+  deleted: "Usunięty",
+};
+
 const DEFAULT_SOURCE = `/* [Main] */
 width = 50; // [10:1:100] @unit:mm
 height = 20; // [5:1:50] @unit:mm
@@ -43,7 +51,7 @@ async function errorMessage(response: Response) {
 
 function ModuleCard({item, onOpen}: {item: ScadModule; onOpen: () => void}) {
   return <article className="module-card" onClick={onOpen}>
-    <div className="module-thumb">{item.preview_url?<img src={item.preview_url} alt=""/>:<span>{item.name.slice(0, 1).toUpperCase()}</span>}<div className="card-badges">{item.official && <b>Official</b>}<b className={`status-${item.status}`}>{item.status}</b></div></div>
+    <div className="module-thumb">{item.preview_url?<img src={item.preview_url} alt=""/>:<span>{item.name.slice(0, 1).toUpperCase()}</span>}<div className="card-badges">{item.official && <b>Oficjalny</b>}<b className={`status-${item.status}`}>{STATUS_LABELS[item.status] || item.status}</b></div></div>
     <div className="module-card-body"><small>{item.category}</small><h3>{item.name}</h3><p>{item.description || "Generator parametryczny OpenSCAD"}</p>
       <footer><span>przez {item.owner_display_name || item.owner_username}</span><span>v{item.active_version?.version_number || "—"}</span></footer>
     </div>
@@ -189,7 +197,7 @@ function ModuleEditor({moduleId, onBack, onOpen}: {moduleId: string; onBack: () 
   if (!module) return <main className="module-loading"><button onClick={onBack}>← Biblioteka</button><p>{error || "Ładowanie modułu…"}</p></main>;
   const visibleParameters = module.active_version.parameters.filter(item => !item.hidden || developer);
   const grouped = Object.entries(visibleParameters.reduce<Record<string, Parameter[]>>((groups, item) => {
-    const section = item.advanced ? "Advanced" : item.section;
+    const section = item.advanced ? "Zaawansowane" : item.section;
     (groups[section] ||= []).push(item);
     return groups;
   }, {}));
@@ -197,12 +205,12 @@ function ModuleEditor({moduleId, onBack, onOpen}: {moduleId: string; onBack: () 
   const previewUrl = job?.status === "completed" && job.output_format === "stl" ? localOutput?.url || null : null;
   const owner = module.owner_user_id === user.id;
   return <><main className="scad-editor-page">
-    <header className="scad-editor-header"><button onClick={onBack}>← Moduły</button><div><span>{module.category}</span><h1>{module.name}</h1><p>Created by: {module.owner_display_name || module.owner_username} · v{module.active_version.version_number}</p></div>
-      <div className="module-badges">{module.official && <b>Official</b>}<span>{module.status}</span></div>
+    <header className="scad-editor-header"><button onClick={onBack}>← Moduły</button><div><span>{module.category}</span><h1>{module.name}</h1><p>Autor: {module.owner_display_name || module.owner_username} · v{module.active_version.version_number}</p></div>
+      <div className="module-badges">{module.official && <b>Oficjalny</b>}<span className={`status-${module.status}`}>{STATUS_LABELS[module.status] || module.status}</span></div>
     </header>
-    <div className="scad-editor-grid"><aside className="scad-customize"><header><div><small>CUSTOMIZE</small><h2>Parametry</h2></div>{(owner || user.role === "admin") && <label className="dev-toggle"><input type="checkbox" checked={developer} onChange={e=>setDeveloper(e.target.checked)}/> Developer</label>}</header>
+    <div className="scad-editor-grid"><aside className="scad-customize"><header><div><small>DOSTOSUJ</small><h2>Parametry</h2></div>{(owner || user.role === "admin") && <label className="dev-toggle"><input type="checkbox" checked={developer} onChange={e=>setDeveloper(e.target.checked)}/> Tryb techniczny</label>}</header>
       {module.active_version.parser_warnings?.map(warning => <p className="scad-warning" key={warning}>{warning}</p>)}
-      {grouped.map(([section, parameters]) => <details key={section} open={section !== "Advanced"}><summary>{section}<span>{parameters.length}</span></summary><div>{parameters.map(parameter => <ParameterControl key={parameter.name} parameter={parameter} value={values[parameter.name]} onChange={value => setValues(current => ({...current, [parameter.name]: value}))}/>)}</div></details>)}
+      {grouped.map(([section, parameters]) => <details key={section} open={section !== "Zaawansowane"}><summary>{section}<span>{parameters.length}</span></summary><div>{parameters.map(parameter => <ParameterControl key={parameter.name} parameter={parameter} value={values[parameter.name]} onChange={value => setValues(current => ({...current, [parameter.name]: value}))}/>)}</div></details>)}
       <div className="preset-bar"><select value={selectedPreset} onChange={e => {setSelectedPreset(e.target.value);const preset=presets.find(item=>item.id===e.target.value); if(preset)setValues(preset.parameters)}}><option value="">Wczytaj preset…</option>{presets.map(item=><option value={item.id} key={item.id}>{item.name}</option>)}</select><button onClick={savePreset}>Zapisz preset</button><button onClick={() => setValues(Object.fromEntries(module.active_version.parameters.map(item => [item.name,item.defaultValue])))}>Reset</button>{selectedPreset&&<><button onClick={renamePreset}>Zmień nazwę</button><button onClick={deletePreset}>Usuń preset</button></>}</div>
     </aside><section className="scad-stage"><ScadPreview url={previewUrl}/>
       {job?.metadata?.messages && job.metadata.messages.length > 0 && <div className="geometry-info"><b>Obliczona geometria</b>{job.metadata.messages.filter(item=>item.level!=="DEBUG").map((item,index)=><span className={item.level.toLowerCase()} key={index}>{item.key ? `${item.key.replaceAll("_"," ")}: ${item.value}` : item.message}</span>)}</div>}
@@ -212,18 +220,18 @@ function ModuleEditor({moduleId, onBack, onOpen}: {moduleId: string; onBack: () 
         {module.permissions.update&&<button className="scad-primary" onClick={openCodeEditor}>Edytuj kod</button>}
         {module.permissions.update&&<button onClick={editMetadata}>Edytuj dane</button>}
         {module.permissions.publish&&module.status!=="published"&&<button onClick={publishModule}>Opublikuj</button>}
-        {module.permissions.publish&&module.status==="published"&&<button onClick={()=>action("/unpublish")}>Zmień na draft</button>}
+        {module.permissions.publish&&module.status==="published"&&<button onClick={()=>action("/unpublish")}>Zmień na szkic</button>}
         {module.permissions.update&&<button onClick={()=>setShowVersions(!showVersions)}>Historia</button>}
         <details className="module-more"><summary>Więcej</summary><div><button onClick={duplicate}>Duplikuj do moich</button><a href={`/api/scad/modules/${moduleId}/source`}>Pobierz źródła</a>
           {module.permissions.update&&<label className="file-action">Ustaw miniaturę<input type="file" hidden accept="image/png,image/jpeg" onChange={e=>e.target.files?.[0]&&uploadPreview(e.target.files[0])}/></label>}
           {(owner||user.role==="admin")&&<button onClick={toggleAudit}>Audyt</button>}
-          {module.permissions.moderate&&<><button onClick={()=>action("/moderate",{action:module.status==="hidden"?"unhide":"hide"})}>{module.status==="hidden"?"Pokaż":"Ukryj"}</button><button onClick={()=>action("/moderate",{action:module.status==="blocked"?"unblock":"block"})}>{module.status==="blocked"?"Odblokuj":"Zablokuj"}</button><button onClick={()=>action("/moderate",{action:module.official?"unofficial":"official"})}>{module.official?"Usuń Official":"Oznacz Official"}</button></>}
+          {module.permissions.moderate&&<><button onClick={()=>action("/moderate",{action:module.status==="hidden"?"unhide":"hide"})}>{module.status==="hidden"?"Pokaż":"Ukryj"}</button><button onClick={()=>action("/moderate",{action:module.status==="blocked"?"unblock":"block"})}>{module.status==="blocked"?"Odblokuj":"Zablokuj"}</button><button onClick={()=>action("/moderate",{action:module.official?"unofficial":"official"})}>{module.official?"Usuń oznaczenie oficjalne":"Oznacz jako oficjalny"}</button></>}
           {module.permissions.delete&&<button className="danger" onClick={()=>confirm("Usunąć moduł?")&&action("",undefined,"DELETE")}>Usuń</button>}{module.permissions.permanent_delete&&<button className="danger" onClick={permanentDelete}>Usuń trwale</button>}
         </div></details>
       </div>
       {showVersions && <div className="version-history"><h3>Historia wersji</h3>{versions.map(version=><article key={version.id}><div><b>v{version.version_number} · {version.version_label}</b><small>{new Date(version.created_at).toLocaleString()} · {version.source_hash.slice(0,10)}</small><p>{version.changelog}</p></div>{module.permissions.update&&version.id!==module.working_version_id&&<button onClick={()=>action(`/versions/${version.id}/restore`)}>Przywróć jako nową</button>}</article>)}</div>}
       {showAudit&&<div className="audit-log"><h3>Audit log</h3>{audit.map(item=><article key={item.id}><b>{item.action}</b><span>{item.actor_username} · {new Date(item.timestamp).toLocaleString()}</span></article>)}</div>}
-      {developer && <div className="developer-panel"><b>Developer mode</b><code>source {module.active_version.source_hash}</code><code>version {module.active_version.id}</code><code>render {job?.id || "—"} {job?.cached ? "(cache)" : ""}</code></div>}
+      {developer && <div className="developer-panel"><b>Tryb techniczny</b><code>źródło {module.active_version.source_hash}</code><code>wersja {module.active_version.id}</code><code>generowanie {job?.id || "—"} {job?.cached ? "(pamięć podręczna)" : ""}</code></div>}
     </section></div>
   </main>{codeEditor&&<div className="code-modal"><section><header><div><small>EDYTOR OPENSCAD</small><h2>{module.name}</h2></div><button onClick={()=>setCodeEditor(null)}>×</button></header><textarea className="source-editor" value={codeEditor.source} onChange={e=>setCodeEditor({...codeEditor,source:e.target.value})} spellCheck={false}/><footer><span className={error?"error":""}>{error||"Zapis utworzy nową wersję roboczą."}</span><div><button onClick={()=>setCodeEditor(null)}>Anuluj</button><button className="scad-primary" disabled={codeBusy} onClick={saveCode}>{codeBusy?"Zapisywanie…":"Zapisz nową wersję"}</button></div></footer></section></div>}</>;
 }
@@ -238,7 +246,7 @@ export default function ScadModules() {
   if(selected)return <ModuleEditor moduleId={selected} onBack={back} onOpen={setSelected}/>;
   return <main className="modules-page"><header className="modules-hero"><div><p className="eyebrow">OPENSCAD W PRZEGLĄDARCE</p><h1>Moduły</h1><p>Twórz, edytuj i generuj modele bez obciążania serwera.</p></div><button className="scad-primary" onClick={()=>setImporting(true)}>＋ Nowy moduł</button></header>
     <nav className="module-tabs"><button className={scope==="my"?"active":""} onClick={()=>setScope("my")}>Moje moduły</button><button className={scope==="all"?"active":""} onClick={()=>setScope("all")}>Wszystkie moduły</button></nav>
-    <div className="module-filters"><input type="search" placeholder="Szukaj nazwy, opisu lub autora…" value={search} onChange={e=>setSearch(e.target.value)}/><select value={status} onChange={e=>setStatus(e.target.value)}><option value="">Wszystkie statusy</option><option value="draft">Tylko draft</option><option value="published">Tylko opublikowane</option><option value="blocked">Zablokowane</option></select><select value={sort} onChange={e=>setSort(e.target.value)}><option value="updated">Ostatnio aktualizowane</option><option value="newest">Najnowsze</option><option value="name">Nazwa A–Z</option></select></div>
+    <div className="module-filters"><input type="search" placeholder="Szukaj nazwy, opisu lub autora…" value={search} onChange={e=>setSearch(e.target.value)}/><select value={status} onChange={e=>setStatus(e.target.value)}><option value="">Wszystkie statusy</option><option value="draft">Tylko szkice</option><option value="published">Tylko opublikowane</option><option value="blocked">Zablokowane</option></select><select value={sort} onChange={e=>setSort(e.target.value)}><option value="updated">Ostatnio aktualizowane</option><option value="newest">Najnowsze</option><option value="name">Nazwa A–Z</option></select></div>
     {error&&<p className="error">{error}</p>}<section className="module-grid">{modules.map(item=><ModuleCard item={item} key={item.id} onOpen={()=>open(item.id)}/>)}</section>{!modules.length&&!error&&<div className="module-empty"><b>Brak modułów</b><span>Utwórz pierwszy moduł albo zmień filtr.</span></div>}
     {importing&&<CreateModule categories={categories} onClose={()=>setImporting(false)} onDone={item=>{setImporting(false);open(item.id)}}/>}
   </main>;

@@ -1,3 +1,5 @@
+import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -73,6 +75,30 @@ def test_bundled_examples_are_seeded_as_official_modules(system, monkeypatch):
     official = [item for item in repository.list_modules(bob, "all") if item["official"]]
     assert {item["slug"] for item in official} == {"minimal-parametric-box", "planetary-fidget"}
     assert all(item["official"] and item["visibility"] == "system" for item in official)
+    assert repository.seed_bundled_examples() == []
+
+
+def test_new_bundle_version_updates_only_the_official_module(system, monkeypatch, tmp_path):
+    repository, admin, alice, bob = system
+    source_examples = Path(__file__).resolve().parents[2] / "examples" / "scad"
+    examples = tmp_path / "bundled-examples"
+    shutil.copytree(source_examples, examples)
+    monkeypatch.setenv("LITHO_SCAD_EXAMPLES_DIR", str(examples))
+    monkeypatch.setenv("LITHO_SCAD_SEED_EXAMPLES", "true")
+    repository.seed_bundled_examples()
+
+    manifest_path = examples / "planetary-fidget" / "module.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["version"] = "99.0.0"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    source_path = examples / "planetary-fidget" / "main.scad"
+    source_path.write_text(source_path.read_text(encoding="utf-8") + "\n// bundle update\n", encoding="utf-8")
+
+    updated = repository.seed_bundled_examples()
+    official = next(item for item in repository.list_modules(bob, "all") if item["slug"] == "planetary-fidget")
+    assert updated == [official["id"]]
+    assert official["working_version_id"] == official["published_version_id"]
+    assert repository.version(official["working_version_id"])["version_number"] == 2
 
 
 def test_regular_user_cannot_create_system_module(system):

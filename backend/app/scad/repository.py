@@ -342,12 +342,43 @@ class ScadRepository:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             expected_slug = slugify(str(manifest.get("name", directory.name)))
             with self._connect() as connection:
-                if connection.execute("SELECT 1 FROM scad_modules WHERE slug=?", (expected_slug,)).fetchone():
+                existing_row = connection.execute(
+                    "SELECT id,official,working_version_id FROM scad_modules WHERE slug=?",
+                    (expected_slug,),
+                ).fetchone()
+            existing = dict(existing_row) if existing_row else None
+            if existing and not bool(existing["official"]):
+                # Nigdy nie nadpisuj modułu użytkownika, nawet jeśli ma taką samą nazwę.
+                continue
+            if existing:
+                current = self.version(existing["working_version_id"])
+                current_bundle_version = str(current.get("manifest", {}).get("version", ""))
+                incoming_bundle_version = str(manifest.get("version", ""))
+                if current_bundle_version == incoming_bundle_version:
                     continue
             archive = io.BytesIO()
             with ZipFile(archive, "w", ZIP_DEFLATED) as bundle:
                 for path in directory.rglob("*"):
                     if path.is_file(): bundle.write(path, path.relative_to(directory).as_posix())
+            if existing:
+                version = self.add_version(
+                    actor,
+                    existing["id"],
+                    archive.getvalue(),
+                    f"{directory.name}.zip",
+                    str(manifest.get("version", "Aktualizacja wbudowanego modułu")),
+                    "Automatyczna aktualizacja oficjalnego modułu Litho",
+                )
+                published = self.publish(actor, existing["id"], version["id"], "system")
+                self.update_module(actor, existing["id"], ModuleUpdate(
+                    name=str(manifest.get("name", directory.name)),
+                    description=str(manifest.get("description", "")),
+                    category=str(manifest.get("category", "Other")),
+                    visibility="system",
+                    revision=published["revision"],
+                ))
+                created.append(existing["id"])
+                continue
             module = self.create_module(actor, ModuleCreate(
                 name=str(manifest.get("name", directory.name)),
                 description=str(manifest.get("description", "")),
