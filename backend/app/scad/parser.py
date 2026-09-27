@@ -188,7 +188,7 @@ class ScadParser:
                 options=options,
                 optionLabels=custom.get("optionLabels", []),
                 order=order,
-                hidden=bool(tags.get("hidden")) or section.lower() == "hidden",
+                hidden=bool(tags.get("hidden")) or section.lower() in {"hidden", "ukryte"},
                 advanced=advanced,
                 unit=str(tags.get("unit", "")),
             ))

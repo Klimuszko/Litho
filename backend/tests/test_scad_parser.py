@@ -40,6 +40,14 @@ helix_angle = 25; // [10:1:45] @advanced @group:"Advanced geometry"
     assert parsed["helix_angle"].section == "Advanced geometry"
 
 
+def test_polish_hidden_section_is_not_displayed():
+    parsed = by_name('''
+/* [Ukryte] */
+pressure_angle = 25;
+''')
+    assert parsed["pressure_angle"].hidden is True
+
+
 def test_malformed_comments_are_reported_without_breaking_valid_parameters():
     result = ScadParser().parse("x = 5; // [one:two]\ny = 2; // [1:1:4]")
     assert [item.name for item in result.parameters] == ["x", "y"]

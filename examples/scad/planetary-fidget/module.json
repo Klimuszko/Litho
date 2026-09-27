@@ -2,10 +2,10 @@
   "id": "planetary_fidget",
   "slug": "planetary-fidget",
   "name": "Fidget planetarny",
-  "version": "1.2.0",
+  "version": "2.0.0",
   "engine": "openscad",
   "entry": "main.scad",
   "category": "Fidgety",
   "author": "Litho",
-  "description": "Parametryczny fidget planetarny drukowany jako jeden element, z rozbudowanym projektantem obudowy zewnętrznej"
+  "description": "Otwarty fidget planetarny print-in-place z podwójnie skośnymi zębami i projektantem obudowy"
 }
