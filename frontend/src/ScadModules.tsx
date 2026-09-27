@@ -1,5 +1,5 @@
 import {FormEvent, useCallback, useEffect, useMemo, useRef, useState} from "react";
-import {useAuth} from "./Auth";
+import {MODULES_HOME_EVENT, useAuth} from "./Auth";
 import ScadPreview from "./ScadPreview";
 import "./scad.css";
 
@@ -9,6 +9,16 @@ type Permissions = Record<"read"|"use"|"execute"|"update"|"publish"|"delete"|"re
 type ScadModule = {id: string; name: string; slug: string; description: string; category: string; owner_user_id: number; owner_username: string; owner_display_name: string; visibility: string; status: string; official: boolean; revision: number; working_version_id: string; published_version_id: string|null; active_version_id: string; active_version: Version; updated_at: string; preview_url?: string|null; permissions: Permissions};
 type RenderJob = {id: string; status: "queued"|"running"|"completed"|"failed"|"cancelled"|"timed_out"; output_format: "stl"|"3mf"; duration_seconds?: number; metadata?: {messages?: {level: string; message: string; key?: string; value?: string}[]}; error_message?: string; stdout?: string; stderr?: string; command?: string[]; cached?: boolean};
 type Preset = {id: string; name: string; parameters: Record<string, unknown>};
+type LocalOutput = {url: string; format: "stl"|"3mf"; name: string};
+type ModuleSession = {userId: number; activeVersionId: string; values: Record<string, unknown>; job: RenderJob|null; localOutput: LocalOutput|null};
+
+const moduleSessions = new Map<string, ModuleSession>();
+
+function discardModuleSession(moduleId: string) {
+  const session = moduleSessions.get(moduleId);
+  if (session?.localOutput) URL.revokeObjectURL(session.localOutput.url);
+  moduleSessions.delete(moduleId);
+}
 
 const STATUS_LABELS: Record<string, string> = {
   draft: "Szkic",
@@ -92,22 +102,33 @@ function CreateModule({onDone, onClose, categories}: {onDone: (module: ScadModul
 
 function ModuleEditor({moduleId, onBack, onOpen}: {moduleId: string; onBack: () => void; onOpen: (id: string) => void}) {
   const {apiFetch, user} = useAuth();
-  const [module, setModule] = useState<ScadModule|null>(null); const [values, setValues] = useState<Record<string, unknown>>({});
-  const [job, setJob] = useState<RenderJob|null>(null); const [error, setError] = useState(""); const [technical, setTechnical] = useState(false);
+  const initialSession = moduleSessions.get(moduleId);
+  const [module, setModule] = useState<ScadModule|null>(null); const [values, setValues] = useState<Record<string, unknown>>(() => initialSession?.userId === user.id ? initialSession.values : {});
+  const [job, setJob] = useState<RenderJob|null>(() => initialSession?.userId === user.id ? initialSession.job : null); const [error, setError] = useState(""); const [technical, setTechnical] = useState(false);
   const [presets, setPresets] = useState<Preset[]>([]); const [selectedPreset,setSelectedPreset]=useState(""); const [versions, setVersions] = useState<Version[]>([]); const [showVersions, setShowVersions] = useState(false);
   const [developer, setDeveloper] = useState(false); const [audit, setAudit] = useState<{id:string;action:string;timestamp:string;actor_username:string}[]>([]); const [showAudit,setShowAudit]=useState(false);
-  const [localOutput, setLocalOutput] = useState<{url: string; format: "stl"|"3mf"; name: string}|null>(null);
+  const [localOutput, setLocalOutput] = useState<LocalOutput|null>(() => initialSession?.userId === user.id ? initialSession.localOutput : null);
   const [codeEditor,setCodeEditor]=useState<{source:string;versionId:string}|null>(null); const [codeBusy,setCodeBusy]=useState(false);
   const wasmWorker = useRef<Worker|null>(null);
   const load = useCallback(async () => {
     const response = await apiFetch(`/api/scad/modules/${moduleId}`); if (!response.ok) throw new Error(await errorMessage(response));
     const data: ScadModule = await response.json(); setModule(data);
-    setValues(Object.fromEntries((data.active_version?.parameters || []).map(item => [item.name, item.defaultValue])));
+    const cached = moduleSessions.get(moduleId);
+    if (cached?.userId === user.id && cached.activeVersionId === data.active_version_id) {
+      setValues(cached.values); setJob(cached.job); setLocalOutput(cached.localOutput);
+    } else {
+      if (cached) discardModuleSession(moduleId);
+      setValues(Object.fromEntries((data.active_version?.parameters || []).map(item => [item.name, item.defaultValue])));
+      setJob(null); setLocalOutput(null);
+    }
     const [presetResponse, versionResponse] = await Promise.all([apiFetch(`/api/scad/modules/${moduleId}/presets`), apiFetch(`/api/scad/modules/${moduleId}/versions`)]);
     if (presetResponse.ok) setPresets((await presetResponse.json()).presets); if (versionResponse.ok) setVersions((await versionResponse.json()).versions);
-  }, [apiFetch, moduleId]);
+  }, [apiFetch, moduleId, user.id]);
   useEffect(() => { load().catch(reason => setError(String(reason))); return () => wasmWorker.current?.terminate(); }, [load]);
-  useEffect(() => () => { if (localOutput) URL.revokeObjectURL(localOutput.url); }, [localOutput]);
+  useEffect(() => {
+    if (!module) return;
+    moduleSessions.set(moduleId, {userId: user.id, activeVersionId: module.active_version_id, values, job, localOutput});
+  }, [job, localOutput, module, moduleId, user.id, values]);
 
   const generate = async (format: "stl"|"3mf" = "stl") => {
     if (!module) return;
@@ -189,7 +210,7 @@ function ModuleEditor({moduleId, onBack, onOpen}: {moduleId: string; onBack: () 
   };
   const permanentDelete = async () => {
     if(!confirm("Trwale usunąć moduł, wszystkie wersje, presety i cache? Tej operacji nie można cofnąć."))return;
-    const response=await apiFetch(`/api/scad/modules/${moduleId}/permanent`,{method:"DELETE"}); if(!response.ok)setError(await errorMessage(response));else onBack();
+    const response=await apiFetch(`/api/scad/modules/${moduleId}/permanent`,{method:"DELETE"}); if(!response.ok)setError(await errorMessage(response));else{discardModuleSession(moduleId);onBack();}
   };
   const publishModule = async () => {
     await action("/publish",{visibility:module?.official&&user.role==="admin"?"system":"public"});
@@ -237,12 +258,22 @@ function ModuleEditor({moduleId, onBack, onOpen}: {moduleId: string; onBack: () 
 }
 
 export default function ScadModules() {
-  const {apiFetch} = useAuth(); const [scope,setScope]=useState("all"); const [modules,setModules]=useState<ScadModule[]>([]); const [selected,setSelected]=useState<string|null>(()=>location.hash.startsWith("#module:")?location.hash.slice(8):null);
+  const {apiFetch,user} = useAuth(); const [scope,setScope]=useState("all"); const [modules,setModules]=useState<ScadModule[]>([]); const [selected,setSelected]=useState<string|null>(()=>location.hash.startsWith("#module:")?location.hash.slice(8):null);
   const [search,setSearch]=useState(""); const [status,setStatus]=useState(""); const [sort,setSort]=useState("updated"); const [categories,setCategories]=useState<string[]>(["Other"]); const [error,setError]=useState(""); const [importing,setImporting]=useState(false);
   const load=useCallback(async()=>{const query=new URLSearchParams({scope,search,status,sort}); const response=await apiFetch(`/api/scad/modules?${query}`); if(!response.ok)throw new Error(await errorMessage(response)); setModules((await response.json()).modules)},[apiFetch,scope,search,status,sort]);
   useEffect(()=>{if(!selected)load().catch(reason=>setError(String(reason)))},[load,selected]);
   useEffect(()=>{apiFetch("/api/scad/categories").then(async response=>{if(response.ok)setCategories((await response.json()).categories)})},[apiFetch]);
-  const open=(id:string)=>{location.hash=`module:${id}`;setSelected(id)}; const back=()=>{history.replaceState(null,"",location.pathname);setSelected(null);load()};
+  useEffect(() => {
+    for (const [moduleId, session] of moduleSessions) if (session.userId !== user.id) discardModuleSession(moduleId);
+  }, [user.id]);
+  useEffect(() => {
+    const showHome = () => {setSelected(null); setImporting(false); setError("");};
+    const syncHash = () => setSelected(location.hash.startsWith("#module:") ? location.hash.slice(8) : null);
+    window.addEventListener(MODULES_HOME_EVENT, showHome);
+    window.addEventListener("hashchange", syncHash);
+    return () => {window.removeEventListener(MODULES_HOME_EVENT, showHome); window.removeEventListener("hashchange", syncHash);};
+  }, []);
+  const open=(id:string)=>{location.hash=`module:${id}`;setSelected(id)}; const back=()=>{history.replaceState(null,"",`${location.pathname}${location.search}`);setSelected(null);load()};
   if(selected)return <ModuleEditor moduleId={selected} onBack={back} onOpen={setSelected}/>;
   return <main className="modules-page"><header className="modules-hero"><div><p className="eyebrow">OPENSCAD W PRZEGLĄDARCE</p><h1>Moduły</h1><p>Twórz, edytuj i generuj modele bez obciążania serwera.</p></div><button className="scad-primary" onClick={()=>setImporting(true)}>＋ Nowy moduł</button></header>
     <nav className="module-tabs"><button className={scope==="my"?"active":""} onClick={()=>setScope("my")}>Moje moduły</button><button className={scope==="all"?"active":""} onClick={()=>setScope("all")}>Wszystkie moduły</button></nav>

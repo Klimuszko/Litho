@@ -418,9 +418,17 @@ function LithophaneGenerator({active, onOpenHousing}: {active: boolean; onOpenHo
 export default function App() {
   const {section} = useAuth();
   const [product, setProduct] = useState<"lithophane" | "housing">("lithophane");
-  if (section === "modules") return <Suspense fallback={<main className="module-loading">Ładowanie biblioteki modułów…</main>}><ScadModules/></Suspense>;
+  const [modulesVisited, setModulesVisited] = useState(section === "modules");
+  useEffect(() => {
+    if (section === "modules") setModulesVisited(true);
+  }, [section]);
   return <>
-    <LithophaneGenerator active={product === "lithophane"} onOpenHousing={() => setProduct("housing")}/>
-    <HousingGenerator active={product === "housing"} onOpenLithophane={() => setProduct("lithophane")}/>
+    <div hidden={section !== "generator"}>
+      <LithophaneGenerator active={product === "lithophane"} onOpenHousing={() => setProduct("housing")}/>
+      <HousingGenerator active={product === "housing"} onOpenLithophane={() => setProduct("lithophane")}/>
+    </div>
+    {modulesVisited && <div hidden={section !== "modules"}>
+      <Suspense fallback={<main className="module-loading">Ładowanie biblioteki modułów…</main>}><ScadModules/></Suspense>
+    </div>}
   </>;
 }

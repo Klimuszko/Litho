@@ -3,6 +3,7 @@ import { createContext, FormEvent, ReactNode, useCallback, useContext, useEffect
 export type User = {id: number; username: string; display_name: string; role: "admin" | "operator"; active: boolean; created_at: string};
 export type AppSection = "generator" | "modules" | "profile" | "admin";
 type AuthContextValue = {user: User; apiFetch: typeof fetch; logout: () => Promise<void>; section: AppSection; setSection: (section: AppSection) => void};
+export const MODULES_HOME_EVENT = "litho:modules-home";
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -135,9 +136,16 @@ export default function AuthProvider({children}: {children: ReactNode}) {
   const [user, setUser] = useState<User | null>(null);
   const [csrf, setCsrf] = useState("");
   const [loading, setLoading] = useState(true);
-  const [section, setSection] = useState<AppSection>(() => location.hash.startsWith("#module:") ? "modules" : "generator");
+  const [section, setSectionState] = useState<AppSection>(() => location.hash.startsWith("#module:") ? "modules" : "generator");
+  const setSection = useCallback((nextSection: AppSection) => {
+    if (nextSection === "modules") {
+      history.replaceState(null, "", `${location.pathname}${location.search}`);
+      window.dispatchEvent(new Event(MODULES_HOME_EVENT));
+    }
+    setSectionState(nextSection);
+  }, []);
   useEffect(() => {
-    if (section === "admin" && user?.role !== "admin") setSection("generator");
+    if (section === "admin" && user?.role !== "admin") setSectionState("generator");
   }, [section, user]);
   useEffect(() => {
     fetch("/api/auth/me", {credentials: "include"}).then(async response => {
@@ -156,10 +164,10 @@ export default function AuthProvider({children}: {children: ReactNode}) {
   const login = async (username: string, password: string) => {
     const response = await fetch("/api/auth/login", {method: "POST", credentials: "include", headers: {"Content-Type": "application/json"}, body: JSON.stringify({username, password})});
     if (!response.ok) { const problem = await response.json(); throw new Error(problem.detail?.message || problem.message || "Nieprawidłowy login lub hasło."); }
-    const data = await response.json(); setUser(data.user); setCsrf(data.csrf_token); setSection(location.hash.startsWith("#module:") ? "modules" : "generator");
+    const data = await response.json(); setUser(data.user); setCsrf(data.csrf_token); setSectionState(location.hash.startsWith("#module:") ? "modules" : "generator");
   };
-  const logout = async () => { await apiFetch("/api/auth/logout", {method: "POST"}); setUser(null); setCsrf(""); setSection("generator"); };
-  const passwordChanged = () => { setUser(null); setCsrf(""); setSection("generator"); };
+  const logout = async () => { await apiFetch("/api/auth/logout", {method: "POST"}); setUser(null); setCsrf(""); setSectionState("generator"); };
+  const passwordChanged = () => { setUser(null); setCsrf(""); setSectionState("generator"); };
   if (loading) return <main className="login-page"><div className="login-loader">Litho</div></main>;
   if (!user) return <Login onLogin={login}/>;
   return <AuthContext.Provider value={{user, apiFetch, logout, section, setSection}}>
