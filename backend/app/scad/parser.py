@@ -51,11 +51,38 @@ def _tag_value(raw: str) -> str:
     return raw
 
 
+def _option_value(raw: str, default):
+    value = raw.strip().strip('"\'')
+    if isinstance(default, bool):
+        if value.lower() not in {"true", "false"}:
+            raise ValueError(value)
+        return value.lower() == "true"
+    if isinstance(default, int):
+        number = float(value)
+        if not number.is_integer():
+            raise ValueError(value)
+        return int(number)
+    if isinstance(default, float):
+        return float(value)
+    return value
+
+
 def _parse_customizer(raw: str, default) -> tuple[dict, list[str]]:
     matches = CUSTOMIZER_RE.findall(raw)
     if not matches:
         return {}, []
     value = matches[0].strip()
+    items = [part.strip() for part in value.split(",") if part.strip()]
+    if len(items) > 1 and all(":" in item for item in items):
+        try:
+            pairs = [item.split(":", 1) for item in items]
+            options = [_option_value(item[0], default) for item in pairs]
+            labels = [item[1].strip().strip('"\'') for item in pairs]
+            if any(not label for label in labels):
+                raise ValueError(value)
+            return {"options": options, "optionLabels": labels}, []
+        except ValueError:
+            return {}, [f"Nieprawidłowa lista Customizera: [{value}]"]
     if ":" in value:
         parts = [part.strip() for part in value.split(":")]
         if len(parts) == 3:
@@ -68,8 +95,11 @@ def _parse_customizer(raw: str, default) -> tuple[dict, list[str]]:
             except ValueError:
                 return {}, [f"Nieprawidłowy zakres Customizera: [{value}]"]
         return {}, [f"Nieprawidłowy zakres Customizera: [{value}]"]
-    options = [part.strip().strip('"\'') for part in value.split(",") if part.strip()]
-    return ({"options": options} if options else {}), []
+    try:
+        options = [_option_value(part, default) for part in items]
+    except ValueError:
+        return {}, [f"Nieprawidłowa lista Customizera: [{value}]"]
+    return ({"options": options, "optionLabels": [str(option) for option in options]} if options else {}), []
 
 
 class ScadParser:
@@ -123,12 +153,12 @@ class ScadParser:
             options = custom.get("options", [])
             if isinstance(default, bool):
                 kind = "boolean"
-            elif options:
-                kind = "enum"
             elif isinstance(default, int):
                 kind = "integer"
             elif isinstance(default, float):
                 kind = "float"
+            elif options:
+                kind = "enum"
             else:
                 kind = "string"
 
@@ -156,6 +186,7 @@ class ScadParser:
                 max=custom.get("max"),
                 step=custom.get("step"),
                 options=options,
+                optionLabels=custom.get("optionLabels", []),
                 order=order,
                 hidden=bool(tags.get("hidden")) or section.lower() == "hidden",
                 advanced=advanced,

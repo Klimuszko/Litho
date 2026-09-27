@@ -2,6 +2,8 @@ import sys
 from threading import Event
 from pathlib import Path
 
+import pytest
+
 from app.scad.engine import ScadEngine
 
 
@@ -103,3 +105,7 @@ def test_parameter_serialization_escapes_strings_and_checks_ranges():
     assert engine.serialize('quote " and slash \\', "string") == '"quote \\" and slash \\\\"'
     definitions = [{"name":"x","type":"integer","defaultValue":5,"min":1,"max":10,"step":1,"options":[]}]
     assert engine.validate_parameters(definitions,{"x":8}) == {"x":8}
+    mapped = [{"name":"mode","type":"integer","defaultValue":0,"options":[0,1,2]}]
+    assert engine.validate_parameters(mapped,{"mode":2}) == {"mode":2}
+    with pytest.raises(ValueError, match="niedozwoloną wartość"):
+        engine.validate_parameters(mapped,{"mode":3})

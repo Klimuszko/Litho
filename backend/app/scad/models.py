@@ -23,7 +23,8 @@ class ScadParameter(BaseModel):
     min: float | int | None = None
     max: float | int | None = None
     step: float | int | None = None
-    options: list[str] = Field(default_factory=list)
+    options: list[Any] = Field(default_factory=list)
+    optionLabels: list[str] = Field(default_factory=list)
     order: int = 0
     hidden: bool = False
     advanced: bool = False

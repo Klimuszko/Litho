@@ -106,7 +106,7 @@ class ScadEngine:
                     offset = (numeric - float(definition["min"])) / float(step)
                     if abs(offset - round(offset)) > 1e-7:
                         raise ValueError(f"{name} nie pasuje do kroku {step}")
-            if kind == "enum" and value not in definition.get("options", []):
+            if definition.get("options") and value not in definition["options"]:
                 raise ValueError(f"{name} ma niedozwoloną wartość")
             output[name] = value
         return output

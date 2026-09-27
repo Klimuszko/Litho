@@ -71,7 +71,28 @@ class ScadRepository:
                 )
             for folder in ("modules", "renders", "cache", "tmp"):
                 (self.storage / folder).mkdir(exist_ok=True)
+            self._refresh_parser_metadata()
             self._initialized_for = key
+
+    def _refresh_parser_metadata(self) -> None:
+        """Rebuild derived Customizer metadata after parser upgrades."""
+        with self._connect() as connection:
+            rows = connection.execute("SELECT id,storage_path,entry_file,parameters_json,parser_warnings_json FROM scad_module_versions").fetchall()
+            for row in rows:
+                entry = Path(row["storage_path"]) / row["entry_file"]
+                if not entry.is_file():
+                    continue
+                try:
+                    parsed = self.parser.parse_file(entry)
+                except (OSError, UnicodeError):
+                    continue
+                parameters = json_dump([item.model_dump() for item in parsed.parameters])
+                warnings = json_dump(parsed.warnings)
+                if parameters != row["parameters_json"] or warnings != row["parser_warnings_json"]:
+                    connection.execute(
+                        "UPDATE scad_module_versions SET parameters_json=?,parser_warnings_json=? WHERE id=?",
+                        (parameters, warnings, row["id"]),
+                    )
 
     @staticmethod
     def _decode(row: sqlite3.Row | None) -> dict | None:

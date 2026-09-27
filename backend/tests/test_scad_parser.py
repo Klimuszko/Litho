@@ -49,3 +49,16 @@ def test_malformed_comments_are_reported_without_breaking_valid_parameters():
 def test_ignores_expressions_because_parser_is_not_an_interpreter():
     result = ScadParser().parse("derived = width * 2;\nwidth = 10; // [1:1:20]")
     assert [item.name for item in result.parameters] == ["width"]
+
+
+def test_parses_numeric_options_with_human_labels():
+    result = ScadParser().parse('''
+output_mode = 0; // [0:Print-in-place complete,1:Mechanism preview,2:Ring only]
+quality = 1; // [0:Fine,1:Standard,2:Chunky]
+''')
+    parsed = {item.name: item for item in result.parameters}
+    assert result.warnings == []
+    assert parsed["output_mode"].type == "integer"
+    assert parsed["output_mode"].options == [0, 1, 2]
+    assert parsed["output_mode"].optionLabels == ["Print-in-place complete", "Mechanism preview", "Ring only"]
+    assert parsed["quality"].optionLabels == ["Fine", "Standard", "Chunky"]

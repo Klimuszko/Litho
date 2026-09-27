@@ -3,7 +3,7 @@ import {useAuth} from "./Auth";
 import ScadPreview from "./ScadPreview";
 import "./scad.css";
 
-type Parameter = {name: string; label: string; description: string; section: string; type: "integer"|"float"|"boolean"|"string"|"enum"; defaultValue: unknown; min?: number; max?: number; step?: number; options: string[]; hidden: boolean; advanced: boolean; unit: string};
+type Parameter = {name: string; label: string; description: string; section: string; type: "integer"|"float"|"boolean"|"string"|"enum"; defaultValue: unknown; min?: number; max?: number; step?: number; options: (string|number|boolean)[]; optionLabels?: string[]; hidden: boolean; advanced: boolean; unit: string};
 type Version = {id: string; version_number: number; version_label: string; changelog: string; created_at: string; parameters: Parameter[]; parser_warnings: string[]; source_hash: string; entry_file: string};
 type Permissions = Record<"read"|"use"|"execute"|"update"|"publish"|"delete"|"restore"|"duplicate"|"moderate"|"permanent_delete", boolean>;
 type ScadModule = {id: string; name: string; slug: string; description: string; category: string; owner_user_id: number; owner_username: string; owner_display_name: string; visibility: string; status: string; official: boolean; revision: number; working_version_id: string; published_version_id: string|null; active_version_id: string; active_version: Version; updated_at: string; preview_url?: string|null; permissions: Permissions};
@@ -38,7 +38,7 @@ function ModuleCard({item, onOpen}: {item: ScadModule; onOpen: () => void}) {
 
 function ParameterControl({parameter, value, onChange}: {parameter: Parameter; value: unknown; onChange: (value: unknown) => void}) {
   if (parameter.type === "boolean") return <label className="scad-toggle"><span><b>{parameter.label}</b>{parameter.description && <small>{parameter.description}</small>}</span><input type="checkbox" checked={Boolean(value)} onChange={e => onChange(e.target.checked)}/></label>;
-  if (parameter.type === "enum") return <label className="scad-field"><span>{parameter.label}</span><select value={String(value)} onChange={e => onChange(e.target.value)}>{parameter.options.map(option => <option key={option}>{option}</option>)}</select>{parameter.description && <small>{parameter.description}</small>}</label>;
+  if (parameter.options.length) return <label className="scad-field"><span>{parameter.label}</span><select value={String(value)} onChange={e => {const selected=parameter.options.find(option=>String(option)===e.target.value);onChange(selected)}}>{parameter.options.map((option,index) => <option value={String(option)} key={String(option)}>{parameter.optionLabels?.[index] || String(option)}</option>)}</select>{parameter.description && <small>{parameter.description}</small>}</label>;
   if (parameter.type === "string") return <label className="scad-field"><span>{parameter.label}</span><input value={String(value ?? "")} onChange={e => onChange(e.target.value)}/>{parameter.description && <small>{parameter.description}</small>}</label>;
   const number = Number(value);
   return <div className="scad-number"><div><b>{parameter.label}</b><output>{number}{parameter.unit && ` ${parameter.unit}`}</output></div>
