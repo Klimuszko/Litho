@@ -1,6 +1,6 @@
 # Plan: fidget planetarny z nieokrągłymi (kwadratowymi i trójkątnymi) kołami zębatymi
 
-Status: **plan techniczny i produktowy, bez implementacji geometrii**
+Status: **plan techniczny i produktowy, bez implementacji geometrii** (rewizja 2: rozdzielone pasy zębów z kanałem centralnym, po zgłoszeniu zbyt ciasnego ruchu po wydruku)
 Baza: commit `74e8487` (gałąź `Main_Frame`), moduł `examples/scad/planetary-fidget` w wersji 2.3.0
 Zakres dokumentu: geometria sprzężonych kół nieokrągłych, integracja z klientowym OpenSCAD WebAssembly, testy, etapy i kryteria go/no-go.
 
@@ -14,7 +14,7 @@ Zakres dokumentu: geometria sprzężonych kół nieokrągłych, integracja z kli
 4. **Liczba planet nie jest swobodna.** Kwadrat: dokładnie 4 planety. Trójkąt: dokładnie 3 planety. Warianty rozszerzone są opcjonalne (§5.4).
 5. **Osobny moduł.** Klasyczny moduł `planetary-fidget` zostaje bez zmian. Nowy moduł `planetary-fidget-noncircular` zawiera oba kształty (kwadrat i trójkąt) w jednym pliku `main.scad` z biblioteką `lib/` wewnątrz katalogu modułu (§7).
 6. **Całe generowanie w przeglądarce.** Działa na obecnym `@lofcz/openscad-wasm` z backendem Manifold w Web Workerze. Nie wymaga zmian w backendzie ani w silniku. Obliczenia numeryczne są napisane w czystym OpenSCAD. Referencyjny „oracle” w TypeScript/Node służy tylko do testów.
-7. **Osiowe zatrzymanie.** Zamiast `linear_extrude(twist=…)` używamy **schodkowej jodełki**: warstw z przesunięciem fazy zębów wzdłuż krzywej. Obrót nieokrągłego profilu wokół środka nie jest zębem śrubowym, więc twist jest dla tych kół zabroniony.
+7. **Osiowe zatrzymanie: rozdzielona schodkowa jodełka (rewizja 2).** Każdy element ma **dwa rozdzielone pasy zębów**, górny i dolny. Między nimi jest **centralny kanał bez zębów** z rdzeniem cofniętym pod linię stóp. Zmniejsza to powierzchnię kontaktu i tarcie oraz ułatwia pierwsze uruchomienie po wydruku. Pasy mają przeciwną orientację schodków (lustrzane „V” przerwane kanałem), co zapewnia retencję osiową. Rozwiązanie **zastępuje** ciągłą schodkową jodełkę z rewizji 1 jako jedyną geometrię produkcyjną. Wariant ciągły zostaje tylko jako przypadek porównawczy w oracle i testach (§4.10). Twist (`linear_extrude(twist=…)`) nadal jest zabroniony: obrót nieokrągłego profilu wokół środka nie jest zębem śrubowym.
 
 ---
 
@@ -85,10 +85,25 @@ Zdjęcia służą wyłącznie do zrozumienia *kategorii* mechanizmu. Nie odczytu
 ### 2.5 `orca-paste-1790538854416-59b4ef10…png`: szaro-zielony fidget w dłoni
 
 - Ten sam typ co w §2.1, z bliska. Mamy 4 planety o obrysie zaokrąglonego kwadratu i koło centralne podobnej wielkości z palcem w otworze. Pierścień jest falisty, ma około 12 płatów, a zewnętrzny obrys jest równoległy do krzywej zębów.
-- Na boku pierścienia widać zielone prostokątne „schodki” wzdłuż obwodu. Sugeruje to warstwową konstrukcję: druga warstwa ma zęby przesunięte lub inny kolor. **Hipoteza, niepotwierdzona.** Plan i tak proponuje schodkową jodełkę z niezależnych powodów (§4.10).
+- Na boku pierścienia widać zielone prostokątne „schodki” wzdłuż obwodu. To dekoracja lub zmiana koloru na zewnętrznym boku obręczy. Konstrukcję zazębienia wzdłuż wysokości (pasy zębów i cofnięty pas środkowy) analizuje §2.6.
 - Skala: średnica zewnętrzna jest porównywalna z szerokością dłoni, szacunkowo 80–95 mm. Otwór w kole centralnym mieści opuszek palca, około 15–18 mm. Oba wymiary są niepewne i nie służą jako dane projektowe. Pokazują jednak, że **wariant równych kół wymaga większej średnicy niż klasyczny** (§6.3).
 
-### 2.6 Czego zdjęcia nie pokazują
+### 2.6 Ponowna analiza osiowa (rewizja 2)
+
+Powiększenia `…59b4ef10…png` (krawędź pierścienia i okolice palca) oraz egzemplarzy szaro-zielonego i turkusowego z `…8f28aa96…png` pokazują przekrój wzdłuż wysokości:
+
+- **Zęby są tylko w warstwie zewnętrznej.** Na koło centralne, planety i pierścień patrzymy od góry. Szary pas z pełnymi zębami ma wysokość rzędu ⅓ grubości elementu.
+- **Pod szarym pasem jest gładki, zielony pas bez zębów.**
+  - Na planetach jest to gładki obrys w kształcie zaokrąglonego kwadratu, położony **na poziomie stóp zębów lub nieco głębiej** (cofnięty do środka planety).
+  - Na wewnętrznej stronie pierścienia jest to gładka, falista ścianka cofnięta **na zewnątrz poza linię stóp** zębów pierścienia.
+  - Między zielonymi powierzchniami sąsiednich elementów widać wyraźną szczelinę, więc nie ma tam kontaktu.
+- Na zdjęciach z góry widać, że zielony kolor wypełnia też dół elementów. Nie widać spodu, więc **nie da się potwierdzić, że dolny pas zębów istnieje**, choć symetria konstrukcji print-in-place i sposób podparcia planet silnie to sugerują.
+- Zielone „schodki” na zewnętrznym boku pierścienia są dekoracją lub efektem zmiany koloru. Nie ma to związku z zazębieniem.
+- **Nie widać, jak osiągnięto retencję osiową**: skośność, schodki czy fazki w pasach. Nie da się tego odczytać ze zdjęcia z takiej perspektywy.
+
+**Wniosek projektowy:** referencja jest zgodna z wymaganiem użytkownika. Elementy mają pasy zębów przy powierzchniach górnej i dolnej oraz wolny, cofnięty pas środkowy, który zmniejsza pole styku. Geometria retencji jest naszą własną konstrukcją (§4.10), a nie odczytem ze zdjęcia.
+
+### 2.7 Czego zdjęcia nie pokazują
 
 - **Wariantu trójkątnego jako koła nieokrągłego nie ma na żadnym zdjęciu.** Trójkąty na §2.4 to otwory. Wariant trójkątny w tym planie jest wyprowadzony analogicznie (`n = 3`) i wymaga walidacji tak samo jak kwadratowy.
 - Nie widać profilu zęba w przekroju osiowym, więc nie wiadomo, czy zęby są proste, skośne czy schodkowe. Nie widać też luzów ani wysokości modelu.
@@ -103,6 +118,7 @@ Zdjęcia służą wyłącznie do zrozumienia *kategorii* mechanizmu. Nie odczytu
 | Krzywa podziałowa planety | okrąg | zaokrąglony kwadrat, 4 płaty | zaokrąglony trójkąt, 3 płaty |
 | Krzywa podziałowa pierścienia | okrąg | falista, 12 płatów | falista, 9 płatów |
 | Liczba planet | 3–12 (solver) | **4** | **3** |
+| Zazębienie wzdłuż wysokości | jodełka ze skrętem na całej wysokości | dwa pasy schodkowe (góra/dół) + cofnięty kanał środkowy | jak kwadratowy |
 | Uczucie w dłoni | równy obrót | pulsujący obrót: planety przyspieszają i zwalniają, lekko „oddychają” promieniowo | jak kwadrat, mocniej wyczuwalny |
 | Moduł w katalogu | `planetary-fidget` (bez zmian) | `planetary-fidget-noncircular`, `shape = 0` | `planetary-fidget-noncircular`, `shape = 1` |
 
@@ -249,31 +265,106 @@ Profile luzów pozostają zgodne z klasykiem, żeby użytkownik miał te same od
 | luz normalny `b_n` (łącznie na parę) | 0,22 | 0,32 | 0,44 mm | realizowany wyłącznie jako `offset(+b_n/2)` narzędzia przy cięciu S i R (patrz niżej) |
 | luz głowy `c_tip` | 0,08 | 0,14 | 0,22 mm | wydłużenie głowy narzędzia |
 | odstęp planet–planeta | 0,25 | 0,40 | 0,58 mm | **minimum w całym cyklu**, nie w pozycji startowej |
-| ścianka minimalna | 1,2 mm (sun), 0,8 mm (planeta), 1,8 mm (obręcz) | | | |
+| luz radialny w kanale `g_ch` (rdzeń–rdzeń, rdzeń–ścianka pierścienia) | ≥ 0,8 | ≥ 1,0 | ≥ 1,2 mm | wynika z cofnięcia `r_rec`; minimum w całym cyklu (§4.10) |
+| luz osiowy `g_ax` (warstwa przejściowa między stopniami) | 0,2 | 0,2 | 0,3 mm | pionowa szczelina między poziomymi powierzchniami różnych ciał; wielokrotność wysokości warstwy |
+| ścianka minimalna w pasach | 1,4 mm (sun), 1,0 mm (planeta), 1,8 mm (obręcz) | | | mierzona od linii stóp |
+| ścianka minimalna w kanale | 1,4 mm (sun), 1,2 mm (planeta), 2,0 mm (obręcz) | | | mierzona od cofniętego rdzenia; wymusza większą obręcz i mniejsze otwory |
 
 - Luz nadajemy wyłącznie po stronie narzędzia tnącego S i R: `offset(r = +b_n/2)`. Planeta zostaje nominalna. Luz obwodowy na każdą flankę wynosi `b_n/2`, a luz obrotowy pary (suma po obu flankach) `b_n`. Luzu nie nakładamy podwójnie (na narzędzie i na planetę). Faza 3 kalibruje na wydruku F1, czy potrzebne jest dodatkowe zmniejszenie planety.
 - Offset po obrysie to luz *normalny*. Przy zmiennej krzywiźnie jest to właściwsze niż luz kątowy stosowany w klasyku (`rad_to_deg(b/(2·rp))`), bo dla nieokrągłych nie istnieje jedno `rp`.
-- **Pierwsza warstwa (elephant foot):** fazka 0,3–0,4 mm × 45° na dolnych krawędziach *powierzchni współpracujących* (zęby S, P i R), żeby uniknąć zgrzania. Wymaga to generowania warstwy dolnej z profilu `offset(−0,3)` (§4.11).
+- **Pierwsza warstwa (elephant foot):** fazka 0,4 mm × 45° na dolnych krawędziach wszystkich zębów dolnego pasa (S, P i R), żeby uniknąć zgrzania (§4.11).
+- Wszystkie luzy są w sekcji „Ukryte” i wynikają z `fit_profile`. Użytkownik nie ustawia ich osobno.
 
-### 4.10 Osiowe zatrzymanie print-in-place: schodkowa jodełka
+### 4.10 Osiowe zatrzymanie print-in-place: rozdzielone pasy zębów z kanałem centralnym (rewizja 2)
 
-**Dlaczego nie `twist`:** `linear_extrude(twist=τ)` obraca cały przekrój wokół osi. Dla okręgu jest to równoważne przesunięciu zębów wzdłuż krzywej. Dla nieokrągłego profilu obrót przemieszcza płaty, a nie zęby, więc warstwy przestają być sprzężone. **Zakaz.**
+**Powód zmiany.** Użytkownik zgłosił, że po wydruku ruch jest zbyt ciasny. Pełnowysokościowe zazębienie ma kontakt na całej grubości elementu, więc każda nierówność ścian, stopa słonia, szew i zwis dokłada tarcie. Rewizja 2 ogranicza kontakt do dwóch pasów przy górnej i dolnej powierzchni. Pas środkowy staje się wolną, cofniętą strefą bez zębów, zgodnie z referencją (§2.6). Podobne rozwiązanie jest standardem w przemysłowych kołach daszkowych z rowkiem środkowym (wybieg narzędzia).
 
-**Konstrukcja:**
+**Dlaczego nadal nie `twist`:** `linear_extrude(twist=τ)` obraca cały przekrój wokół osi. Dla okręgu jest to równoważne przesunięciu zębów wzdłuż krzywej. Dla nieokrągłego profilu obrót przemieszcza płaty, a nie zęby, więc warstwy przestają być sprzężone. **Zakaz, także w obrębie pojedynczego pasa.**
 
-1. Dzielimy wysokość `H` na `K` warstw (domyślnie `K = 6`, zakres 4–8). Warstwa `i` ma przesunięcie fazy zębów wzdłuż łuku `δ_i`, np. profil V: `0, δ, 2δ, 2δ, δ, 0`. Unikalnych generacji jest tylko `K/2`.
-2. Warstwa `i` planety to dłutak przesunięty o `δ_i` wzdłuż centroidy. Warstwa `i` koła centralnego i pierścienia to obwiednia *tej* warstwy planety. Centroidy i kinematyka są identyczne dla wszystkich warstw, bo przesunięcie fazy zęba nie zmienia toczenia.
-3. **Warunek blokady:** ząb planety w warstwie `i` musi w rzucie osiowym zachodzić na ząb koła centralnego lub pierścienia w warstwie `i ± 1`. Wymaga to `δ ≥ b_n + 0,15·p` (wstępnie). Faza 0 liczy to numerycznie jako minimalne pole nakładania rzutów w całym cyklu.
-4. **Warunek druku:** każdy stopień to półka o szerokości ≈ `δ`. Dla FDM przyjmujemy `δ ≤ 0,6 mm` przy warstwie 0,2 mm, do weryfikacji wydrukiem. Stopnie wypadają na granicach warstw druku: `H/K` jest wielokrotnością 0,2 mm.
-5. Warstwy łączymy przez `union()` z nakładaniem 0,01 mm (bez szczelin manifoldu).
+#### 4.10.1 Przekrój wzdłuż wysokości (od stołu drukarki w górę)
 
-**Alternatywa (fallback, tylko przy no-go w fazie 3):** wargi osiowe na pierścieniu nad i pod planetami (półki 0,8–1,2 mm) albo stożkowe fazowanie głów. Zmieniają one charakter „otwartego” fidgetu, więc wymagają decyzji produktowej.
+Wszystkie ciała (S, P ×N, R) mają **identyczny podział wysokości**. Granice stref leżą na tych samych `z` i na wielokrotnościach wysokości warstwy 0,2 mm.
+
+| Strefa | Wysokość (przykład H = 8,4 mm, m ≈ 1) | Reguła | Zawartość |
+|---|---|---|---|
+| Pas dolny `B` | 2,8 mm | `h_b = (H − h_ch − h_ramp)/2`, `h_b ≥ max(2,2 mm; 2,2·m; 11 warstw)` | 3 stopnie zębów, fazka pierwszej warstwy w dolnych 0,4 mm |
+| Kanał płaski `C` | 0,8 mm | `h_ch ≥ 0,6 mm` (3 warstwy) | tylko cofnięte rdzenie, zero zębów |
+| Rampa `Rp` | 2,0 mm | `h_ramp = max(0; d_ov − o_max)/tan(45°)`, gdzie `d_ov = 2,25·m + c_tip + r_rec` | przejście 45° od rdzenia do pełnego zęba; bez kontaktu |
+| Pas górny `T` | 2,8 mm | `h_t = h_b` | 3 stopnie zębów |
+
+- **Strefa bez kontaktu** to `C + Rp`, czyli ≈ 1/3 wysokości. Powierzchnia współpracujących flank spada do ≈ 67% (5,6 / 8,4 mm). Wartość jest orientacyjna. Faza 0 policzy ją dokładnie jako pole flank w pasach.
+- `H_min` rośnie względem klasyka. Dla `m ≈ 1`: `2·2,2 + 0,6 + 2,0 ≈ 7,0 mm`, zaokrąglone do 7,2 mm. Dla grubych zębów (`m ≈ 1,25`) wynosi ≈ 8,2 mm. Solver wylicza `H_min` i `assert` zgłasza przekroczenie z komunikatem „Zwiększ grubość modelu albo wybierz drobniejsze zęby”.
+- Rampa istnieje tylko pod pasem górnym, bo tylko tam zęby wisiałyby nad kanałem (nawis). Górna krawędź pasa dolnego jest płaska: powierzchnia skierowana w górę nie potrzebuje fazki, a dzięki temu nie traci kontaktu. Asymetria jest celowa i wynika z druku FDM.
+- `o_max`, dopuszczalny poziomy nawis pierwszej warstwy rampy, wynosi wstępnie 0,8 mm. Kalibruje go kupon F11.
+
+#### 4.10.2 Cofnięcie rdzenia w kanale
+
+- Koło centralne i planety (zewnętrzne): w strefie `C` profil = krzywa stóp `offset(−r_rec)`.
+- Pierścień (wewnętrzny): w strefie `C` ścianka = krzywa stóp pierścienia `offset(+r_rec)`, czyli cofnięta na zewnątrz.
+- `r_rec = 0,5 mm` (ukryte; zakres walidacji 0,4–0,8 mm).
+- Rampa to stos warstw co 0,2 mm. Każda jest profilem pasu górnego (stopień o fazie 0) z `offset(−d(z))`, gdzie `d(z)` maleje liniowo od `d_ov` do 0. Dla pierścienia offset jest dodatni, czyli materiał odsuwa się na zewnątrz.
+- Dzięki cofnięciu luz radialny w kanale wynosi co najmniej `2,25·m + 2·r_rec − c_tip` między rdzeniami sąsiednich ciał. Jest on wielokrotnie większy od `b_n`, więc ewentualny zwis lub nitki w kanale nie łączą elementów.
+
+#### 4.10.3 Orientacja pasów i retencja osiowa („przeciwne fazowanie”)
+
+1. Każdy pas ma `K_b = 3` stopnie o wysokości ≈ `h_b/3`, zaokrąglonej do 0,2 mm. Stopień `i` ma przesunięcie fazy zębów wzdłuż łuku `δ_i`.
+2. **Przesunięcia rosną od kanału na zewnątrz w obu pasach:** pas dolny ma od góry do dołu `0, δ, 2δ`, a pas górny od dołu do góry `0, δ, 2δ`. Otrzymujemy lustrzane „V” (jodełkę) przerwane kanałem. Pasy mają więc **przeciwną orientację**, analogicznie do przeciwnych kierunków linii zęba w kole daszkowym.
+3. Stopień `i` planety to dłutak przesunięty o `δ_i`. Stopień `i` koła centralnego i pierścienia to obwiednia *tego* stopnia planety. Kinematyka i centroidy są wspólne dla wszystkich stopni.
+4. **Dlaczego to trzyma osiowo:**
+   - Przesunięcie planety w górę o `Δz > g_ax` sprawia, że w pasie górnym jej stopień `i` wchodzi w strefę stopnia `i+1` koła centralnego lub pierścienia (faza +δ). Wymaga to obrotu planety o +δ.
+   - W pasie dolnym jej stopień wchodzi w strefę stopnia o fazie −δ, co wymaga obrotu o −δ.
+   - Sprzeczne wymagania blokują ruch, pod warunkiem że `δ` przekracza cały luz obwodowy.
+   - Ruch w dół działa symetrycznie.
+5. **Warunek blokady:** `δ ≥ j_t + 0,15 mm`, gdzie `j_t = b_n / cos α` to całkowity luz obwodowy pary. Dla profilu standardowego (α = 25°) daje to `j_t ≈ 0,35 mm`, więc `δ ≥ 0,50 mm`. Dla luźnego `δ ≥ 0,64 mm`. `δ` jest ukryte i wyliczane z `fit_profile`.
+6. **Warunek druku półki:** pozioma półka na flance ma ≈ `δ·cos α ≤ 0,7 mm` (wstępnie). Przy „Luźnym” jest to ≈ 0,58 mm i mieści się w limicie. Kupon F11 weryfikuje limit.
+7. **Warstwy przejściowe (luz osiowy `g_ax`), poprawka względem rewizji 1:**
+   - Na każdej granicy stopni nakładanie w rzucie (warunek blokady) oznacza poziome powierzchnie różnych ciał na tym samym `z`. Bez szczeliny zgrzałyby się na wydruku.
+   - Dlatego między stopniami `i` i `i+1` wstawiamy warstwę o wysokości `g_ax`, w której **każde ciało ma przecięcie** profili obu stopni (`P_i ∩ P_{i+1}`, `S_i ∩ S_{i+1}`, `R_i ∩ R_{i+1}`).
+   - Warstwa przejściowa nie koliduje, bo jest podzbiorem profili sprzężonych. Daje przy tym pionową szczelinę `g_ax` nad każdą nakładką.
+   - Luz osiowy planety (swobodny ruch przed zablokowaniem) ≈ `g_ax`.
+8. Warstwy łączymy przez `union()` z nakładaniem 0,01 mm wewnątrz jednego ciała (bez szczelin manifoldu). Między różnymi ciałami nakładania nie ma.
+
+#### 4.10.4 Porównanie i decyzja
+
+| Kryterium | Rewizja 1: ciągła schodkowa jodełka | Rewizja 2: rozdzielone pasy + kanał |
+|---|---|---|
+| Pole współpracujących flank | 100% H | ≈ 60–70% H |
+| Pierwsze uruchomienie | trudniejsze, zgrzania na całej wysokości | łatwiejsze: kanał nie może się zgrzać, a nawis rampy opada w wolną przestrzeń |
+| Retencja osiowa | V ciągłe | V przerwane; ta sama zasada, 2×3 stopnie |
+| Odporność na przechył planety | kontakt na całej wysokości | dobra: dwa pasy daleko od siebie tworzą szeroką bazę |
+| Wytrzymałość zębów | wyższa | niższa (krótsze pasy), wymaga minimów z §4.10.5 |
+| Minimalna grubość | ≈ 6 mm | ≈ 7,2–8,2 mm |
+| Ryzyko druku | półki stopni | półki stopni + rampa 45° nad kanałem |
+| Koszt generacji | 3 unikalne profile/ciało | 3 unikalne profile/ciało + tanie offsety rampy i przecięcia przejść |
+
+**Decyzja: rewizja 2 jest wariantem schodkowej jodełki (ta sama zasada sprzężonych stopni o przeciwnej orientacji) i zastępuje wersję ciągłą jako jedyną geometrię produkcyjną.** Wersja ciągła, uzupełniona o warstwy przejściowe z pkt 7, zostaje:
+
+- w oracle jako przypadek porównawczy (ten sam generator, `h_ch = h_ramp = 0`);
+- jako wydruk kontrolny A/B w teście F9;
+- jako drugi krok fallbacku.
+
+Użytkownik nie dostaje przełącznika między wersjami.
+
+**Kolejność fallbacków (tylko przy NO-GO w fazie 3):**
+
+1. Korekta rampy (`o_max`, kąt 45° → 50°) i `r_rec`.
+2. Wersja ciągła z warstwami przejściowymi.
+3. Wargi osiowe na pierścieniu, co wymaga decyzji produktowej, bo zmienia charakter „otwartego” fidgetu.
+
+#### 4.10.5 Minimalna wytrzymałość (reguły walidacji)
+
+- Wysokość pasa `h_b ≥ max(2,2 mm; 2,2·m)` oraz co najmniej 11 warstw 0,2 mm. Każdy stopień ≥ 0,6 mm.
+- Liczba przyporu w każdym stopniu z osobna ≥ 1,1 w całym cyklu. Każdy stopień przenosi moment samodzielnie, gdy sąsiedni jest w luzie.
+- Grubość zęba na głowie ≥ max(0,25·m; 0,4 mm) we wszystkich stopniach i warstwach przejściowych. Przecięcie `P_i ∩ P_{i+1}` jest cieńsze, co ogranicza `δ` od góry: `δ ≤ 0,35·p`.
+- Ścianki w kanale według §4.9: sun ≥ 1,4 mm, planeta ≥ 1,2 mm, obręcz ≥ 2,0 mm. Otwór na palec i otwory w planetach liczymy od **cofniętego rdzenia**, a nie od linii stóp.
+- Obciążenia fidgetu są małe i nie są liczone metodą MES. Wytrzymałość potwierdzają fizycznie: upadek (F10), ściskanie obręczy dłonią i wypychanie planet (F5).
 
 ### 4.11 Fazki krawędzi (chamfer)
 
-- Dolna fazka przeciw „stopie słonia” na współpracujących krawędziach (§4.9) domyślnie jest włączona.
-- Górna fazka estetyczna 0,4 mm na zewnętrznym obrysie obręczy i na otworze na palec (komfort).
-- Fazki robimy przez `offset()` warstw skrajnych. `minkowski()` jest zbyt kosztowny w WASM.
+- **Pierwsza warstwa:** fazka 0,4 mm × 45° na dolnych krawędziach zębów pasa dolnego wszystkich ciał. Realizacja: warstwa 0–0,2 mm = profil `offset(−0,4)`, warstwa 0,2–0,4 mm = `offset(−0,2)`. Dla pierścienia offset działa w stronę materiału, czyli zęby są węższe, a wręby szersze. Zawsze włączona, ukryta. Pas dolny ma wtedy efektywnie 2,4 mm kontaktu, co uwzględnia reguła `h_b`.
+- **Rampa pod pasem górnym** (§4.10.1) to funkcjonalne „fazowanie” nawisu, a nie ozdoba.
+- **Górna fazka estetyczna** 0,4 mm tylko na zewnętrznym obrysie obręczy i na otworze na palec (komfort). Nie dotyczy zębów, żeby nie skracać pasa górnego.
+- Fazki robimy przez `offset()` warstw. `minkowski()` jest zbyt kosztowny w WASM.
 
 ### 4.12 Walidacja geometryczna (asercje i ostrzeżenia w SCAD, testy w oracle)
 
@@ -287,7 +378,12 @@ Profile luzów pozostają zgodne z klasykiem, żeby użytkownik miał te same od
 | Otwór w planecie | kształt = krzywa stopy planety `offset(−max(0,8 mm; wall))`, skalowany procentem | automatyczne ograniczenie |
 | Liczba zębów | `t` całkowite, `m ∈ [0,6; 1,6] mm` | solver dobiera `t` |
 | Symetria | `N | gcd(n_s, n_r)` | wymuszone przez wariant, nie przez UI |
-| Ścianka obręczy | `min_θ (r_outer − r_root,R) ≥ 1,8 mm` | wymuszone (obrys równoległy) |
+| Ścianka obręczy | `min_θ (r_outer − r_root,R − r_rec) ≥ 2,0 mm` (kanał) i `≥ 1,8 mm` (pasy) | wymuszone (obrys równoległy, szersza obręcz) |
+| Podział wysokości | `H ≥ H_min(m)`; `h_b`, `h_ch`, `h_ramp` według §4.10.1, wszystkie granice na wielokrotnościach 0,2 mm | `assert` „Zwiększ grubość modelu albo wybierz drobniejsze zęby” |
+| Retencja osiowa | `δ ≥ j_t + 0,15 mm`; `δ·cos α ≤ 0,7 mm`; `δ ≤ 0,35·p` | `assert` (gdy nie da się spełnić wszystkich trzech naraz przy danym `fit_profile` i `m`) |
+| Szczeliny poziome | każda pozioma nakładka dwóch różnych ciał ma pionową szczelinę ≥ `g_ax` | oracle: test; SCAD: konstrukcyjnie przez warstwy przejściowe |
+| Kanał bez kontaktu | `min_cykl` odległość ciał w strefie `C + Rp` ≥ `g_ch` | oracle: test |
+| Nawis | pierwsza warstwa rampy ≤ `o_max`; dalej ≤ 45°; półki stopni ≤ 0,7 mm | oracle: test; SCAD: konstrukcyjnie |
 
 ---
 
@@ -304,7 +400,7 @@ Profile luzów pozostają zgodne z klasykiem, żeby użytkownik miał te same od
 - `n_s = n_p = 3`, `n_r = 9`, `N = 3`, `z = (3t, 3t, 9t)`.
 - Przy `n = 3` przeciwległy punkt planety (`ψ + π`) wypada na środku boku, a nie na narożu. Styk z pierścieniem ma więc inną fazę niż z kołem centralnym. Model z §4.4–4.5 obsługuje to bez zmian.
 - Większa granica wypukłości (`e₁ < 0,10`), ale silniejsze pulsowanie przełożenia. Wymaga osobnej kalibracji fizycznej.
-- Brak referencji fotograficznej (§2.6), więc przed publikacją potrzebny jest obowiązkowy wydruk testowy.
+- Brak referencji fotograficznej (§2.7), więc przed publikacją potrzebny jest obowiązkowy wydruk testowy.
 
 ### 5.3 Okrągły (zachowany)
 
@@ -335,18 +431,18 @@ Warianty rozszerzone wchodzą dopiero po DoD dla MVP. Muszą przejść te same b
 | Główne | `outer_diameter` | `[70:1:130]` mm | 90 | większe niż klasyk, bo sun ≈ planety |
 | Główne | `squareness` | `[0:1:100]` % | 55 | mapowane na `e₁ ∈ [0, e₁_max(shape)]`; UI nie pokazuje surowego `e` |
 | Główne | `tooth_style` | `[0:Drobne,1:Standardowe,2:Grube]` | 1 | cel `m` 0,8 / 1,0 / 1,25 mm; solver dobiera całkowite `t` |
-| Główne | `gear_thickness` | `[6:0.2:14]` mm | 8 | zaokrąglane do wielokrotności `K·0,2` |
+| Główne | `gear_thickness` | `[7:0.2:14]` mm | 8,4 | dolna granica efektywna = `H_min(m)` z §4.10.1 (`assert` z podpowiedzią); podział na pasy i kanał liczony automatycznie |
 | Dopasowanie | `fit_profile` | `[0:Ciasny,1:Standardowy,2:Luźny]` | 1 | §4.9 |
-| Dopasowanie | `first_layer_chamfer` | bool | true | §4.11 |
 | Otwory | `finger_hole_diameter` | `[10:1:24]` mm | 16 | auto-ograniczenie + `WARNING:` |
 | Otwory | `planet_holes` | bool | true | otwór = zaokrąglony kwadrat/trójkąt |
 | Otwory | `planet_hole_percent` | `[30:1:65]` % | 50 | |
 | Obudowa | `rim_style` | `[0:Równoległa do fali,1:Gładka okrągła]` | 0 | 0 jak na zdjęciach; 1 = okrąg opisany na obręczy |
-| Zaawansowane | `axial_layers` | `[4:2:8]` | 6 | `@advanced`; K warstw jodełki |
-| Zaawansowane | `layer_shift_percent` | `[20:5:50]` % podziałki | 30 | `@advanced`; δ, z auto-limitem ≤ 0,6 mm |
 | Zaawansowane | `side_flatness` | `[0:1:100]` % | 0 | `@advanced`; `e₂`, dostępne po fazie 0 tylko jeśli poprawia krzywiznę |
 | Zaawansowane | `pressure_angle` | `[20:25]` | 25 | `@advanced`; kąt dłutaka |
 | Ukryte | `envelope_samples`, `curve_samples`, `k_max` | — | — | sekcja „Ukryte” |
+| Ukryte | `band_steps` (3), `band_min_height` (2,2 mm / 2,2·m), `channel_flat_height` (0,6–0,8 mm), `recess_depth` `r_rec` (0,5 mm), `ramp_overhang_max` `o_max` (0,8 mm), `ramp_angle` (45°), `axial_gap` `g_ax` (z `fit_profile`), `step_shift` `δ` (z `fit_profile`), `first_layer_chamfer` (0,4 mm, zawsze), `debug_section_z` (tylko testy) | — | — | wartości bezpieczne, kalibrowane wydrukami F1, F5, F9, F11; **nie są widoczne w UI** |
+
+**Rewizja 2 nie dodaje żadnego parametru widocznego dla użytkownika.** Geometria pasów i kanału oraz wszystkie luzy osiowe i radialne są funkcją `gear_thickness`, `tooth_style` i `fit_profile`. Dotychczasowe `axial_layers`, `layer_shift_percent` i `first_layer_chamfer` przeniesiono do sekcji „Ukryte”. Użytkownik nie ma podstaw, by je zmieniać, a złe wartości wprost powodują wypadanie planet albo zgrzanie. Jedynym „pokrętłem” ciasności ruchu pozostaje `fit_profile`. Jeśli F9 pokaże, że potrzebny jest wybór szerokości kanału, dodamy co najwyżej jedną listę `[0:Standardowy,1:Szeroki]`, ale dopiero po danych z wydruków.
 
 **Nie ma parametru „liczba planet”.** Wynika ona z kształtu. Użytkownik zobaczy ją w `INFO:liczba_planet=…`. Nie ma też `helix_angle`, bo twist jest zabroniony (§4.10). Ozdobne style obudowy z klasyka (`grip_style`) **nie są przenoszone w MVP**, bo wymagają adaptacji do falistej obręczy. To osobne zadanie.
 
@@ -364,12 +460,12 @@ Dla N = 4 przy równych kołach: środki planet leżą ≈ 2R od osi, a odległo
 
 ### 6.3 Relacja średnica ↔ otwór na palec (szacunek do weryfikacji w fazie 0)
 
-Dla równych kół: `D ≈ 2·(3R(1 + e₁) + 1,25m + c + rim)` i `hole ≤ 2·(R(1 − e₁) − 1,25m − c − 1,2)`.
+Dla równych kół: `D ≈ 2·(3R(1 + e₁) + 1,25m + c + rim)` i `hole ≤ 2·(R(1 − e₁) − 1,25m − c − r_rec − 1,4)`. W rewizji 2 otwór liczymy od cofniętego rdzenia w kanale, ze ścianką koła centralnego 1,4 mm.
 
 Przykład dla kwadratu, `e₁ = 0,05`, `m ≈ 1`, `rim = 3,8`:
 
-- `D = 90 mm` → `R ≈ 12,6 mm` → otwór ≤ ≈ 18 mm;
-- `D = 70 mm` → otwór ≤ ≈ 12 mm.
+- `D = 90 mm` → `R ≈ 12,6 mm` → otwór ≤ ≈ 17 mm;
+- `D = 70 mm` → otwór ≤ ≈ 11 mm.
 
 Stąd domyślne 90 mm i minimum 70 mm. Dokładne progi wyliczy solver, a UI pokaże je komunikatem.
 
@@ -395,7 +491,8 @@ examples/scad/planetary-fidget-noncircular/
   main.scad                # parametry Customizera, wybór output_mode, raport INFO/WARNING
   lib/ncg_curves.scad      # rodziny centroid, łuk, krzywizna, próbkowanie
   lib/ncg_kinematics.scad  # toczenie planety, Kennedy, prawo χ, korekta k
-  lib/ncg_teeth.scad       # dłutak, obwiednie, warstwy jodełki, luzy, fazki
+  lib/ncg_teeth.scad       # dłutak, obwiednie, stopnie pasów, warstwy przejściowe, luzy
+  lib/ncg_axial.scad       # podział wysokości: pasy, kanał, rampa, cofnięcie rdzenia, fazki
   lib/ncg_validate.scad    # asercje i ostrzeżenia
 ```
 
@@ -420,14 +517,15 @@ Całe generowanie odbywa się w przeglądarce, w istniejącym Web Workerze (`sca
 ### 8.3 Budżet wydajności (bramka w fazie 2)
 
 - Numeryka: ≤ 2 s w WASM (próbkowanie 2000–4000 punktów na krzywą).
-- Obwiednie: jeden płat na koło × `K/2` unikalnych warstw. Szacunkowo `(24–48 poz./podziałkę) × t` pozycji narzędzia na płat. Operacje 2D w Clipperze są rzędu setek wielokątów na płat.
+- Obwiednie: jeden płat na koło × 3 unikalne stopnie (`0, δ, 2δ`), wspólne dla pasa dolnego i górnego. Warstwy przejściowe (`intersection()` dwóch profili 2D), rdzeń kanału i rampa (≈ 10 warstw `offset()` jednego profilu) są tanie w porównaniu z obwiedniami. Rewizja 2 nie zwiększa istotnie kosztu. Szacunkowo `(24–48 poz./podziałkę) × t` pozycji narzędzia na płat. Operacje 2D w Clipperze są rzędu setek wielokątów na płat.
 - **Cel:** pełny print-in-place ≤ 30 s na referencyjnym laptopie (Chrome, 4 rdzenie; WASM jest jednowątkowy), podgląd `output_mode = 1` ≤ 15 s. **Limit twardy:** 90 s albo przekroczenie pamięci WASM. Wtedy przechodzimy na opcję C i/lub metodę analityczną z §4.7(d).
 - Pomiar: `durationSeconds` z workera, logowany w teście E2E (§9.1).
 
 ### 8.4 Kontrakt wyjścia
 
-- `echo("INFO:kształt=…")`, `INFO:liczba_planet`, `INFO:zęby_koła_centralnego/planety/pierścienia`, `INFO:moduł_zęba`, `INFO:korekta_pierścienia_k`, `INFO:min_odstęp_planet`, `INFO:rzeczywista_średnica`. Te same prefiksy parsuje już `parseLocalMetadata`.
+- `echo("INFO:kształt=…")`, `INFO:liczba_planet`, `INFO:zęby_koła_centralnego/planety/pierścienia`, `INFO:moduł_zęba`, `INFO:korekta_pierścienia_k`, `INFO:min_odstęp_planet`, `INFO:rzeczywista_średnica`, a od rewizji 2 także `INFO:pas_zębów`, `INFO:kanał` (płaski + rampa), `INFO:cofnięcie_rdzenia`, `INFO:przesunięcie_stopnia_δ`, `INFO:luz_osiowy`, `INFO:udział_kontaktu` (% wysokości). Te same prefiksy parsuje już `parseLocalMetadata`.
 - `assert(...)` z komunikatami po polsku. Worker mapuje je na „Wybrane parametry tworzą nieprawidłową geometrię”. Rozważyć (poza zakresem) przekazywanie treści asercji do UI.
+- Ukryty `debug_section_z` (tylko testy): gdy ustawiony, model zwraca `projection(cut=true)` na wysokości `z`, co pozwala porównać przekroje stref z oracle (eksport SVG/DXF 2D w WASM).
 - Wyjście STL i 3MF jak dziś. `output_mode = 1` koloruje S, P i R (3MF zachowuje kolory tylko przy obsłudze przez eksporter, do sprawdzenia).
 
 ---
@@ -446,15 +544,23 @@ Całe generowanie odbywa się w przeglądarce, w istniejącym Web Workerze (`sca
    - luz minimalny ≥ 0,5·`b_n` i maksymalny ≤ 2·`b_n` (brak „dziur”, w których planeta traci prowadzenie);
    - liczba przyporu ≥ 1,1 w każdej chwili.
 5. **Regularność obwiedni:** grubość głowy, brak podcięcia, brak samoprzecięć wielokątów.
-6. **Blokada osiowa:** pole nakładania rzutów warstw `i`/`i ± 1` > 0 w każdej chwili cyklu.
+6. **Blokada osiowa pasów (rewizja 2):** dla każdej pary S–P i P–R, w każdej chwili cyklu i w **obu pasach osobno**, pole nakładania rzutów stopnia `i` jednego ciała i stopnia `i ± 1` drugiego jest > 0 po uwzględnieniu całego luzu obwodowego `j_t`. Dodatkowo:
+   - symulacja przesunięcia planety o `Δz = g_ax + 0,05 mm` w górę i w dół przy dowolnym obrocie w zakresie luzu kończy się kolizją, czyli planeta jest zablokowana;
+   - wyznaczony luz osiowy ≤ `g_ax + 0,1 mm`.
 7. **Planety:** minimalny odstęp w cyklu ≥ `planet_spacing_clearance`.
+7a. **Kanał bez kontaktu:** w strefie `C + Rp` minimalna odległość między dowolnymi dwoma ciałami w całym cyklu ≥ `g_ch` (§4.9).
+7b. **Szczeliny poziome:** w modelu 3D (stos przekrojów stref) każda para poziomych powierzchni różnych ciał, które nakładają się w rzucie, ma pionową szczelinę ≥ `g_ax`. Test wykrywa brak warstw przejściowych.
+7c. **Nawisy:** pierwsza warstwa rampy ≤ `o_max`, dalej każda warstwa 0,2 mm wystaje ≤ 0,2 mm (45°); półki stopni ≤ 0,7 mm.
+7d. **Wytrzymałość geometryczna (§4.10.5):** `h_b`, grubość głowy w stopniach i przejściach, liczba przyporu ≥ 1,1 w każdym stopniu osobno, ścianki w kanale.
+7e. **Porównanie z rewizją 1:** ten sam generator z `h_ch = h_ramp = 0` przechodzi testy 4–7b. Raport podaje udział pola flank rewizji 2 względem rewizji 1 (oczekiwane 60–70%).
 
 **SCAD w WASM (Node, ten sam pakiet `@lofcz/openscad-wasm`, rozszerzenie `scadWasm.test.ts`):**
 
 8. Render każdego wariantu × `fit_profile` × {D min, D domyślne, D max}: kod wyjścia 0, STL jest manifoldem (1 bryła na część), a liczba brył w print-in-place wynosi `2 + N`.
-9. Zgodność SCAD ↔ oracle: wartości `INFO:` (zęby, m, k, min odstęp) równe z tolerancją 1e-3. Eksport 2D (`--export-format svg` dla przekroju warstwy) porównany z wielokątami oracle (Hausdorff < 0,02 mm).
+9. Zgodność SCAD ↔ oracle: wartości `INFO:` (zęby, m, k, min odstęp, pas, kanał, δ, luz osiowy, udział kontaktu) równe z tolerancją 1e-3. Przekroje `debug_section_z` w każdej strefie (każdy stopień obu pasów, warstwa przejściowa, kanał płaski, 3 poziomy rampy, warstwa fazki) eksportowane jako SVG i porównane z wielokątami oracle (Hausdorff < 0,02 mm).
+9a. Niezmienniki 3D w WASM: w eksporcie print-in-place żadne dwie bryły nie mają wspólnej objętości (`intersection()` każdej pary daje pusty wynik), a objętość każdej bryły mieści się w ±1% oracle.
 10. Wydajność: czas renderu ≤ budżet z §8.3 (test oznaczony jako „perf”, raportowany, a nie flaky-fail).
-11. Parametry niedozwolone dają oczekiwaną asercję, np. `outer_diameter = 70` z `finger_hole_diameter = 24` daje `WARNING` i auto-zmniejszenie; `squareness = 100` z drobnymi zębami daje `assert` albo auto-limit.
+11. Parametry niedozwolone dają oczekiwaną asercję, np. `outer_diameter = 70` z `finger_hole_diameter = 24` daje `WARNING` i auto-zmniejszenie; `squareness = 100` z drobnymi zębami daje `assert` albo auto-limit; `gear_thickness < H_min(m)` (np. 7 mm z grubymi zębami) daje `assert` z podpowiedzią.
 
 **Regresja klasyka:**
 
@@ -467,14 +573,17 @@ Macierz minimalna: PLA na drukarce referencyjnej, warstwa 0,2 mm, 3 obrysy, bez 
 
 | # | Próbka | Cel | Kryterium |
 |---|---|---|---|
-| F1 | Kupon luzów: pasek 3 par S–P (każdy `fit_profile`), wysokość 4 mm, bez jodełki | kalibracja `b_n` dla krzywizn nieokrągłych | co najmniej „Standardowy” rozłącza się palcami bez narzędzi |
+| F1 | Kupon luzów: pasek 3 par S–P (każdy `fit_profile`) z pełnym przekrojem rewizji 2 (pas–kanał–rampa–pas) | kalibracja `b_n`, `g_ax`, `r_rec` | co najmniej „Standardowy” rozłącza się palcami bez narzędzi; kanał czysty (brak mostków) |
 | F2 | Kwadrat, D = 90, domyślne | działanie print-in-place | uwolnienie ≤ 30 s ręcznie; ≥ 100 pełnych obrotów bez zacięcia |
 | F3 | Kwadrat, `squareness` max | granica kanciastości | brak zacięć na narożach; subiektywne „pulsowanie” akceptowalne |
 | F4 | Trójkąt, D = 90 | działanie wariantu bez referencji | jak F2 |
-| F5 | Kwadrat, K = 4 / 6 / 8, δ min/max | blokada osiowa i jakość półek | planety nie wypadają przy wstrząsaniu; półki bez nitek > 0,3 mm |
+| F5 | Kwadrat domyślny; warianty `δ` min/max dla „Standardowego” i „Luźnego” | retencja osiowa i ryzyko wypadnięcia | planety nie wypadają przy wstrząsaniu (30 s) ani przy nacisku palcem ≈ 5 N (waga kuchenna) na planetę z każdej strony; ściskanie obręczy dłonią nie wypycha planet; luz osiowy ≤ 0,5 mm (szczelinomierz) |
 | F6 | PETG, profil „Luźny” | drugi materiał | jak F2 |
 | F7 | Długotrwałość: F2 po 1000 obrotach | zużycie | brak widocznego starcia głów; luz wzrasta ≤ 0,1 mm (pomiar szczelinomierzem) |
 | F8 | Druga drukarka (inna kinematyka) | przenośność | co najmniej „Luźny” działa |
+| F9 | **A/B pierwszego uruchomienia:** rewizja 2 vs rewizja 1 (ciągła z warstwami przejściowymi), te same parametry, po 3 sztuki | czy kanał realnie ułatwia start | rewizja 2 uwalnia się szybciej lub łatwiej w ≥ 2 z 3 par (czas do pierwszego pełnego obrotu, ocena 1–5 przez 2 osoby); po 100 obrotach opór nie wyższy niż w rewizji 1 |
+| F10 | Upadek: domyślny kwadrat z 1 m na twardą podłogę, 5 razy | minimalna wytrzymałość cieńszych pasów i ścianek w kanale | brak pęknięć pasów i zębów; planety pozostają na miejscu lub dają się wcisnąć ręką i dalej działają |
+| F11 | Kupon nawisu rampy: `o_max` 0,4 / 0,8 / 1,2 mm × kąt 45° / 50°; półki `δ·cos α` 0,4 / 0,6 / 0,8 mm | kalibracja ukrytych stałych druku | wybrane wartości drukują się bez nitek łączących kanał z sąsiednim ciałem |
 
 Każdy wynik trafia do `docs/` (protokół: parametry, zdjęcie, uwagi).
 
@@ -484,10 +593,10 @@ Każdy wynik trafia do `docs/` (protokół: parametry, zdjęcie, uwagi).
 
 | Faza | Zakres | Wyjście | **GO** gdy | **NO-GO / reakcja** |
 |---|---|---|---|---|
-| **0. Oracle i dowód wykonalności** (TS, bez SCAD) | Rodziny krzywych, kinematyka, Kennedy, korekta `k`, dłutak, obwiednie, symulacja kolizji; poszukiwanie dokładnych rozwiązań bez `k` | `tools/noncircular-oracle`, testy 1–7, raport liczbowy w `docs/` | Kwadrat i trójkąt: dla co najmniej 3 wartości `e₁` z widocznym efektem (wizualnie „kwadratowe”) wszystkie testy 1–7 przechodzą, `|k − 1| ≤ 0,5%` | Jeśli regularne obwiednie wychodzą tylko dla `e₁` tak małych, że kształt jest ledwie widoczny: stop i decyzja produktowa (np. tylko Kwadrat+ z większym sun, albo rezygnacja). **Nie** przechodzimy na skróty z §11. |
+| **0. Oracle i dowód wykonalności** (TS, bez SCAD) | Rodziny krzywych, kinematyka, Kennedy, korekta `k`, dłutak, obwiednie, symulacja kolizji; model osiowy rewizji 2 (pasy, stopnie, przejścia, kanał, rampa); poszukiwanie dokładnych rozwiązań bez `k` | `tools/noncircular-oracle`, testy 1–7e, raport liczbowy w `docs/` (w tym `H_min(m)`, `δ` dla każdego `fit_profile`) | Kwadrat i trójkąt: dla co najmniej 3 wartości `e₁` z widocznym efektem (wizualnie „kwadratowe”) wszystkie testy 1–7e przechodzą, `|k − 1| ≤ 0,5%`, istnieje `δ` spełniające jednocześnie blokadę, limit półki i grubość głowy dla wszystkich `fit_profile` | Jeśli regularne obwiednie wychodzą tylko dla `e₁` tak małych, że kształt jest ledwie widoczny: stop i decyzja produktowa (np. tylko Kwadrat+ z większym sun, albo rezygnacja). **Nie** przechodzimy na skróty z §11. |
 | **1. SCAD: numeryka** | `lib/ncg_curves`, `ncg_kinematics`, `ncg_validate`; raport `INFO:` | moduł renderuje centroidy (2D) | wartości `INFO:` zgodne z oracle (test 9) | rozbieżność > 1e-3: poprawić przed fazą 2 |
 | **2. SCAD: zęby 2D + wydajność** | dłutak, obwiednie jednego płatu, powielanie, luz | `output_mode` 2/3/4 i przekrój 2D | Hausdorff do oracle < 0,02 mm; czas ≤ budżet §8.3 | za wolno: opcja C (tablica) i/lub §4.7(d) przed dalszymi krokami |
-| **3. 3D: jodełka schodkowa, fazki, print-in-place** | warstwy, fazki, otwory, obręcz | pełny model 3D, testy 8, 10, 11 | manifold, `2 + N` brył, testy zielone; **wydruki F1, F2, F5 pozytywne** | F5 negatywne: fallback wargi osiowe (decyzja produktowa); F1/F2: rekalibracja luzów |
+| **3. 3D: rozdzielone pasy, kanał, fazki, print-in-place** | podział wysokości (§4.10.1), stopnie, warstwy przejściowe, cofnięcie rdzenia, rampa, fazka pierwszej warstwy, otwory, obręcz | pełny model 3D, testy 7a–7e, 8, 9, 9a, 10, 11 | manifold, `2 + N` brył bez wspólnej objętości, testy zielone; **wydruki F1, F2, F5, F9, F10, F11 pozytywne**, w tym F9: rewizja 2 nie gorsza od rewizji 1 i lepsza przy pierwszym uruchomieniu | F11 negatywne: korekta `o_max`, kąta rampy, `r_rec`; F5 negatywne: zwiększ `δ`/liczbę stopni w granicach §4.10.5, potem fallback z §4.10.4; F9 bez poprawy: analiza przyczyn tarcia (zgrzania vs luz) przed dalszą pracą, rewizja 1 jako fallback |
 | **4. Wariant trójkątny i kalibracja** | granice `e₁`, wydruki F3, F4, F6 | tabela limitów | F3, F4, F6 pozytywne | trójkąt nie działa: publikujemy tylko kwadrat, trójkąt pozostaje ukryty (`shape` z jedną opcją) |
 | **5. Integracja produktu** | `module.json`, rejestracja przykładu, test `test_scad_repository.py`, testy regresji 12–13, opisy UI | PR do `main` | wszystkie testy + F7, F8 | brak |
 | **6. (opcjonalnie) Rozszerzenia** | Kwadrat+, Trójkąt+, style obudowy | osobne PR | te same bramki | — |
@@ -501,8 +610,14 @@ Każdy wynik trafia do `docs/` (protokół: parametry, zdjęcie, uwagi).
 | Ryzyko | Prawdopodobieństwo | Skutek | Mitygacja |
 |---|---|---|---|
 | Hipoteza z §4.6 jest prawdziwa, a korekta `k` daje nieregularne obwiednie przy dużej kanciastości | średnie | niższy limit `e₁`, mniej „kwadratowy” wygląd | faza 0 mierzy limit; `e₂` (spłaszczenie boków) jako dźwignia wizualna |
-| Wydajność obwiedni w WASM | średnie | render > 90 s | jeden płat + powielanie, `K/2` unikalnych warstw, opcja C, metoda analityczna |
-| Schodkowa jodełka nie trzyma osiowo albo półki drukują się źle | średnie | planety wypadają albo się zgrzewają | test 6 + F5; fallback wargi osiowe |
+| Wydajność obwiedni w WASM | średnie | render > 90 s | jeden płat + powielanie, 3 unikalne stopnie wspólne dla obu pasów, opcja C, metoda analityczna |
+| **Wypadanie planet**: `δ` za małe względem realnego luzu, zaokrąglone krawędzie stopni, zużycie albo owalizacja obręczy przy ściskaniu | średnie | planeta wysuwa się osiowo | warunek `δ ≥ j_t + 0,15`, 3 stopnie w każdym pasie, obręcz ≥ 2,0 mm w kanale, test 6, F5, F7, F10; fallback z §4.10.4 |
+| Rampa nad kanałem drukuje się z nitkami, które łączą ciała | średnie | zgrzanie w kanale, trudny start | cofnięcie `r_rec` daje duży luz radialny, `o_max` i kąt z F11, test 7c |
+| Poziome nakładki stopni zgrzewają się mimo `g_ax` | niskie–średnie | ciasny start mimo kanału | warstwy przejściowe (test 7b), `g_ax` 0,3 mm dla „Luźnego”, F1/F9 |
+| Krótsze pasy łamią się lub ścinają zęby | niskie–średnie | uszkodzenie po upadku | minima §4.10.5, F10; drobne zęby wymagają wyższego `H_min` |
+| Mniejsze pole kontaktu zwiększa zużycie lub luz po czasie | średnie | rosnący luz, stuki | F7 (1000 obrotów) na rewizji 2 |
+| Kanał nie daje zauważalnej poprawy startu (tarcie pochodzi z innych źródeł) | średnie | brak korzyści przy wyższym `H_min` | test A/B F9 jako bramka fazy 3 |
+| Wyższe `H_min` wyklucza cienkie modele | wysokie (z założenia) | minimum ≈ 7,2–8,2 mm | komunikat w `assert`; świadoma decyzja produktowa |
 | Pulsowanie przełożenia odczuwalne jako zacinanie | średnie | gorsze „czucie” | limit `e₁` z F3; preset „łagodny” jako domyślny |
 | Promieniowe „oddychanie” planet powoduje stuki | niskie–średnie | hałas | limit zmiany promienia orbity (≤ 1%) jako warunek walidacji |
 | Różnice między drukarkami (luz) | wysokie | nie rozłącza się | 3 profile luzu, F8 |
@@ -522,13 +637,23 @@ Każdy wynik trafia do `docs/` (protokół: parametry, zdjęcie, uwagi).
 9. **Renderowanie po stronie serwera** albo przenoszenie obliczeń geometrii do backendu.
 10. **Kopiowanie kodu, plików STL/3MF lub wymiarów z zamkniętych modeli** ze zdjęć referencyjnych albo z serwisów z modelami. Wolno korzystać wyłącznie z teorii z otwartych lub cytowanych źródeł (§14).
 11. **Zmiana parametrów, domyślnych wartości lub geometrii klasycznego `planetary-fidget`** w ramach tego projektu.
+12. **Kanał wycięty tylko w jednym ciele** (np. rowek w pierścieniu przy pełnowysokościowych planetach) albo kanał bez cofnięcia rdzenia poniżej linii stóp. To nie zmniejsza kontaktu w sposób kontrolowany.
+13. **Pasy o tej samej orientacji** (brak „V”) albo pasy bez stopni. Proste zęby w obu pasach nie dają retencji osiowej.
+14. **Stopnie bez warstw przejściowych**, czyli poziome powierzchnie różnych ciał bez pionowej szczeliny `g_ax`.
+15. **`twist` w obrębie pasa** jako „ułatwienie” zamiast stopni.
+16. **Wystawienie w UI surowych stałych osiowych** (`δ`, `g_ax`, `r_rec`, `o_max`, liczba stopni) bez danych z wydruków uzasadniających taką potrzebę.
 
 ---
 
 ## 12. Czego nie da się potwierdzić bez wydruku fizycznego
 
 - Rzeczywisty luz konieczny do rozdzielenia elementów print-in-place przy zmiennej krzywiźnie. Wartości z klasyka są tylko punktem startu.
-- Czy schodkowa jodełka (półki δ) drukuje się czysto i czy trzyma osiowo przy realnym tarciu.
+- Czy rozdzielone pasy ze stopniami (półki δ) drukują się czysto i czy trzymają osiowo przy realnym tarciu i zużyciu.
+- Czy kanał centralny **realnie** ułatwia pierwsze uruchomienie. Hipoteza: mniejsze pole zgrzań i brak kontaktu w pasie zwisów. Potwierdzi to dopiero test A/B F9.
+- Jakość rampy 45° nad kanałem i to, czy nitki z nawisu nie łączą ciał.
+- Czy `g_ax` = 1 warstwa wystarcza na danej drukarce (zależy od chłodzenia i kalibracji Z).
+- Wytrzymałość krótszych pasów na upadki i ściskanie (F10).
+- Czy referencja ze zdjęć ma dolny pas zębów. Spód nie jest widoczny (§2.6), co nie wpływa na naszą konstrukcję.
 - Subiektywne „czucie”: pulsowanie przełożenia, hałas, opór, bezwładność, satysfakcja z obrotu.
 - Czy promieniowe „oddychanie” planet (±0,5–1%) i korekta `k` nie powodują stuków ani zakleszczeń przy luzie realnym (nierównomiernym po obwodzie wydruku).
 - Trwałość po wielu obrotach i zachowanie w PETG.
@@ -544,13 +669,14 @@ Projekt nieokrągłego fidgetu jest ukończony, gdy **wszystkie** punkty są spe
 
 1. Istnieje moduł `examples/scad/planetary-fidget-noncircular/` z `main.scad`, `lib/*.scad` i `module.json`. Parser Customizera ładuje go bez ostrzeżeń, a parametry odpowiadają §6.1.
 2. Warianty kwadratowy (N = 4, pierścień 12-płatowy) i trójkątny (N = 3, pierścień 9-płatowy) mają **prawdziwe nieokrągłe centroidy** koła centralnego, planet i pierścienia. Zęby są wyznaczone metodą dłutaka i obwiedni z §4.7. Żaden zakazany skrót z §11.2 nie występuje (review kodu z listą kontrolną).
-3. Oracle TS istnieje w repozytorium, a testy 1–7 przechodzą w CI dla pełnej siatki parametrów.
-4. Testy WASM 8–11 przechodzą. Wyniki SCAD są zgodne z oracle (§9.1, test 9).
+3. Oracle TS istnieje w repozytorium, a testy 1–7e przechodzą w CI dla pełnej siatki parametrów, w tym model osiowy rewizji 2.
+4. Testy WASM 8–11 (z 9a) przechodzą. Wyniki SCAD są zgodne z oracle również w przekrojach wszystkich stref wysokości (§9.1, test 9).
+4a. Każde ciało ma dwa rozdzielone pasy zębów (górny i dolny) po 3 stopnie o przeciwnej orientacji. Między nimi jest kanał bez zębów z rdzeniem cofniętym o `r_rec` pod linię stóp, rampa 45° pod pasem górnym, warstwy przejściowe `g_ax` na granicach stopni i fazka pierwszej warstwy. Wszystkie te stałe są ukryte i wynikają z `fit_profile`, `tooth_style` i `gear_thickness`. Rewizja 2 nie dodaje parametrów UI.
 5. Pełny render print-in-place mieści się w budżecie z §8.3 na referencyjnym sprzęcie. Czas jest udokumentowany.
 6. Całe generowanie odbywa się w przeglądarce przez istniejący worker WASM. Diff backendu ogranicza się do rejestracji przykładu i testów.
 7. Klasyczny `planetary-fidget` jest bitowo niezmieniony (`main.scad`, `module.json`), a testy regresji 12–13 przechodzą.
-8. Wydruki F1–F8 są wykonane, udokumentowane protokołem w `docs/` i pozytywne. Ewentualnie wariant trójkątny jest świadomie ukryty zgodnie z bramką fazy 4.
-9. Limity (`e₁_max` na kształt, minimalna średnica, maksymalny otwór na palec) wynikają z pomiarów i są wymuszone w SCAD (asercje i ostrzeżenia).
+8. Wydruki F1–F11 są wykonane, udokumentowane protokołem w `docs/` i pozytywne, w szczególności F5 (planety nie wypadają), F9 (A/B: rewizja 2 łatwiej uruchamia się po wydruku niż rewizja 1) i F10 (upadek). Ewentualnie wariant trójkątny jest świadomie ukryty zgodnie z bramką fazy 4.
+9. Limity (`e₁_max` na kształt, minimalna średnica, maksymalny otwór na palec, `H_min(m)`, `δ` i `g_ax` na profil luzu) wynikają z pomiarów i są wymuszone w SCAD (asercje i ostrzeżenia).
 10. Dokumentacja użytkownika (opis modułu, zalecenia druku) jest po polsku i uczciwie opisuje pulsujący charakter obrotu.
 
 ---
