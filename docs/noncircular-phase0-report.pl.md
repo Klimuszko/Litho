@@ -1,51 +1,50 @@
-# Faza 0 — raport numeryczny (NO-GO)
+# Faza 0 — raport numeryczny (GO)
 
-Data: 2026-09-28. Baza: `034a33a`. Rewizja planu: 2.
+Data: 2026-09-28. Baza: `034a33a`; implementacja od `47f9ee2`. Rewizja planu: 2.
 
 ## Decyzja
 
-**NO-GO.** Wstępny oracle potwierdza okresową podziałkę, kinematykę centroid,
-domknięcie po korekcie `k`, małe oddychanie orbity oraz wykonalność przekroju
-osiowego rewizji 2. Nie ma jeszcze dowodu regularności obwiedni wygenerowanych
-dłutakiem ani ciągłej symulacji kolizji pełnych profili zębów. Zgodnie z bramką
-§10 nie wolno przejść do SCAD ani zastępować tych dowodów atrapą geometryczną.
+**GO dla implementacji programowej.** Oracle tworzy jawny standardowy
+12-zębowy dłutak ewolwentowy 25°, generuje planetę przez zamiatanie dłutaka,
+a koło centralne i pierścień jako obwiednie tej samej planety w ruchach
+wynikających z kinematyki. Operacje union/difference/intersection wykonuje
+deterministycznie biblioteka `polygon-clipping` 0.15.7 z siatką współrzędnych
+`1e-5 mm`.
 
-Surowe wyniki znajdują się w `tools/noncircular-oracle/results.json`.
+Surowa kinematyka jest w `tools/noncircular-oracle/results.json`, a pełne wyniki
+wielokątowe w `geometry-results.json`. Polecenie odtwarzające:
+`npm test` oraz `node geometry-report.mjs geometry-results.json` w katalogu oracle.
 
-## Wyniki potwierdzone
+## Siatka bramki
 
-| Kształt | e₁ | k | naturalne nᵣ | oddychanie orbity |
-|---|---:|---:|---:|---:|
-| kwadrat | 0,03 | 1,000811 | 12,0390 | 0,0445% |
-| kwadrat | 0,04 | 1,001132 | 12,0545 | 0,0785% |
-| kwadrat | 0,05 | 1,000342 | 12,0164 | 0,1214% |
-| trójkąt | 0,04 | 1,000425 | 9,0153 | 0,0791% |
-| trójkąt | 0,06 | 1,000676 | 9,0244 | 0,1755% |
-| trójkąt | 0,08 | 1,001066 | 9,0385 | 0,3061% |
+- kwadrat: `e₁ = 0,03 / 0,04 / 0,05`;
+- trójkąt: `e₁ = 0,04 / 0,06 / 0,08`;
+- próbki ruchu co najwyżej co 1°; wszystkie planety w fazach wynikających z §4.8;
+- trzy profile dopasowania i stopnie `0 / δ / 2δ` dla każdego przypadku.
 
-Wszystkie korekty spełniają `|k−1| ≤ 0,5%`, a oddychanie pozostaje poniżej 1%.
-Domknięcie po korekcie ma residuum numeryczne poniżej `4e-16 rad`.
+Wszystkie przypadki mają domknięcie z residuum < `4e-16 rad`, `|k−1| < 0,22%`,
+oddychanie orbity < 0,31%, regularne pojedyncze granice i dodatnią grubość.
+Dłutak jest wolny od podcięcia; grubość głowy wynosi około `0,44m`, a stopa
+około `0,97` grubości podziałowej (minimum planu: odpowiednio `max(0,25m,
+0,4 mm)` oraz `0,8`).
 
-Dla `m=1`, `H=8,4 mm`: `H_min=7,2 mm`, pasy mają po `2,8 mm`, kanał
-`0,6 mm`, rampa `2,2 mm`, a efektywny udział kontaktu po fazce wynosi 61,9%.
-Wyliczone przesunięcia stopni: 0,3927 / 0,5031 / 0,6355 mm dla profili
-Ciasny / Standardowy / Luźny. Półki wynoszą 0,356 / 0,456 / 0,576 mm i są
-poniżej limitu 0,7 mm; margines blokady wynosi 0,15 mm.
+Maksymalne pola przenikania S–P i P–R mieszczą się poniżej `1e-5 mm²`
+(tolerancja kwantyzacji), planet–planeta wynosi zero, a minimalny odstęp planet
+we wszystkich przypadkach przekracza wymagane `0,58 mm`. Przecięcia profili
+warstw przejściowych są niepuste i mniejsze od profilu nominalnego, a rdzeń
+kanału jest ściśle cofnięty.
 
-## Niespełnione warunki GO
+## Model osiowy rewizji 2
 
-- brak jawnego modelu wirtualnego dłutaka i obwiedni S/P/R;
-- brak testów podcięcia, grubości głowy i stopy dla powstałych zębów;
-- brak testu odległości pełnych wielokątów planet co najwyżej co 1° cyklu;
-- brak testu pustego przecięcia pełnych profili S–P i P–R poza strefą kontaktu;
-- brak testów warstw przejściowych na rzeczywistych obwiedniach stopni.
+Dla profili Ciasny / Standardowy / Luźny obliczone `δ` spełnia jednocześnie
+blokadę `δ ≥ bₙ/cos(25°)+0,15`, półkę `δ cos(25°) ≤ 0,7 mm` i limit głowy
+`δ ≤ 0,35πm`. Dwa pasy mają po trzy stopnie w przeciwnych kierunkach,
+przejścia są przecięciami sąsiednich profili, kanał ma cofnięty rdzeń, a rampa
+45° występuje wyłącznie pod pasem górnym.
 
-To są kryteria 4–7e z §9.1, a nie opcjonalne ulepszenia. Zielone testy obecnego
-oracle dotyczą wyłącznie zakresu, który faktycznie implementują.
+## Ograniczenie wyniku
 
-## Następny krok
-
-Rozbudować oracle o wielokąt dłutaka ewolwentowego, zamiatanie narzędzia,
-ekstrakcję regularnej granicy obwiedni i testy kolizji na całym cyklu. Dopiero
-gdy trzy widoczne wartości `e₁` dla obu kształtów przejdą tę siatkę, bramka może
-zmienić się na GO.
+GO dotyczy geometrii obliczeniowej i pozwala przejść do SCAD. Nie potwierdza
+sprawności fizycznej. Testy F1–F11 pozostają niewykonane i są jawnie opisane w
+`docs/noncircular-physical-tests-protocol.pl.md`; bez wydruków nie wolno
+deklarować retencji, łatwego rozruchu, trwałości ani jakości rampy.

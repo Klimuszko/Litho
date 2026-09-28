@@ -71,9 +71,9 @@ def test_bundled_examples_are_seeded_as_official_modules(system, monkeypatch):
     monkeypatch.setenv("LITHO_SCAD_EXAMPLES_DIR", str(examples))
     monkeypatch.setenv("LITHO_SCAD_SEED_EXAMPLES", "true")
     created = repository.seed_bundled_examples()
-    assert len(created) == 1
+    assert len(created) == 2
     official = [item for item in repository.list_modules(bob, "all") if item["official"]]
-    assert {item["slug"] for item in official} == {"planetary-fidget"}
+    assert {item["slug"] for item in official} == {"planetary-fidget", "planetary-fidget-noncircular"}
     assert all(item["official"] and item["visibility"] == "system" for item in official)
     assert repository.seed_bundled_examples() == []
 

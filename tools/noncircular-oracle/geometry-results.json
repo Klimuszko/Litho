@@ -1,0 +1,434 @@
+[
+  {
+    "shape": "kwadrat",
+    "lobes": 4,
+    "e1": 0.03,
+    "teeth": 24,
+    "module": 1.0035910285247156,
+    "k": 1.0019990012785691,
+    "shaper": {
+      "teeth": 12,
+      "undercutFree": true,
+      "tipThickness": 0.44181679744644164,
+      "rootThickness": 1.5338010861464786
+    },
+    "boundary": {
+      "planet": {
+        "vertices": 356,
+        "minEdge": 0.0014788808375664406,
+        "minTurn": 0.41418839282333464,
+        "regular": true
+      },
+      "sun": {
+        "vertices": 1912,
+        "minEdge": 0.0000939385327467778,
+        "minTurn": 0.38837175492319814,
+        "regular": true
+      },
+      "ring": {
+        "vertices": 1080,
+        "minEdge": 0.23571312950762233,
+        "minTurn": 3.135774889416334,
+        "regular": true
+      }
+    },
+    "cycle": {
+      "maxPlanetOverlap": 0,
+      "maxSunOverlap": 0.00000115161605762637,
+      "maxRingOverlap": 0.000006942559273248605,
+      "minPlanetSpacing": 10.846402773500527
+    },
+    "axial": [
+      {
+        "fit": "Ciasny",
+        "delta": 0.3927431421717482,
+        "valid": true,
+        "transitionAreas": [
+          384.7112433582637,
+          384.71125018028727
+        ],
+        "channelArea": 355.8206745015027
+      },
+      {
+        "fit": "Standardowy",
+        "delta": 0.5030809340679974,
+        "valid": true,
+        "transitionAreas": [
+          384.50402802283014,
+          384.5040136072868
+        ],
+        "channelArea": 355.8206745015027
+      },
+      {
+        "fit": "Luźny",
+        "delta": 0.6354862843434964,
+        "valid": true,
+        "transitionAreas": [
+          384.423951491937,
+          384.42395995546053
+        ],
+        "channelArea": 355.8206745015027
+      }
+    ]
+  },
+  {
+    "shape": "kwadrat",
+    "lobes": 4,
+    "e1": 0.04,
+    "teeth": 24,
+    "module": 1.006371995875379,
+    "k": 1.001741518772815,
+    "shaper": {
+      "teeth": 12,
+      "undercutFree": true,
+      "tipThickness": 0.44304107910475826,
+      "rootThickness": 1.5380512743424173
+    },
+    "boundary": {
+      "planet": {
+        "vertices": 396,
+        "minEdge": 0.012747620674257134,
+        "minTurn": 0.756561716365098,
+        "regular": true
+      },
+      "sun": {
+        "vertices": 2128,
+        "minEdge": 0.00014082640244779274,
+        "minTurn": 0.3639488683903352,
+        "regular": true
+      },
+      "ring": {
+        "vertices": 1080,
+        "minEdge": 0.23578593495993666,
+        "minTurn": 3.135774889416353,
+        "regular": true
+      }
+    },
+    "cycle": {
+      "maxPlanetOverlap": 0,
+      "maxSunOverlap": 0.0000011017222139031446,
+      "maxRingOverlap": 0.000004838611856960995,
+      "minPlanetSpacing": 10.641652953864826
+    },
+    "axial": [
+      {
+        "fit": "Ciasny",
+        "delta": 0.3927431421717482,
+        "valid": true,
+        "transitionAreas": [
+          383.76435509000106,
+          383.7643449768416
+        ],
+        "channelArea": 355.05924903887706
+      },
+      {
+        "fit": "Standardowy",
+        "delta": 0.5030809340679974,
+        "valid": true,
+        "transitionAreas": [
+          383.48190369268815,
+          383.48191061602193
+        ],
+        "channelArea": 355.05924903887706
+      },
+      {
+        "fit": "Luźny",
+        "delta": 0.6354862843434964,
+        "valid": true,
+        "transitionAreas": [
+          383.2956096706962,
+          383.2955952114046
+        ],
+        "channelArea": 355.05924903887706
+      }
+    ]
+  },
+  {
+    "shape": "kwadrat",
+    "lobes": 4,
+    "e1": 0.05,
+    "teeth": 24,
+    "module": 1.00993216502765,
+    "k": 1.0021600179511787,
+    "shaper": {
+      "teeth": 12,
+      "undercutFree": true,
+      "tipThickness": 0.4446083933677567,
+      "rootThickness": 1.543492326680884
+    },
+    "boundary": {
+      "planet": {
+        "vertices": 356,
+        "minEdge": 0.0015627319204242116,
+        "minTurn": 0.7565601309718963,
+        "regular": true
+      },
+      "sun": {
+        "vertices": 1872,
+        "minEdge": 0.00011763841180163098,
+        "minTurn": 0.7576159278270481,
+        "regular": true
+      },
+      "ring": {
+        "vertices": 1080,
+        "minEdge": 0.2358791398389466,
+        "minTurn": 3.135774889416372,
+        "regular": true
+      }
+    },
+    "cycle": {
+      "maxPlanetOverlap": 0,
+      "maxSunOverlap": 8.199633327876654e-7,
+      "maxRingOverlap": 0.00000498003838167449,
+      "minPlanetSpacing": 10.432247873421144
+    },
+    "axial": [
+      {
+        "fit": "Ciasny",
+        "delta": 0.3927431421717482,
+        "valid": true,
+        "transitionAreas": [
+          382.3876541158927,
+          382.3876313892237
+        ],
+        "channelArea": 353.9847115474895
+      },
+      {
+        "fit": "Standardowy",
+        "delta": 0.5030809340679974,
+        "valid": true,
+        "transitionAreas": [
+          382.0895332683117,
+          382.0894980926752
+        ],
+        "channelArea": 353.9847115474895
+      },
+      {
+        "fit": "Luźny",
+        "delta": 0.6354862843434964,
+        "valid": true,
+        "transitionAreas": [
+          381.79279602874516,
+          381.7927793160119
+        ],
+        "channelArea": 353.9847115474895
+      }
+    ]
+  },
+  {
+    "shape": "trójkąt",
+    "lobes": 3,
+    "e1": 0.04,
+    "teeth": 24,
+    "module": 1.003591657483843,
+    "k": 1.0006842222651493,
+    "shaper": {
+      "teeth": 12,
+      "undercutFree": true,
+      "tipThickness": 0.4418170743368301,
+      "rootThickness": 1.533802047392809
+    },
+    "boundary": {
+      "planet": {
+        "vertices": 339,
+        "minEdge": 0.0009990267350813748,
+        "minTurn": 0.40902275457179443,
+        "regular": true
+      },
+      "sun": {
+        "vertices": 1830,
+        "minEdge": 0.00007037270703881818,
+        "minTurn": 0.4089582368571157,
+        "regular": true
+      },
+      "ring": {
+        "vertices": 1080,
+        "minEdge": 0.23571314597370813,
+        "minTurn": 3.135774889416353,
+        "regular": true
+      }
+    },
+    "cycle": {
+      "maxPlanetOverlap": 0,
+      "maxSunOverlap": 9.964071381318718e-7,
+      "maxRingOverlap": 0.000008263679149855818,
+      "minPlanetSpacing": 19.02940956828929
+    },
+    "axial": [
+      {
+        "fit": "Ciasny",
+        "delta": 0.3927431421717482,
+        "valid": true,
+        "transitionAreas": [
+          384.84733046580686,
+          384.8473458958739
+        ],
+        "channelArea": 355.92983933016166
+      },
+      {
+        "fit": "Standardowy",
+        "delta": 0.5030809340679974,
+        "valid": true,
+        "transitionAreas": [
+          384.6410466115811,
+          384.6410777728696
+        ],
+        "channelArea": 355.92983933016166
+      },
+      {
+        "fit": "Luźny",
+        "delta": 0.6354862843434964,
+        "valid": true,
+        "transitionAreas": [
+          384.5608703952169,
+          384.5608924404765
+        ],
+        "channelArea": 355.92983933016166
+      }
+    ]
+  },
+  {
+    "shape": "trójkąt",
+    "lobes": 3,
+    "e1": 0.06,
+    "teeth": 24,
+    "module": 1.0080584589085773,
+    "k": 1.0010708585895243,
+    "shaper": {
+      "teeth": 12,
+      "undercutFree": true,
+      "tipThickness": 0.4437835206722526,
+      "rootThickness": 1.5406287175025741
+    },
+    "boundary": {
+      "planet": {
+        "vertices": 381,
+        "minEdge": 0.003306906893188755,
+        "minTurn": 0.7565615490914191,
+        "regular": true
+      },
+      "sun": {
+        "vertices": 1986,
+        "minEdge": 0.00004212219712036777,
+        "minTurn": 0.7565433385029521,
+        "regular": true
+      },
+      "ring": {
+        "vertices": 1080,
+        "minEdge": 0.2358300863966378,
+        "minTurn": 3.135774889416372,
+        "regular": true
+      }
+    },
+    "cycle": {
+      "maxPlanetOverlap": 0,
+      "maxSunOverlap": 0.0000010766801423756078,
+      "maxRingOverlap": 0.000008409828863520374,
+      "minPlanetSpacing": 18.893079383258303
+    },
+    "axial": [
+      {
+        "fit": "Ciasny",
+        "delta": 0.3927431421717482,
+        "valid": true,
+        "transitionAreas": [
+          383.44637160169435,
+          383.4463892535804
+        ],
+        "channelArea": 354.8056256223003
+      },
+      {
+        "fit": "Standardowy",
+        "delta": 0.5030809340679974,
+        "valid": true,
+        "transitionAreas": [
+          383.12493266550644,
+          383.1249213272148
+        ],
+        "channelArea": 354.8056256223003
+      },
+      {
+        "fit": "Luźny",
+        "delta": 0.6354862843434964,
+        "valid": true,
+        "transitionAreas": [
+          382.85409013923226,
+          382.8541168828226
+        ],
+        "channelArea": 354.8056256223003
+      }
+    ]
+  },
+  {
+    "shape": "trójkąt",
+    "lobes": 3,
+    "e1": 0.08,
+    "teeth": 24,
+    "module": 1.0142701248390436,
+    "k": 1.0015918644107071,
+    "shaper": {
+      "teeth": 12,
+      "undercutFree": true,
+      "tipThickness": 0.4465181189998587,
+      "rootThickness": 1.5501220864946559
+    },
+    "boundary": {
+      "planet": {
+        "vertices": 361,
+        "minEdge": 0.0005182525327768497,
+        "minTurn": 0.7565594750759252,
+        "regular": true
+      },
+      "sun": {
+        "vertices": 1911,
+        "minEdge": 0.0000032051293935393476,
+        "minTurn": 0.7550669109779519,
+        "regular": true
+      },
+      "ring": {
+        "vertices": 1080,
+        "minEdge": 0.2359927072010762,
+        "minTurn": 3.135774889416334,
+        "regular": true
+      }
+    },
+    "cycle": {
+      "maxPlanetOverlap": 0,
+      "maxSunOverlap": 9.553812603257938e-7,
+      "maxRingOverlap": 0.00000682700046777257,
+      "minPlanetSpacing": 18.744395550398522
+    },
+    "axial": [
+      {
+        "fit": "Ciasny",
+        "delta": 0.3927431421717482,
+        "valid": true,
+        "transitionAreas": [
+          381.2526797194037,
+          381.2526783092507
+        ],
+        "channelArea": 353.10519076408536
+      },
+      {
+        "fit": "Standardowy",
+        "delta": 0.5030809340679974,
+        "valid": true,
+        "transitionAreas": [
+          380.87050270394894,
+          380.8705061506878
+        ],
+        "channelArea": 353.10519076408536
+      },
+      {
+        "fit": "Luźny",
+        "delta": 0.6354862843434964,
+        "valid": true,
+        "transitionAreas": [
+          380.4069844650361,
+          380.4069698722091
+        ],
+        "channelArea": 353.10519076408536
+      }
+    ]
+  }
+]

@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc && vite build",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:noncircular-wasm": "node ../tools/noncircular-oracle/wasm-smoke.mjs 0 0 1 && node ../tools/noncircular-oracle/wasm-smoke.mjs 1 0 1"
   },
   "dependencies": {
     "@lofcz/openscad-wasm": "^0.0.2",

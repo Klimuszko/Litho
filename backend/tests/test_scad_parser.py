@@ -1,8 +1,22 @@
+from pathlib import Path
+
 from app.scad.parser import ScadParser
 
 
 def by_name(source: str):
     return {item.name: item for item in ScadParser().parse(source).parameters}
+
+
+def test_noncircular_module_has_polish_ui_and_hidden_axial_technology():
+    source = (Path(__file__).resolve().parents[2] / "examples" / "scad" / "planetary-fidget-noncircular" / "main.scad").read_text(encoding="utf-8")
+    result = ScadParser().parse(source)
+    assert result.warnings == []
+    params = {item.name: item for item in result.parameters}
+    assert params["shape"].optionLabels == ["Kwadratowy", "Trójkątny"]
+    assert params["fit_profile"].optionLabels == ["Ciasny", "Standardowy", "Luźny"]
+    assert params["curve_samples"].hidden is True
+    assert params["recess"].hidden and params["channel_h"].hidden
+    assert "channel_profile" not in params
 
 
 def test_parses_numeric_ranges_sections_and_types():

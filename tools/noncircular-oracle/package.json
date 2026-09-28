@@ -1,0 +1,7 @@
+{
+  "name": "noncircular-oracle",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test oracle.test.mjs" },
+  "dependencies": { "polygon-clipping": "0.15.7" }
+}

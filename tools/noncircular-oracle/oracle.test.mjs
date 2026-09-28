@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { FITS, axialDesign, evaluateCase, sampleCurve, TAU } from "./oracle.mjs";
+import { boundaryMetrics, generateMechanism, polygonArea, validateAxialProfiles, validateCycle } from "./geometry.mjs";
 
 const cases = [
   ...[0.03, 0.04, 0.05].map(e1 => ({ lobes: 4, e1 })),
@@ -43,4 +44,31 @@ test("7a: algebra przekroju dwóch pasów, kanału, rampy i retencji", () => {
 test("phasing: liczby płatów i planet są zgodne", () => {
   for (const { lobes } of cases) assert.equal((3 * lobes) % lobes, 0);
   assert.equal(TAU / 4 * 4, TAU);
+});
+
+test("4–6: dłutak, obwiednie, regularność, podcięcie i pełny cykl kolizji", { timeout: 180_000 }, () => {
+  for (const c of cases) {
+    const mech = generateMechanism({ ...c, radius: 12, module: 1, posesPerPitch: 4 });
+    const shaper = mech.planet.shaper;
+    assert.ok(shaper.undercutFree, `${c.lobes}/${c.e1}: dłutak podcięty`);
+    assert.ok(shaper.tipThickness >= Math.max(0.25 * mech.planet.module, 0.4));
+    assert.ok(shaper.rootThickness >= 0.8 * shaper.pitchThickness);
+    for (const [name, profile] of [["P", mech.planet.polygon], ["S", mech.sun], ["R", mech.ring]]) {
+      assert.ok(polygonArea(profile) > 0);
+      const metrics = boundaryMetrics(profile, mech.planet.module);
+      assert.ok(metrics.regular, JSON.stringify({ c, name, metrics }));
+    }
+    const cycle = validateCycle(mech);
+    assert.ok(cycle.maxPlanetOverlap < 1e-5, JSON.stringify({ c, cycle }));
+    assert.ok(cycle.maxSunOverlap < 1e-5, JSON.stringify({ c, cycle }));
+    assert.ok(cycle.maxRingOverlap < 1e-5, JSON.stringify({ c, cycle }));
+    assert.ok(cycle.minPlanetSpacing >= 0.58, JSON.stringify({ c, cycle }));
+    for (const fit of FITS) {
+      const axial = axialDesign(mech.planet.module, fit, 8.4);
+      const layers = validateAxialProfiles(mech, axial.delta);
+      assert.ok(layers.valid);
+      assert.ok(layers.transitionAreas.every(a => a > 0 && a < layers.nominalArea));
+      assert.ok(layers.channelArea < layers.nominalArea);
+    }
+  }
 });

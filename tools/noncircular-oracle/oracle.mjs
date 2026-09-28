@@ -27,7 +27,7 @@ export function sampleCurve(spec, count = 8192) {
   return { spec, points, cumulative, length: cumulative[count] };
 }
 
-function poseAtArc(curve, s) {
+export function poseAtArc(curve, s) {
   const target = mod(s, curve.length);
   let lo = 0, hi = curve.points.length;
   while (lo + 1 < hi) { const mid = (lo + hi) >> 1; if (curve.cumulative[mid] <= target) lo = mid; else hi = mid; }
@@ -74,12 +74,14 @@ export function solveKinematics({ lobes, ringLobes, e1, e2 = 0, radius = 18, sam
     frames.push({ s, c1: sun.point, c2, center, beta });
   }
   let chi = 0;
+  frames[0].chiKin = 0;
   for (let i = 1; i < frames.length; i++) {
     const a = frames[i - 1], b = frames[i];
     const db = b.beta - a.beta;
     const q1 = norm(sub(a.c2, a.c1)) / norm(a.c2);
     const q2 = norm(sub(b.c2, b.c1)) / norm(b.c2);
     chi += db * (q1 + q2) / 2;
+    frames[i].chiKin = chi;
   }
   const c2Angle = frames.map(f => Math.atan2(f.c2[1], f.c2[0])).reduce((acc, x, i, xs) => i ? acc + unwrapDelta(x - xs[i - 1]) : 0, 0);
   const naturalPeriod = Math.abs(c2Angle - chi);

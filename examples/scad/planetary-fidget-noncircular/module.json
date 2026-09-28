@@ -1,0 +1,11 @@
+{
+  "id": "planetary_fidget_noncircular",
+  "slug": "planetary-fidget-noncircular",
+  "name": "Fidget planetarny nieokrągły",
+  "version": "0.1.0",
+  "engine": "openscad",
+  "entry": "main.scad",
+  "category": "Fidgety",
+  "author": "Litho",
+  "description": "Print-in-place z prawdziwymi kwadratowymi lub trójkątnymi kołami nieokrągłymi i rozdzielonymi pasami zębów"
+}
