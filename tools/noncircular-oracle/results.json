@@ -1,0 +1,368 @@
+[
+  {
+    "shape": "kwadrat",
+    "lobes": 4,
+    "e1": 0.03,
+    "ringLobes": 12,
+    "module": 1,
+    "k": 1.0008106100252225,
+    "naturalRingLobes": 12.039004132633496,
+    "closureError": 1.1102230246251565e-16,
+    "orbitBreathing": 0.00044533109833373084,
+    "curvature": {
+      "minConvex": 12.646490406427983,
+      "minConcave": null,
+      "finite": true
+    },
+    "axial": [
+      {
+        "fit": "Ciasny",
+        "delta": 0.3927431421717482,
+        "ramp": 2.2,
+        "bandMin": 2.2,
+        "channel": 0.6,
+        "minimumHeight": 7.2,
+        "band": 2.8000000000000003,
+        "shelf": 0.3559461680554975,
+        "lockMargin": 0.15000000000000002,
+        "headLimit": 1.0995574287564276,
+        "contactShare": 0.6190476190476191,
+        "valid": true
+      },
+      {
+        "fit": "Standardowy",
+        "delta": 0.5030809340679974,
+        "ramp": 2.2,
+        "bandMin": 2.2,
+        "channel": 0.6,
+        "minimumHeight": 7.2,
+        "band": 2.8000000000000003,
+        "shelf": 0.4559461680554975,
+        "lockMargin": 0.14999999999999997,
+        "headLimit": 1.0995574287564276,
+        "contactShare": 0.6190476190476191,
+        "valid": true
+      },
+      {
+        "fit": "Luźny",
+        "delta": 0.6354862843434964,
+        "ramp": 2.2,
+        "bandMin": 2.2,
+        "channel": 0.6,
+        "minimumHeight": 7.2,
+        "band": 2.8000000000000003,
+        "shelf": 0.5759461680554975,
+        "lockMargin": 0.15000000000000002,
+        "headLimit": 1.0995574287564276,
+        "contactShare": 0.6190476190476191,
+        "valid": true
+      }
+    ],
+    "preliminaryPass": true
+  },
+  {
+    "shape": "kwadrat",
+    "lobes": 4,
+    "e1": 0.04,
+    "ringLobes": 12,
+    "module": 1,
+    "k": 1.001131514118623,
+    "naturalRingLobes": 12.054497672351,
+    "closureError": 3.3306690738754696e-16,
+    "orbitBreathing": 0.0007852806493325365,
+    "curvature": {
+      "minConvex": 11.588571448908477,
+      "minConcave": null,
+      "finite": true
+    },
+    "axial": [
+      {
+        "fit": "Ciasny",
+        "delta": 0.3927431421717482,
+        "ramp": 2.2,
+        "bandMin": 2.2,
+        "channel": 0.6,
+        "minimumHeight": 7.2,
+        "band": 2.8000000000000003,
+        "shelf": 0.3559461680554975,
+        "lockMargin": 0.15000000000000002,
+        "headLimit": 1.0995574287564276,
+        "contactShare": 0.6190476190476191,
+        "valid": true
+      },
+      {
+        "fit": "Standardowy",
+        "delta": 0.5030809340679974,
+        "ramp": 2.2,
+        "bandMin": 2.2,
+        "channel": 0.6,
+        "minimumHeight": 7.2,
+        "band": 2.8000000000000003,
+        "shelf": 0.4559461680554975,
+        "lockMargin": 0.14999999999999997,
+        "headLimit": 1.0995574287564276,
+        "contactShare": 0.6190476190476191,
+        "valid": true
+      },
+      {
+        "fit": "Luźny",
+        "delta": 0.6354862843434964,
+        "ramp": 2.2,
+        "bandMin": 2.2,
+        "channel": 0.6,
+        "minimumHeight": 7.2,
+        "band": 2.8000000000000003,
+        "shelf": 0.5759461680554975,
+        "lockMargin": 0.15000000000000002,
+        "headLimit": 1.0995574287564276,
+        "contactShare": 0.6190476190476191,
+        "valid": true
+      }
+    ],
+    "preliminaryPass": true
+  },
+  {
+    "shape": "kwadrat",
+    "lobes": 4,
+    "e1": 0.05,
+    "ringLobes": 12,
+    "module": 1,
+    "k": 1.0003420316558242,
+    "naturalRingLobes": 12.016434382716971,
+    "closureError": 1.1102230246251565e-16,
+    "orbitBreathing": 0.0012144298705717943,
+    "curvature": {
+      "minConvex": 10.727027051933849,
+      "minConcave": null,
+      "finite": true
+    },
+    "axial": [
+      {
+        "fit": "Ciasny",
+        "delta": 0.3927431421717482,
+        "ramp": 2.2,
+        "bandMin": 2.2,
+        "channel": 0.6,
+        "minimumHeight": 7.2,
+        "band": 2.8000000000000003,
+        "shelf": 0.3559461680554975,
+        "lockMargin": 0.15000000000000002,
+        "headLimit": 1.0995574287564276,
+        "contactShare": 0.6190476190476191,
+        "valid": true
+      },
+      {
+        "fit": "Standardowy",
+        "delta": 0.5030809340679974,
+        "ramp": 2.2,
+        "bandMin": 2.2,
+        "channel": 0.6,
+        "minimumHeight": 7.2,
+        "band": 2.8000000000000003,
+        "shelf": 0.4559461680554975,
+        "lockMargin": 0.14999999999999997,
+        "headLimit": 1.0995574287564276,
+        "contactShare": 0.6190476190476191,
+        "valid": true
+      },
+      {
+        "fit": "Luźny",
+        "delta": 0.6354862843434964,
+        "ramp": 2.2,
+        "bandMin": 2.2,
+        "channel": 0.6,
+        "minimumHeight": 7.2,
+        "band": 2.8000000000000003,
+        "shelf": 0.5759461680554975,
+        "lockMargin": 0.15000000000000002,
+        "headLimit": 1.0995574287564276,
+        "contactShare": 0.6190476190476191,
+        "valid": true
+      }
+    ],
+    "preliminaryPass": true
+  },
+  {
+    "shape": "trójkąt",
+    "lobes": 3,
+    "e1": 0.04,
+    "ringLobes": 9,
+    "module": 1,
+    "k": 1.000424555670614,
+    "naturalRingLobes": 9.0153034956993,
+    "closureError": 3.3306690738754696e-16,
+    "orbitBreathing": 0.0007910530702680815,
+    "curvature": {
+      "minConvex": 13.906285640172886,
+      "minConcave": null,
+      "finite": true
+    },
+    "axial": [
+      {
+        "fit": "Ciasny",
+        "delta": 0.3927431421717482,
+        "ramp": 2.2,
+        "bandMin": 2.2,
+        "channel": 0.6,
+        "minimumHeight": 7.2,
+        "band": 2.8000000000000003,
+        "shelf": 0.3559461680554975,
+        "lockMargin": 0.15000000000000002,
+        "headLimit": 1.0995574287564276,
+        "contactShare": 0.6190476190476191,
+        "valid": true
+      },
+      {
+        "fit": "Standardowy",
+        "delta": 0.5030809340679974,
+        "ramp": 2.2,
+        "bandMin": 2.2,
+        "channel": 0.6,
+        "minimumHeight": 7.2,
+        "band": 2.8000000000000003,
+        "shelf": 0.4559461680554975,
+        "lockMargin": 0.14999999999999997,
+        "headLimit": 1.0995574287564276,
+        "contactShare": 0.6190476190476191,
+        "valid": true
+      },
+      {
+        "fit": "Luźny",
+        "delta": 0.6354862843434964,
+        "ramp": 2.2,
+        "bandMin": 2.2,
+        "channel": 0.6,
+        "minimumHeight": 7.2,
+        "band": 2.8000000000000003,
+        "shelf": 0.5759461680554975,
+        "lockMargin": 0.15000000000000002,
+        "headLimit": 1.0995574287564276,
+        "contactShare": 0.6190476190476191,
+        "valid": true
+      }
+    ],
+    "preliminaryPass": true
+  },
+  {
+    "shape": "trójkąt",
+    "lobes": 3,
+    "e1": 0.06,
+    "ringLobes": 9,
+    "module": 1,
+    "k": 1.0006761612701385,
+    "naturalRingLobes": 9.024391283046876,
+    "closureError": 3.3306690738754696e-16,
+    "orbitBreathing": 0.0017551274310455857,
+    "curvature": {
+      "minConvex": 12.640499615134239,
+      "minConcave": null,
+      "finite": true
+    },
+    "axial": [
+      {
+        "fit": "Ciasny",
+        "delta": 0.3927431421717482,
+        "ramp": 2.2,
+        "bandMin": 2.2,
+        "channel": 0.6,
+        "minimumHeight": 7.2,
+        "band": 2.8000000000000003,
+        "shelf": 0.3559461680554975,
+        "lockMargin": 0.15000000000000002,
+        "headLimit": 1.0995574287564276,
+        "contactShare": 0.6190476190476191,
+        "valid": true
+      },
+      {
+        "fit": "Standardowy",
+        "delta": 0.5030809340679974,
+        "ramp": 2.2,
+        "bandMin": 2.2,
+        "channel": 0.6,
+        "minimumHeight": 7.2,
+        "band": 2.8000000000000003,
+        "shelf": 0.4559461680554975,
+        "lockMargin": 0.14999999999999997,
+        "headLimit": 1.0995574287564276,
+        "contactShare": 0.6190476190476191,
+        "valid": true
+      },
+      {
+        "fit": "Luźny",
+        "delta": 0.6354862843434964,
+        "ramp": 2.2,
+        "bandMin": 2.2,
+        "channel": 0.6,
+        "minimumHeight": 7.2,
+        "band": 2.8000000000000003,
+        "shelf": 0.5759461680554975,
+        "lockMargin": 0.15000000000000002,
+        "headLimit": 1.0995574287564276,
+        "contactShare": 0.6190476190476191,
+        "valid": true
+      }
+    ],
+    "preliminaryPass": true
+  },
+  {
+    "shape": "trójkąt",
+    "lobes": 3,
+    "e1": 0.08,
+    "ringLobes": 9,
+    "module": 1,
+    "k": 1.0010660785490444,
+    "naturalRingLobes": 9.038501966124429,
+    "closureError": 5.551115123125783e-16,
+    "orbitBreathing": 0.003061433365396081,
+    "curvature": {
+      "minConvex": 11.663999941457858,
+      "minConcave": null,
+      "finite": true
+    },
+    "axial": [
+      {
+        "fit": "Ciasny",
+        "delta": 0.3927431421717482,
+        "ramp": 2.2,
+        "bandMin": 2.2,
+        "channel": 0.6,
+        "minimumHeight": 7.2,
+        "band": 2.8000000000000003,
+        "shelf": 0.3559461680554975,
+        "lockMargin": 0.15000000000000002,
+        "headLimit": 1.0995574287564276,
+        "contactShare": 0.6190476190476191,
+        "valid": true
+      },
+      {
+        "fit": "Standardowy",
+        "delta": 0.5030809340679974,
+        "ramp": 2.2,
+        "bandMin": 2.2,
+        "channel": 0.6,
+        "minimumHeight": 7.2,
+        "band": 2.8000000000000003,
+        "shelf": 0.4559461680554975,
+        "lockMargin": 0.14999999999999997,
+        "headLimit": 1.0995574287564276,
+        "contactShare": 0.6190476190476191,
+        "valid": true
+      },
+      {
+        "fit": "Luźny",
+        "delta": 0.6354862843434964,
+        "ramp": 2.2,
+        "bandMin": 2.2,
+        "channel": 0.6,
+        "minimumHeight": 7.2,
+        "band": 2.8000000000000003,
+        "shelf": 0.5759461680554975,
+        "lockMargin": 0.15000000000000002,
+        "headLimit": 1.0995574287564276,
+        "contactShare": 0.6190476190476191,
+        "valid": true
+      }
+    ],
+    "preliminaryPass": true
+  }
+]
