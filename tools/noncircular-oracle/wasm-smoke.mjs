@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import createOpenSCAD from "../../frontend/node_modules/@lofcz/openscad-wasm/openscad.js";
@@ -27,8 +27,11 @@ function stlComponents(data) {
   const find=x=>parent[x]===x?x:(parent[x]=find(parent[x]));
   const join=(a,b)=>{a=find(a);b=find(b);if(a!==b)parent[b]=a;};
   for(let t=0;t<triangles;t++) for(let v=0;v<3;v++) { const o=84+t*50+12+v*12; const key=`${view.getFloat32(o,true).toFixed(4)},${view.getFloat32(o+4,true).toFixed(4)},${view.getFloat32(o+8,true).toFixed(4)}`; if(owner.has(key))join(t,owner.get(key));else owner.set(key,t); }
-  return new Set(parent.map((_,i)=>find(i))).size;
+  const groups=new Map();
+  for(let t=0;t<triangles;t++){const root=find(t);if(!groups.has(root))groups.set(root,{triangles:0,min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]});const g=groups.get(root);g.triangles++;for(let v=0;v<3;v++){const o=84+t*50+12+v*12;for(let k=0;k<3;k++){const x=view.getFloat32(o+4*k,true);g.min[k]=Math.min(g.min[k],x);g.max[k]=Math.max(g.max[k],x);}}}
+  return [...groups.values()].sort((a,b)=>b.triangles-a.triangles);
 }
-const components=stlComponents(bytes);
-if(outputMode==="0" && components!==2+Number(shape=== "0" ? 4 : 3)) throw new Error(`Liczba brył ${components}, oczekiwano ${2+Number(shape==="0"?4:3)}`);
+if(process.argv[5]) writeFileSync(process.argv[5],bytes);
+const componentInfo=stlComponents(bytes),components=componentInfo.length;
+if(outputMode==="0" && components!==2+Number(shape=== "0" ? 4 : 3)) throw new Error(`Liczba brył ${components}, oczekiwano ${2+Number(shape==="0"?4:3)}; ${JSON.stringify(componentInfo)}`);
 console.log(`WASM_OK shape=${shape} output=${outputMode} fit=${fit} bytes=${bytes.length} components=${components}`);

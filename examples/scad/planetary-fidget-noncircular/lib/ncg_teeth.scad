@@ -37,8 +37,17 @@ module ncg_sun_profile(R,n,e,z,m,backlash=0.32,phase=0) difference() {
 
 module ncg_ring_profile(R,n,e,z,m,N,outer_r,backlash=0.32,phase=0) difference() {
     circle(r=outer_r,$fn=240);
-    union() for(i=[0:n-1]) let(a=360*i/n,chi=ncg_k(n,e)*a*(1+2/n),c=ncg_planet_center(a,R,n,e),b=ncg_planet_spin(a,n,e))
-        rotate(-chi) translate(c) rotate(b) offset(delta=backlash/2) ncg_planet_profile(R,n,e,z,m,phase);
+    union() {
+        // Jama bazowa musi być spójna; bez niej luki między próbkami obwiedni
+        // zostawiają promieniowe mosty łączące pierścień z kołem centralnym.
+        circle(r=3*R-1.1*m,$fn=240);
+        // Konfiguracja montażowa wszystkich planet jest częścią obwiedni.
+        // Jawne kopie fazowe gwarantują ten sam luz dla każdej planety N-fold.
+        for(j=[0:N-1]) rotate(360*j/N) translate([2*R,0]) rotate(180/n)
+            offset(delta=backlash/2) ncg_planet_profile(R,n,e,z,m,phase);
+        for(i=[0:n-1]) let(a=360*i/n,chi=ncg_k(n,e)*a*(1+2/n),c=ncg_planet_center(a,R,n,e),b=ncg_planet_spin(a,n,e))
+            rotate(-chi) translate(c) rotate(b) offset(delta=backlash/2) ncg_planet_profile(R,n,e,z,m,phase);
+    }
 }
 
 module ncg_profile(kind,R,n,e,z,m,N,outer_r,backlash,phase=0) {

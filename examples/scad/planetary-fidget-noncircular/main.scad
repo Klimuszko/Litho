@@ -95,4 +95,7 @@ if(debug_section_z>=0) projection(cut=true) translate([0,0,-debug_section_z]) as
 else if(output_mode==2) ring();
 else if(output_mode==3) sun();
 else if(output_mode==4) planet();
+else if(output_mode==5) { sun(); planets(); }
+else if(output_mode==6) { planets(); ring(); }
+else if(output_mode==7) { sun(); ring(); }
 else assembly();
