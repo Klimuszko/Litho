@@ -7,10 +7,7 @@ include <lib/ncg_validate.scad>
 /* [Główne] */
 output_mode = 0; // [0:Kompletny print-in-place,1:Kolorowy podgląd,2:Tylko pierścień,3:Tylko koło centralne,4:Jedna planeta] @label:Widok
 shape = 0; // [0:Kwadratowy,1:Trójkątny] @label:Kształt
-outer_diameter = 90; // [70:1:130] @label:Średnica zewnętrzna @unit:mm
-squareness = 55; // [0:1:100] @label:Kanciastość @unit:%
-tooth_style = 1; // [0:Drobne,1:Standardowe,2:Grube] @label:Rozmiar zębów
-gear_thickness = 8.4; // [7:0.2:14] @label:Grubość @unit:mm
+gear_thickness = 8.6; // [8.6:0.4:12.2] @label:Grubość @unit:mm
 
 /* [Dopasowanie] */
 fit_profile = 1; // [0:Ciasny,1:Standardowy,2:Luźny] @label:Profil dopasowania
@@ -20,14 +17,9 @@ finger_hole_diameter = 16; // [10:1:24] @label:Otwór na palec @unit:mm
 planet_holes = true; // @label:Otwory w planetach
 planet_hole_percent = 50; // [30:1:65] @label:Wielkość otworów planet @unit:%
 
-/* [Obudowa] */
-rim_style = 0; // [0:Równoległa do fali,1:Gładka okrągła] @label:Obręcz
-
-/* [Zaawansowane] */
-side_flatness = 0; // [0:1:100] @advanced @label:Spłaszczenie boków
-pressure_angle = 25; // [20:1:25] @advanced @label:Kąt przyporu @unit:°
-
 /* [Ukryte] */
+outer_diameter = 90;
+pressure_angle = 25;
 curve_samples = 360;
 envelope_samples = 8;
 k_max = 0.005;
@@ -36,9 +28,8 @@ debug_section_z = -1;
 n = shape==0 ? 4 : 3;
 ring_lobes = 3*n;
 N = n;
-e_max = shape==0 ? 0.075 : 0.09;
-e = e_max*squareness/100;
-target_m = [0.8,1,1.25][tooth_style];
+e = shape==0 ? 0.04125 : 0.04950;
+target_m = 1;
 R = (outer_diameter/2-5)/(3*(1+e));
 perimeter = ncg_perimeter(R,n,e,0,360);
 teeth_per_lobe = max(3,round(perimeter/(n*PI*target_m)));
@@ -46,7 +37,7 @@ teeth = n*teeth_per_lobe;
 m = perimeter/(PI*teeth);
 backlash = [0.22,0.32,0.44][fit_profile];
 tip_clearance = [0.08,0.14,0.22][fit_profile];
-axial_gap = [0.2,0.2,0.3][fit_profile];
+axial_gap = [0.2,0.2,0.4][fit_profile];
 channel_gap = [0.8,1.0,1.2][fit_profile];
 delta = backlash/cos(pressure_angle)+0.15;
 recess = 0.5;
@@ -54,7 +45,7 @@ channel_h = 0.6;
 ramp_h = ceil(max(0,2.25*m+tip_clearance+recess-0.8)/0.2)*0.2;
 band_h = (gear_thickness-channel_h-ramp_h)/2;
 outer_r = outer_diameter/2;
-k = ncg_k(n,e);
+k = shape==0 ? 1.0017736854536707 : 1.0008509383280697;
 safe_hole = min(finger_hole_diameter,2*(R*(1-e)-1.25*m-recess-1.4));
 
 if(safe_hole<finger_hole_diameter) echo("WARNING: Otwór na palec został zmniejszony, aby zachować ściankę");
@@ -84,7 +75,9 @@ module planet() difference() {
         scale(planet_hole_percent/100) ncg_blank(R,n,e,0,-1.4,120,180/n);
 }
 module ring() ncg_axial_body(2,R,n,e,teeth,m,N,outer_r,backlash,gear_thickness,delta,axial_gap,recess,channel_h,ramp_h);
-module planets() for(i=[0:N-1]) rotate(360*i/N) translate([2*R,0]) rotate(180/n) planet();
+mount_center = shape==0 ? [25.6102188446,0.0249009700] : [25.4088960687,0.0231061758];
+mount_phase = shape==0 ? -224.8837882353 : -239.8903666160;
+module planets() for(i=[0:N-1]) rotate(360*i/N) translate(mount_center) rotate(mount_phase) planet();
 module assembly() {
     if(output_mode==1) { color("gold") sun(); color("steelblue") planets(); color("silver") ring(); }
     else { sun(); planets(); ring(); }

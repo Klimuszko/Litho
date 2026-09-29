@@ -4,6 +4,7 @@ import { TAU, polarPoint, poseAtArc, sampleCurve, solveKinematics } from "./orac
 const pc = polygonClipping;
 const rot = (p, a) => [p[0] * Math.cos(a) - p[1] * Math.sin(a), p[0] * Math.sin(a) + p[1] * Math.cos(a)];
 const add = (a, b) => [a[0] + b[0], a[1] + b[1]];
+const sub = (a, b) => [a[0] - b[0], a[1] - b[1]];
 const mul = (a, k) => [a[0] * k, a[1] * k];
 const norm = a => Math.hypot(a[0], a[1]);
 const unit = a => mul(a, 1 / norm(a));
@@ -11,6 +12,21 @@ const ring = pts => [[pts.concat([pts[0]])]];
 const snap = x => Math.round(x * 1e5) / 1e5;
 const transformRing = (r, a, t = [0, 0]) => r.map(p => { const q = add(rot(p, a), t); return [snap(q[0]), snap(q[1])]; });
 export const transformMulti = (mp, a, t = [0, 0]) => mp.map(poly => poly.map(r => transformRing(r.slice(0, -1), a, t).concat([transformRing([r[0]], a, t)[0]])));
+
+function offsetOuter(mp, distance) {
+  return mp.map(poly => poly.map((r, ri) => {
+    if (ri) return r;
+    const pts = r.slice(0, -1), out = pts.map((p, i) => {
+      const a = pts[(i + pts.length - 1) % pts.length], b = pts[(i + 1) % pts.length];
+      const e0 = unit(sub(p, a)), e1 = unit(sub(b, p));
+      const n0 = [e0[1], -e0[0]], n1 = [e1[1], -e1[0]];
+      const bis = unit(add(n0, n1));
+      const scale = distance / Math.max(0.2, bis[0] * n0[0] + bis[1] * n0[1]);
+      return add(p, mul(bis, Math.min(scale, 4 * distance)));
+    });
+    return out.concat([out[0]]);
+  }));
+}
 
 function involute(x) { return Math.tan(x) - x; }
 
@@ -44,8 +60,10 @@ export function involuteShaper({ teeth = 12, module = 1, pressureAngle = 25, fla
 
 function radialBlank(spec, offset, count = 720) {
   return ring(Array.from({ length: count }, (_, i) => {
-    const t = TAU * i / count, p = polarPoint(t, spec), u = unit(p);
-    return add(p, mul(u, offset));
+    const t = TAU * i / count, h = 1e-5, p = polarPoint(t, spec);
+    const tangent = unit([polarPoint(t+h,spec)[0]-polarPoint(t-h,spec)[0],
+      polarPoint(t+h,spec)[1]-polarPoint(t-h,spec)[1]]);
+    return add(p, mul([tangent[1], -tangent[0]], offset));
   }));
 }
 
@@ -55,43 +73,77 @@ function largest(mp) {
   return [mp.reduce((best, p) => area(p[0]) > area(best[0]) ? p : best, mp[0])];
 }
 
+function unionBatched(polygons, batch = 12) {
+  let level = polygons;
+  while (level.length > 1) {
+    const next = [];
+    for (let i = 0; i < level.length; i += batch)
+      next.push(pc.union(...level.slice(i, i + batch)));
+    level = next;
+  }
+  return level[0] ?? [];
+}
+
 /** Generuje planetę jako obwiednię ujemną jawnego dłutaka toczącego się po centroidzie. */
-export function generatePlanet({ lobes, e1, radius = 18, module = 1, pressureAngle = 25, posesPerPitch = 8 }) {
+export function generatePlanet({ lobes, e1, radius = 18, module = 1, pressureAngle = 25, posesPerPitch = 8, phaseArc = 0 }) {
   const curve = sampleCurve({ radius, lobes, e1 }, 4096);
   const teeth = Math.max(lobes * 3, Math.round(curve.length / (Math.PI * module) / lobes) * lobes);
   const actualModule = curve.length / (Math.PI * teeth);
-  const shaper = involuteShaper({ teeth: 12, module: actualModule, pressureAngle });
+  const alpha = pressureAngle * Math.PI / 180;
+  const pitch = Math.PI * actualModule;
+  const tipHalf = pitch / 4 - actualModule * Math.tan(alpha);
+  const rootHalf = pitch / 4 + 1.25 * actualModule * Math.tan(alpha);
+  const shaper = {
+    kind: "involute-rack", module: actualModule, pressureAngle,
+    pitchThickness: pitch / 2, tipThickness: 2 * tipHalf,
+    rootThickness: 2 * rootHalf, undercutFree: tipHalf > 0,
+  };
   const count = Math.ceil(teeth * posesPerPitch);
   const cutters = [];
   for (let i = 0; i < count; i++) {
-    const s = curve.length * i / count, q = poseAtArc(curve, s), n = unit(q.point);
-    const center = add(q.point, mul(n, shaper.rp));
-    const tangentAngle = Math.atan2(q.tangent[1], q.tangent[0]);
-    cutters.push(transformMulti(shaper.polygon, tangentAngle + Math.PI / 2 - s / shaper.rp, center));
+    const s = curve.length * i / count, q = poseAtArc(curve, s), n = q.normal, t = q.tangent;
+    // A straight involute-generating rack rolls without slip: in the local
+    // tangent frame its tooth train translates by exactly the centroid arc s.
+    // Three neighbouring teeth are sufficient because every polygon is local.
+    for (let k = -2; k <= 2; k++) {
+      const x = k * pitch - ((s + phaseArc) % pitch);
+      const local = [[x-tipHalf,-actualModule],[x+tipHalf,-actualModule],
+        [x+rootHalf,1.25*actualModule],[x-rootHalf,1.25*actualModule]];
+      cutters.push(ring(local.map(([u,v]) => add(q.point, add(mul(t,u), mul(n,v))))));
+    }
   }
-  const cutterUnion = pc.union(...cutters);
+  const cutterUnion = unionBatched(cutters);
   const blank = radialBlank({ radius, lobes, e1 }, 1.05 * actualModule);
   return { polygon: largest(pc.difference(blank, cutterUnion)), curve, teeth, module: actualModule, shaper };
 }
 
 /** Obwiednie koła centralnego i pierścienia są różnicami blanków i pozycji tej samej planety-narzędzia. */
 export function generateMechanism(opts) {
-  const { lobes, e1, radius = 18, pressureAngle = 25 } = opts;
+  const { lobes, e1, radius = 18, pressureAngle = 25, backlash = 0 } = opts;
   const ringLobes = 3 * lobes;
   const planet = generatePlanet({ ...opts, radius, pressureAngle });
-  const kin = solveKinematics({ lobes, ringLobes, e1, radius, samples: 360 / lobes });
+  const sweepSamples = Math.ceil(planet.teeth * (opts.posesPerPitch ?? 8) / lobes);
+  const kin = solveKinematics({ lobes, ringLobes, e1, radius, samples: sweepSamples });
   const sunCutters = [], ringCutters = [];
+  const envelopeTool = backlash > 0 ? offsetOuter(planet.polygon, backlash / 2) : planet.polygon;
   for (let l = 0; l < lobes; l++) for (const f of kin.frames) {
     const symmetry = TAU * l / lobes;
-    sunCutters.push(transformMulti(planet.polygon, f.beta + symmetry, rot(f.center, symmetry)));
-    const chi = kin.k * (l * kin.chi + f.chiKin);
-    ringCutters.push(transformMulti(planet.polygon, f.beta + symmetry - chi, rot(f.center, symmetry - chi)));
+    sunCutters.push(transformMulti(envelopeTool, f.beta + symmetry, rot(f.center, symmetry)));
+  }
+  // In ring coordinates one sun/planet lobe traces one ring lobe.  Repeat
+  // that independently over every ring lobe; repeating only `lobes` leaves
+  // most of the internal gear solid (the K2 failure from the review).
+  for (let l = 0; l < ringLobes; l++) for (const f of kin.frames) {
+    const chi = kin.k * f.chiKin;
+    const symmetry = TAU * l / ringLobes;
+    ringCutters.push(transformMulti(envelopeTool, f.beta - chi + symmetry,
+      rot(f.center, symmetry - chi)));
   }
   const sunBlank = radialBlank({ radius, lobes, e1 }, 1.05 * planet.module);
-  const outerR = 3 * radius + 4.5 * planet.module;
+  const outerR = opts.outerRadius ?? 3 * radius + 4.5 * planet.module;
   const outer = ring(Array.from({ length: 1080 }, (_, i) => [outerR * Math.cos(TAU * i / 1080), outerR * Math.sin(TAU * i / 1080)]));
-  const sun = largest(pc.difference(sunBlank, pc.union(...sunCutters)));
-  const ringGear = pc.difference(outer, pc.union(...ringCutters));
+  const sun = largest(pc.difference(sunBlank, unionBatched(sunCutters)));
+  const ringGear = pc.difference(outer, unionBatched(ringCutters));
   return { planet, sun, ring: largest(ringGear), kin, outerR };
 }
 

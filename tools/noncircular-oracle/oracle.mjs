@@ -34,7 +34,11 @@ export function poseAtArc(curve, s) {
   const ds = curve.cumulative[lo + 1] - curve.cumulative[lo];
   const f = ds ? (target - curve.cumulative[lo]) / ds : 0;
   const a = curve.points[lo], b = curve.points[(lo + 1) % curve.points.length];
-  return { point: add(a, mul(sub(b, a), f)), tangent: mul(sub(b, a), 1 / ds) };
+  const tangent = mul(sub(b, a), 1 / ds);
+  // Curves are sampled counter-clockwise, hence the right-hand normal points
+  // outside.  The normal, rather than the radius vector, is the line of action
+  // used by the generating cutter.
+  return { point: add(a, mul(sub(b, a), f)), tangent, normal: [tangent[1], -tangent[0]] };
 }
 
 function farRayIntersection(origin, direction, polygon) {
