@@ -1,7 +1,12 @@
 # Numeryczny oracle kół nieokrągłych
 
 Uruchomienie w tym katalogu: `npm install`, `npm test` oraz
-`node geometry-report.mjs geometry-results.json`. Oracle nie uczestniczy w
-generowaniu modelu; jest niezależnym testem kinematyki, obwiedni i przekroju
-osiowego. `wasm-smoke.mjs` uruchamia dokładnie pakiet OpenSCAD używany przez
-browserowy worker i nie korzysta z renderowania serwerowego.
+`node geometry-report.mjs geometry-results.json`.
+
+Oracle wylicza i weryfikuje profile źródłowe. Skrypt
+`generate-scad-data.mjs` zapisuje zatwierdzone, dyskretne warianty w
+`lib/ncg_profiles.scad`. Testy sprawdzają je ponownie na niezależnej siatce 64
+pozycji na podziałkę i kontrolują błąd radializacji. W czasie używania modułu
+oracle nie jest uruchamiany: `wasm-smoke.mjs` korzysta dokładnie z pakietu
+OpenSCAD WebAssembly używanego przez browserowy worker, bez renderowania
+serwerowego.

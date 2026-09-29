@@ -1,7 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { FITS, axialDesign, evaluateCase, sampleCurve, TAU } from "./oracle.mjs";
-import { boundaryMetrics, generateMechanism, polygonArea, validateAxialProfiles, validateCycle } from "./geometry.mjs";
+import {
+  boundaryMetrics,
+  exportProfile,
+  generateMechanism,
+  maxRadialDeviation,
+  polygonArea,
+  validateAxialProfiles,
+  validateCycle,
+} from "./geometry.mjs";
 
 const cases = [
   ...[0.03, 0.04, 0.05].map(e1 => ({ lobes: 4, e1 })),
@@ -48,7 +56,15 @@ test("phasing: liczby płatów i planet są zgodne", () => {
 
 test("4–6: dłutak, obwiednie, regularność, podcięcie i pełny cykl kolizji", { timeout: 180_000 }, () => {
   for (const c of cases) {
-    const mech = generateMechanism({ ...c, radius: 12, module: 1, posesPerPitch: 4 });
+    const mech = generateMechanism({
+      ...c,
+      radius: 12,
+      module: 1,
+      posesPerPitch: 4,
+      // Produkt nigdy nie eksportuje profilu bez luzu. Ciasny profil jest
+      // wariantem granicznym i dlatego stanowi właściwy przypadek testowy.
+      backlash: FITS[0].backlash,
+    });
     const shaper = mech.planet.shaper;
     assert.ok(shaper.undercutFree, `${c.lobes}/${c.e1}: dłutak podcięty`);
     assert.ok(shaper.tipThickness >= Math.max(0.25 * mech.planet.module, 0.4));
@@ -62,6 +78,7 @@ test("4–6: dłutak, obwiednie, regularność, podcięcie i pełny cykl kolizji
     assert.ok(cycle.maxPlanetOverlap < 1e-5, JSON.stringify({ c, cycle }));
     assert.ok(cycle.maxSunOverlap < 1e-5, JSON.stringify({ c, cycle }));
     assert.ok(cycle.maxRingOverlap < 1e-5, JSON.stringify({ c, cycle }));
+    assert.ok(cycle.maxSunRingOverlap < 1e-5, JSON.stringify({ c, cycle }));
     assert.ok(cycle.minPlanetSpacing >= 0.58, JSON.stringify({ c, cycle }));
     for (const fit of FITS) {
       const axial = axialDesign(mech.planet.module, fit, 8.4);
@@ -69,6 +86,47 @@ test("4–6: dłutak, obwiednie, regularność, podcięcie i pełny cykl kolizji
       assert.ok(layers.valid);
       assert.ok(layers.transitionAreas.every(a => a > 0 && a < layers.nominalArea));
       assert.ok(layers.channelArea < layers.nominalArea);
+    }
+  }
+});
+
+test("profile eksportowane do SCAD zachowują obwiednię", { timeout: 180_000 }, () => {
+  const productCases = [
+    { lobes: 4, e1: 0.04125, radius: 40 / (3 * 1.04125) },
+    { lobes: 3, e1: 0.04950, radius: 40 / (3 * 1.04950) },
+  ];
+  for (const c of productCases) {
+    const options = {
+      ...c,
+      module: 1,
+      pressureAngle: 25,
+      posesPerPitch: 8,
+      backlash: FITS[0].backlash,
+      outerRadius: 45,
+    };
+    const base = generateMechanism({ ...options, phaseArc: 0 });
+    const axial = axialDesign(base.planet.module, FITS[0], 8.4);
+    for (const phaseArc of [0, axial.delta, 2 * axial.delta]) {
+      const mech = phaseArc === 0 ? base : generateMechanism({ ...options, phaseArc });
+      const exported = {
+        ...mech,
+        planet: { ...mech.planet, polygon: exportProfile(mech.planet.polygon, 0) },
+        sun: exportProfile(mech.sun, 1),
+        ring: exportProfile(mech.ring, 2),
+      };
+      const deviations = {
+        planet: maxRadialDeviation(mech.planet.polygon, exported.planet.polygon),
+        sun: maxRadialDeviation(mech.sun, exported.sun),
+        ring: maxRadialDeviation(mech.ring, exported.ring),
+      };
+      // 0,05 mm to 23% najmniejszego luzu 0,22 mm i wyraźnie mniej niż
+      // rozdzielczość typowej dyszy; pełny cykl poniżej nadal musi być bezkolizyjny.
+      assert.ok(Math.max(...Object.values(deviations)) <= 0.05, JSON.stringify({ c, phaseArc, deviations }));
+      const cycle = validateCycle(exported);
+      assert.ok(cycle.maxPlanetOverlap < 1e-5, JSON.stringify({ c, phaseArc, cycle }));
+      assert.ok(cycle.maxSunOverlap < 1e-5, JSON.stringify({ c, phaseArc, cycle }));
+      assert.ok(cycle.maxRingOverlap < 1e-5, JSON.stringify({ c, phaseArc, cycle }));
+      assert.ok(cycle.maxSunRingOverlap < 1e-5, JSON.stringify({ c, phaseArc, cycle }));
     }
   }
 });

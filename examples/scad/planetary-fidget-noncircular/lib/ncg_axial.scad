@@ -2,7 +2,7 @@ include <ncg_teeth.scad>
 
 module ncg_slice(kind,z0,h,R,n,e,teeth,m,N,outer_r,backlash,phase,shrink=0) {
     translate([0,0,z0]) linear_extrude(height=h+0.01) {
-        if(shrink>0) offset(delta=-shrink) ncg_profile_coarse(kind,R,n,e,teeth,m,N,outer_r,backlash,phase);
+        if(shrink>0) offset(delta=-shrink) ncg_profile(kind,R,n,e,teeth,m,N,outer_r,backlash,phase);
         else ncg_profile(kind,R,n,e,teeth,m,N,outer_r,backlash,phase);
     }
 }

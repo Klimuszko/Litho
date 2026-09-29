@@ -1,8 +1,25 @@
 # Plan: fidget planetarny z nieokrągłymi (kwadratowymi i trójkątnymi) kołami zębatymi
 
-Status: **plan techniczny i produktowy, bez implementacji geometrii** (rewizja 2: rozdzielone pasy zębów z kanałem centralnym, po zgłoszeniu zbyt ciasnego ruchu po wydruku)
+Status: **plan bazowy oraz zapis decyzji implementacyjnych** (rewizja 2: rozdzielone pasy zębów z kanałem centralnym; implementacja 0.2 wymaga jeszcze prób fizycznych F1–F11)
 Baza: commit `74e8487` (gałąź `Main_Frame`), moduł `examples/scad/planetary-fidget` w wersji 2.3.0
 Zakres dokumentu: geometria sprzężonych kół nieokrągłych, integracja z klientowym OpenSCAD WebAssembly, testy, etapy i kryteria go/no-go.
+
+## Stan implementacji 0.2 (2026-09-30)
+
+Po krytycznym review z `docs/noncircular-fidget-review.pl.md` odrzucono
+pierwszą implementację obwiedni. Aktualna wersja nie udaje dowolnie
+parametrycznej geometrii. Udostępnia dwa sprawdzone kształty (kwadrat i trójkąt)
+oraz trzy profile dopasowania przy stałej średnicy 90 mm. Oracle Node wylicza
+pełne obwiednie koła centralnego, planet i pierścienia, a następnie zapisuje je
+do `lib/ncg_profiles.scad`. OpenSCAD WebAssembly w przeglądarce tworzy z tych
+profili finalny STL/3MF; obliczenia i rendering nie trafiają na serwer.
+
+Walidacja ruchu używa osobnej siatki 64 pozycji na podziałkę, a nie klatek,
+które zbudowały obwiednię. Obejmuje P–P, S–P, P–R oraz S–R i dokładnie profile
+po radializacji eksportowane do SCAD. Interfejs pozostaje celowo dyskretny,
+dopóki dodatkowe średnice lub kanciastości nie przejdą tego samego procesu.
+Próby fizyczne F1–F11 pozostają bramką przed oznaczeniem modelu jako
+produkcyjnie potwierdzony.
 
 ---
 
@@ -13,7 +30,7 @@ Zakres dokumentu: geometria sprzężonych kół nieokrągłych, integracja z kli
 3. **Dokładne domknięcie pierścienia wymaga korekty prawa ruchu pierścienia.** Wstępne obliczenia (§4.6) pokazują, że dla nieokrągłych kształtów „naturalna” liczba płatów pierścienia jest nieznacznie większa od całkowitej: 12,01–12,07 zamiast 12. Plan to naprawia: narzucamy okresowe prawo obrotu pierścienia ze współczynnikiem korekty `k ≈ 1,000–1,002` i generujemy zęby pierścienia jako obwiednię dla *tego* ruchu. Sprzężenie pozostaje ścisłe, a centroida pierścienia przesuwa się o ułamek milimetra (odpowiednik przesunięcia zarysu).
 4. **Liczba planet nie jest swobodna.** Kwadrat: dokładnie 4 planety. Trójkąt: dokładnie 3 planety. Warianty rozszerzone są opcjonalne (§5.4).
 5. **Osobny moduł.** Klasyczny moduł `planetary-fidget` zostaje bez zmian. Nowy moduł `planetary-fidget-noncircular` zawiera oba kształty (kwadrat i trójkąt) w jednym pliku `main.scad` z biblioteką `lib/` wewnątrz katalogu modułu (§7).
-6. **Całe generowanie w przeglądarce.** Działa na obecnym `@lofcz/openscad-wasm` z backendem Manifold w Web Workerze. Nie wymaga zmian w backendzie ani w silniku. Obliczenia numeryczne są napisane w czystym OpenSCAD. Referencyjny „oracle” w TypeScript/Node służy tylko do testów.
+6. **Całe generowanie modelu w przeglądarce.** Działa na obecnym `@lofcz/openscad-wasm` z backendem Manifold w Web Workerze. Nie wymaga renderowania po stronie serwera. Kosztowne obwiednie zwalidowanych wariantów są wyliczane wcześniej przez oracle TypeScript/Node i dołączane do modułu jako dane SCAD; przeglądarka składa z nich finalny model STL/3MF.
 7. **Osiowe zatrzymanie: rozdzielona schodkowa jodełka (rewizja 2).** Każdy element ma **dwa rozdzielone pasy zębów**, górny i dolny. Między nimi jest **centralny kanał bez zębów** z rdzeniem cofniętym pod linię stóp. Zmniejsza to powierzchnię kontaktu i tarcie oraz ułatwia pierwsze uruchomienie po wydruku. Pasy mają przeciwną orientację schodków (lustrzane „V” przerwane kanałem), co zapewnia retencję osiową. Rozwiązanie **zastępuje** ciągłą schodkową jodełkę z rewizji 1 jako jedyną geometrię produkcyjną. Wariant ciągły zostaje tylko jako przypadek porównawczy w oracle i testach (§4.10). Twist (`linear_extrude(twist=…)`) nadal jest zabroniony: obrót nieokrągłego profilu wokół środka nie jest zębem śrubowym.
 
 ---

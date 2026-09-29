@@ -45,7 +45,7 @@ channel_h = 0.6;
 ramp_h = ceil(max(0,2.25*m+tip_clearance+recess-0.8)/0.2)*0.2;
 band_h = (gear_thickness-channel_h-ramp_h)/2;
 outer_r = outer_diameter/2;
-k = shape==0 ? 1.0017736854536707 : 1.0008509383280697;
+k = ncg_k(n);
 safe_hole = min(finger_hole_diameter,2*(R*(1-e)-1.25*m-recess-1.4));
 
 if(safe_hole<finger_hole_diameter) echo("WARNING: Otwór na palec został zmniejszony, aby zachować ściankę");
@@ -75,8 +75,8 @@ module planet() difference() {
         scale(planet_hole_percent/100) ncg_blank(R,n,e,0,-1.4,120,180/n);
 }
 module ring() ncg_axial_body(2,R,n,e,teeth,m,N,outer_r,backlash,gear_thickness,delta,axial_gap,recess,channel_h,ramp_h);
-mount_center = shape==0 ? [25.6102188446,0.0249009700] : [25.4088960687,0.0231061758];
-mount_phase = shape==0 ? -224.8837882353 : -239.8903666160;
+mount_center = ncg_mount_center(n);
+mount_phase = ncg_mount_phase(n);
 module planets() for(i=[0:N-1]) rotate(360*i/N) translate(mount_center) rotate(mount_phase) planet();
 module assembly() {
     if(output_mode==1) { color("gold") sun(); color("steelblue") planets(); color("silver") ring(); }
@@ -88,7 +88,4 @@ if(debug_section_z>=0) projection(cut=true) translate([0,0,-debug_section_z]) as
 else if(output_mode==2) ring();
 else if(output_mode==3) sun();
 else if(output_mode==4) planet();
-else if(output_mode==5) { sun(); planets(); }
-else if(output_mode==6) { planets(); ring(); }
-else if(output_mode==7) { sun(); ring(); }
 else assembly();

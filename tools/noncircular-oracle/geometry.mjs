@@ -186,19 +186,134 @@ export function boundaryMetrics(mp, module) {
   return { vertices: pts.length, minEdge, minTurn, regular: pts.length > 20 && minTurn > 0.01 && minEdge > module * 1e-6 };
 }
 
-export function validateCycle(mech) {
-  let maxPlanetOverlap = 0, maxSunOverlap = 0, maxRingOverlap = 0, minPlanetSpacing = Infinity;
-  const N = mech.kin.curve.spec.lobes;
-  for (const f of mech.kin.frames) {
+/**
+ * Sprawdza mechanizm na siatce niezależnej od klatek użytych do budowy
+ * obwiedni. `samplesPerPitch` oznacza liczbę pozycji na jedną podziałkę
+ * zęba w obrębie pojedynczego płata.
+ */
+export function validateCycle(mech, { samplesPerPitch = 64 } = {}) {
+  let maxPlanetOverlap = 0, maxSunOverlap = 0, maxRingOverlap = 0;
+  let maxSunRingOverlap = 0, minPlanetSpacing = Infinity;
+  const spec = mech.kin.curve.spec;
+  const N = spec.lobes;
+  const samples = Math.ceil(mech.planet.teeth * samplesPerPitch / N);
+  const validationKin = solveKinematics({
+    lobes: N,
+    ringLobes: 3 * N,
+    e1: spec.e1,
+    e2: spec.e2 ?? 0,
+    radius: spec.radius,
+    samples,
+  });
+  for (const f of validationKin.frames) {
     const p = transformMulti(mech.planet.polygon, f.beta, f.center);
     const adjacent = transformMulti(p, TAU / N);
     maxPlanetOverlap = Math.max(maxPlanetOverlap, intersectionArea(p, adjacent));
     maxSunOverlap = Math.max(maxSunOverlap, intersectionArea(p, mech.sun));
+    // Ring został wygenerowany dla k z siatki konstrukcyjnej. Walidacja
+    // zmienia wyłącznie pozycje próbkowania, nie prawo ruchu produktu.
     const ringAtFrame = transformMulti(mech.ring, mech.kin.k * f.chiKin);
     maxRingOverlap = Math.max(maxRingOverlap, intersectionArea(p, ringAtFrame));
+    maxSunRingOverlap = Math.max(maxSunRingOverlap, intersectionArea(mech.sun, ringAtFrame));
     minPlanetSpacing = Math.min(minPlanetSpacing, boundaryDistance(p, adjacent));
   }
-  return { maxPlanetOverlap, maxSunOverlap, maxRingOverlap, minPlanetSpacing };
+  return {
+    samples: validationKin.frames.length,
+    maxPlanetOverlap,
+    maxSunOverlap,
+    maxRingOverlap,
+    maxSunRingOverlap,
+    minPlanetSpacing,
+  };
+}
+
+/** Najdalsze przecięcie promienia z pierścieniem wielokąta. */
+export function rayRadius(r, angle) {
+  const d = [Math.cos(angle), Math.sin(angle)];
+  let far = 0;
+  for (let i = 0; i < r.length - 1; i++) {
+    const a = r[i], b = r[i + 1], ex = b[0] - a[0], ey = b[1] - a[1];
+    const den = d[0] * ey - d[1] * ex;
+    if (Math.abs(den) < 1e-10) continue;
+    const t = (a[0] * ey - a[1] * ex) / den;
+    const u = (a[0] * d[1] - a[1] * d[0]) / den;
+    // Promień może trafiać dokładnie w wierzchołek. Tolerancja zapobiega
+    // fałszywemu "brak przecięcia" przez błąd znaku rzędu 1e-16.
+    if (t >= -1e-9 && u >= -1e-9 && u <= 1 + 1e-9) far = Math.max(far, Math.max(0, t));
+  }
+  return far;
+}
+
+export function radialRing(source, count = 3600, radialOffset = 0) {
+  const out = Array.from({ length: count }, (_, i) => {
+    const a = TAU * i / count, r = Math.max(0, rayRadius(source, a) + radialOffset);
+    // Ta sama siatka 1e-5 mm jest używana przez operacje polygon-clipping.
+    // Zaokrąglenie tutaj usuwa nieistotne cyfry i ogranicza moduł poniżej
+    // limitu źródeł bez zmiany tolerancji geometrycznej.
+    return [snap(r * Math.cos(a)), snap(r * Math.sin(a))];
+  });
+  return out.concat([out[0]]);
+}
+
+function simplifyOpen(points, epsilon) {
+  if (points.length < 3) return points;
+  let best = 0, index = 0;
+  for (let i = 1; i < points.length - 1; i++) {
+    const distance = pointSegmentDistance(points[i], points[0], points.at(-1));
+    if (distance > best) { best = distance; index = i; }
+  }
+  if (best <= epsilon) return [points[0], points.at(-1)];
+  return simplifyOpen(points.slice(0, index + 1), epsilon).slice(0, -1)
+    .concat(simplifyOpen(points.slice(index), epsilon));
+}
+
+function simplifyRing(r, epsilon = 0.004) {
+  const points = r.slice(0, -1);
+  let split = 1;
+  for (let i = 2; i < points.length; i++) {
+    if (norm(sub(points[i], points[0])) > norm(sub(points[split], points[0]))) split = i;
+  }
+  const simplified = simplifyOpen(points.slice(0, split + 1), epsilon).slice(0, -1)
+    .concat(simplifyOpen(points.slice(split).concat([points[0]]), epsilon).slice(0, -1));
+  return simplified.concat([simplified[0]]);
+}
+
+function ringArea(r) {
+  return Math.abs(r.slice(0, -1).reduce((sum, p, i, points) => {
+    const q = points[(i + 1) % points.length];
+    return sum + p[0] * q[1] - q[0] * p[1];
+  }, 0) / 2);
+}
+
+const significantRings = mp => mp[0].filter(r => r.length >= 4 && ringArea(r) > 1e-4);
+
+/** Dokładna postać profilu zapisywana do danych SCAD. */
+export function exportProfile(mp, kind, count = 3600) {
+  const safety = 0.006;
+  const compact = (r, radialOffset = 0) => simplifyRing(radialRing(r, count, radialOffset));
+  const rings = significantRings(mp);
+  // Uproszczenie nie może zjadać najmniejszego luzu. Bryły wewnętrzne są
+  // cofnięte, a jama pierścienia powiększona o 6 µm. To kierunkowy margines,
+  // nie podniesienie globalnej tolerancji polygon-clipping.
+  return kind === 2
+    ? [[compact(rings[0]), compact(rings[1], safety)]]
+    : [[compact(rings[0], -safety)]];
+}
+
+/** Maksymalny błąd radializacji, liczony na osobnej, gęstszej siatce. */
+export function maxRadialDeviation(source, exported, samples = 7200) {
+  const sourceRings = significantRings(source), exportedRings = significantRings(exported);
+  if (sourceRings.length !== exportedRings.length) throw new Error("profile topology mismatch");
+  let max = 0;
+  for (let ringIndex = 0; ringIndex < sourceRings.length; ringIndex++) {
+    for (let i = 0; i < samples; i++) {
+      const a = TAU * (i + 0.5) / samples;
+      max = Math.max(max, Math.abs(
+        rayRadius(sourceRings[ringIndex], a) - rayRadius(exportedRings[ringIndex], a),
+      ));
+    }
+  }
+  return max;
 }
 
 export function validateAxialProfiles(mech, delta, recess = 0.5) {

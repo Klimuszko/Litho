@@ -10,13 +10,3 @@ module ncg_profile(kind,R,n,e,z,m,N,outer_r,backlash,phase=0) {
         polygon(points=item[0],paths=[item[1][1]],convexity=20);
     } else polygon(points=item[0],paths=item[1],convexity=20);
 }
-
-module ncg_profile_coarse(kind,R,n,e,z,m,N,outer_r,backlash,phase=0,stride=10) {
-    phase_index = phase < 0.25 ? 0 : phase < 0.75 ? 1 : 2;
-    item = ncg_profiles[shape][fit_profile][phase_index][kind==0 ? 1 : kind==1 ? 0 : 2];
-    sampled_paths=[for(i=[0:len(item[1])-1]) let(p=item[1][i]) [for(j=[0:stride:len(p)-1]) p[j]]];
-    if(kind==2) difference() {
-        polygon(points=item[0],paths=[sampled_paths[0]],convexity=20);
-        polygon(points=item[0],paths=[sampled_paths[1]],convexity=20);
-    } else polygon(points=item[0],paths=sampled_paths,convexity=20);
-}
