@@ -219,11 +219,26 @@ class HousingParams(BaseModel):
 
     @property
     def panel_horizontal_clip_count(self) -> int:
-        return self.edge_clip_count(self.panel_width_mm)
+        return len(self._panel_edge_layout(self.panel_width_mm, self.panel_width_mm >= self.panel_height_mm)[1])
 
     @property
     def panel_vertical_clip_count(self) -> int:
-        return self.edge_clip_count(self.panel_height_mm)
+        return len(self._panel_edge_layout(self.panel_height_mm, self.panel_height_mm > self.panel_width_mm)[1])
+
+    @property
+    def panel_horizontal_clip_centers_mm(self) -> list[float]:
+        clips = self._panel_edge_layout(self.panel_width_mm, self.panel_width_mm >= self.panel_height_mm)[1]
+        return [self.panel_x0_mm + offset for offset in clips]
+
+    @property
+    def panel_vertical_clip_centers_mm(self) -> list[float]:
+        clips = self._panel_edge_layout(self.panel_height_mm, self.panel_height_mm > self.panel_width_mm)[1]
+        return [self.panel_z0_mm + offset for offset in clips]
+
+    def panel_edge_clip_width_mm(self, length: float, clip_count: int) -> float:
+        # Keep the mandatory two-per-edge layout usable for very small custom
+        # housings without overlapping adjacent flexible features.
+        return min(self.panel_clip_width_mm, length / (clip_count + 1) * 0.8)
 
     @property
     def panel_clip_width_mm(self) -> float:
@@ -505,24 +520,38 @@ class HousingParams(BaseModel):
         # Play between the seated panel and the underside of a wedge.
         return 0.1
 
-    def _panel_lock_centers(self, start: float, span: float, clip_count: int) -> list[float]:
+    @property
+    def panel_lock_corner_offset_mm(self) -> float:
+        return 10.0
+
+    def _panel_edge_layout(self, length: float, long_edge: bool) -> tuple[list[float], list[float]]:
+        """Wedge socket and clip offsets along one panel edge, from its start.
+
+        Sockets take the evenly spread spots - the middle of every edge and
+        both ends of the long edges - and the clips sit halfway between them.
+        """
+        count = self.edge_clip_count(length)
+        default_clips = [length * index / (count + 1) for index in range(1, count + 1)]
         if self.kind != "frame" or self.panel_lock_shelf_mm < 4.0:
-            return []
-        pitch = span / (clip_count + 1)
-        clip_half = min(self.panel_clip_width_mm, pitch * 0.8) / 2
-        block_half = self.wedge_slot_width_mm / 2 + self.panel_lock_pier_mm
-        if pitch / 2 - clip_half - block_half < 1.0:
-            return []
-        # Midway between neighbouring clips, clear of their flex reliefs.
-        return [start + pitch * (index + 0.5) for index in range(1, clip_count)]
+            return [], default_clips
+        needed = self.panel_clip_width_mm / 2 + self.wedge_slot_width_mm / 2 + self.panel_lock_pier_mm + 1.0
+        if length / 4 < needed:
+            return [], default_clips
+        corner = self.panel_lock_corner_offset_mm
+        if long_edge and (length / 2 - corner) / 2 >= needed:
+            first_clip = (corner + length / 2) / 2
+            return [corner, length / 2, length - corner], [first_clip, length - first_clip]
+        return [length / 2], [length / 4, length * 3 / 4]
 
     @property
     def panel_horizontal_lock_centers_mm(self) -> list[float]:
-        return self._panel_lock_centers(self.panel_x0_mm, self.panel_width_mm, self.panel_horizontal_clip_count)
+        locks = self._panel_edge_layout(self.panel_width_mm, self.panel_width_mm >= self.panel_height_mm)[0]
+        return [self.panel_x0_mm + offset for offset in locks]
 
     @property
     def panel_vertical_lock_centers_mm(self) -> list[float]:
-        return self._panel_lock_centers(self.panel_z0_mm, self.panel_height_mm, self.panel_vertical_clip_count)
+        locks = self._panel_edge_layout(self.panel_height_mm, self.panel_height_mm > self.panel_width_mm)[0]
+        return [self.panel_z0_mm + offset for offset in locks]
 
     @property
     def panel_lock_count(self) -> int:

@@ -206,12 +206,14 @@ def build_housing_body(params) -> Mesh:
     clip_ys = [clip_y0 + index * clip_step_height for index in range(clip_steps + 1)]
     clip_reaches = [params.panel_clip_reach_mm * index / clip_steps for index in range(1, clip_steps + 1)]
 
-    vertical_clips = _centered_intervals(
-        panel_z0, panel_z1, params.panel_vertical_clip_count, params.panel_clip_width_mm,
-    )
-    horizontal_clips = _centered_intervals(
-        panel_x0, panel_x1, params.panel_horizontal_clip_count, params.panel_clip_width_mm,
-    )
+    vertical_clip_half = params.panel_edge_clip_width_mm(params.panel_height_mm, params.panel_vertical_clip_count) / 2
+    horizontal_clip_half = params.panel_edge_clip_width_mm(params.panel_width_mm, params.panel_horizontal_clip_count) / 2
+    vertical_clips = [
+        (center - vertical_clip_half, center + vertical_clip_half) for center in params.panel_vertical_clip_centers_mm
+    ]
+    horizontal_clips = [
+        (center - horizontal_clip_half, center + horizontal_clip_half) for center in params.panel_horizontal_clip_centers_mm
+    ]
 
     back_horizontal_snaps = _centered_intervals(
         wall, width - wall, params.back_horizontal_snap_count, params.back_snap_width_mm,
