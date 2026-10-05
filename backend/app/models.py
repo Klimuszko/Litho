@@ -366,8 +366,13 @@ class HousingParams(BaseModel):
         return 2.4
 
     @property
+    def usb_slot_clearance_mm(self) -> float:
+        # Tighter than the general fit: the shell must not rock in its slot.
+        return 0.15
+
+    @property
     def usb_pocket_half_height_mm(self) -> float:
-        return (self.usb_shell_height_mm + 2 * self.usb_fit_clearance_mm) / 2
+        return (self.usb_shell_height_mm + 2 * self.usb_slot_clearance_mm) / 2
 
     @property
     def usb_mount_bottom_mm(self) -> float:
@@ -437,7 +442,8 @@ class HousingParams(BaseModel):
 
     @property
     def wedge_slot_width_mm(self) -> float:
-        return 2 * self.usb_pocket_half_height_mm + 2 * self.wedge_groove_mm
+        # Independent of the USB-C slot fit, so wedges keep their size.
+        return self.usb_shell_height_mm + 2 * self.usb_fit_clearance_mm + 2 * self.wedge_groove_mm
 
     @property
     def wedge_width_mm(self) -> float:

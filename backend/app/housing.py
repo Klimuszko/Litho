@@ -157,7 +157,7 @@ def build_housing_body(params) -> Mesh:
     # the part itself instead of leaving it loose in the pocket.
     wedge_drop = 0.3
     wedge_cap = 3.5
-    wedge_groove = params.wedge_groove_mm
+    wedge_half_z = params.wedge_slot_width_mm / 2
     usb_wedge_y0 = usb_top_y - wedge_drop
     usb_wedge_y1 = usb_wedge_y0 + params.wedge_slot_height_mm
     dimmer_wedge_y0 = dimmer_top_y - wedge_drop
@@ -182,7 +182,7 @@ def build_housing_body(params) -> Mesh:
         usb_center_z - usb_half_z - usb_wall, usb_center_z - usb_half_z,
         usb_center_z - usb_aperture_half_z, usb_center_z + usb_aperture_half_z,
         usb_center_z + usb_half_z, usb_center_z + usb_half_z + usb_wall,
-        usb_center_z - usb_half_z - wedge_groove, usb_center_z + usb_half_z + wedge_groove,
+        usb_center_z - wedge_half_z, usb_center_z + wedge_half_z,
     ]
 
     dimmer_xs = [side_x(distance) for distance in (dimmer_lip_d0, dimmer_slot_d0, dimmer_slot_d1)]
@@ -334,7 +334,7 @@ def build_housing_body(params) -> Mesh:
             usb_wedge_guide = in_usb_block and usb_z > usb_half_z and inner_d < usb_shell_end_d
             if usb_wedge_guide and usb_top_y <= y < usb_top_y + wedge_cap:
                 material = True
-            if usb_wedge_guide and usb_wedge_y0 < y < usb_wedge_y1 and usb_z < usb_half_z + wedge_groove:
+            if usb_wedge_guide and usb_wedge_y0 < y < usb_wedge_y1 and usb_z < wedge_half_z:
                 material = False
             dimmer_wedge_guide = in_dimmer_block and inner_d > dimmer_slot_d1
             if dimmer_wedge_guide and dimmer_top_y <= y < dimmer_top_y + wedge_cap:
