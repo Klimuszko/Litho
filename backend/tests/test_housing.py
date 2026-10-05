@@ -139,8 +139,9 @@ def test_usb_c_side_mount_rejects_too_shallow_or_too_short_housing():
 
 
 @pytest.mark.parametrize("side", ["left", "right"])
-def test_usb_c_and_touch_dimmer_mounts_are_mandatory_and_single_manifold_body(side):
-    params = HousingParams(usb_side=side)
+@pytest.mark.parametrize("position", ["bottom", "top"])
+def test_usb_c_and_touch_dimmer_mounts_are_mandatory_and_single_manifold_body(side, position):
+    params = HousingParams(usb_side=side, electronics_position=position)
     mesh = build_housing_body(params)
     assert validate_mesh(mesh) == {
         "watertight": True,
@@ -212,10 +213,12 @@ def test_housing_api_describes_usb_c_and_touch_dimmer_mounts():
         "panel_width_mm": 150,
         "panel_height_mm": 100,
         "usb_side": "left",
+        "electronics_position": "top",
     })
     assert response.status_code == 200
     assert response.headers["x-connection-type"] == "usb_c"
     assert response.headers["x-usb-side"] == "left"
+    assert response.headers["x-electronics-position"] == "top"
     assert response.headers["x-touch-dimmer"] == "true"
     with ZipFile(BytesIO(response.content)) as archive:
         instructions = archive.read("README-PL.txt").decode("utf-8")

@@ -24,7 +24,7 @@ from .exporter import binary_stl
 from .heightmap import grid_resolution, luminance_to_thickness
 from .housing import build_housing_back, build_housing_body, orient_front_on_bed
 from .image_processing import InvalidImage, decode_image, prepare_image, preview_png, resample_luminance
-from .mesh import add_removable_support, apply_border, build_plate, removable_support_dimensions, validate_mesh
+from .mesh import apply_border, build_plate, validate_mesh
 from .models import HousingParams, LithophaneParams
 from .projects import CustomerProjectConfig, OrderReference, ProjectAlreadyAttached, project_store
 from .scad.router import router as scad_router
@@ -132,8 +132,6 @@ def pipeline(raw: bytes, params: LithophaneParams):
     heightmap = luminance_to_thickness(luminance, params.min_thickness_mm, params.max_thickness_mm, params.gamma, params.invert)
     heightmap, mesh_width, mesh_height = apply_border(heightmap, image_width_mm, image_height_mm, params.border_width_mm, params.effective_border_height, borders)
     mesh = build_plate(heightmap, mesh_width, mesh_height)
-    if params.removable_support:
-        mesh = add_removable_support(mesh, mesh_width, mesh_height, float(heightmap.max()), params.line_width_mm)
     validation = validate_mesh(mesh)
     if (not validation["watertight"] or validation["degenerate_faces"]
             or validation["winding_errors"] or not validation["positive_volume"]):
@@ -473,9 +471,6 @@ async def generate(image: UploadFile = File(...), params: str = Form(...)):
     raw = await read_image(image)
     _, mesh, (cols, rows) = pipeline(raw, settings)
     payload = binary_stl(mesh)
-    _, support_extension, support_count = removable_support_dimensions(
-        settings.height_mm, settings.max_thickness_mm, settings.width_mm
-    )
     return Response(
         content=payload,
         media_type="model/stl",
@@ -488,9 +483,6 @@ async def generate(image: UploadFile = File(...), params: str = Form(...)):
             "X-Sample-Pitch-Mm": str(settings.effective_sample_pitch_mm),
             "X-Effective-Sample-Pitch-Mm": str(max(settings.image_width_mm / (cols - 1), settings.image_height_mm / (rows - 1))),
             "X-Grid-Size": f"{cols}x{rows}",
-            "X-Removable-Support": str(settings.removable_support).lower(),
-            "X-Support-Extension-Mm": str(support_extension) if settings.removable_support else "0",
-            "X-Support-Count": str(support_count) if settings.removable_support else "0",
         },
     )
 
@@ -523,7 +515,7 @@ async def generate_housing(settings: HousingParams):
                 "Oba pliki STL sa juz obrocone plaska strona do stolu i nie wymagaja podpor.\n"
                 "Wloz panel od otwartego tylu i rownomiernie docisnij jego kolnierz do frontu.\n"
                 f"Panel przejdzie pod {settings.panel_clip_count} sprezystymi zatrzaskami i zablokuje sie bez kleju.\n"
-                + f"Wcisnij modul USB-C w koszyk w {('lewej' if settings.usb_side == 'left' else 'prawej')} scianie: metalowa oslona opiera sie o wewnetrzny kolnierz.\n"
+                + f"Wcisnij modul USB-C w koszyk w {('lewej' if settings.usb_side == 'left' else 'prawej')} scianie, przy {('dolnej' if settings.electronics_position == 'bottom' else 'gornej')} krawedzi: metalowa oslona opiera sie o wewnetrzny kolnierz.\n"
                 + "Wepnij pionowo plytke sterownika w cztery klipsy; sprezyna anteny ma tylko lekko dotykac bocznej scianki.\n"
                 + "Uloz oswietlenie i przewody, a nastepnie docisnij tylna pokrywe do zatrzaskow.\n"
                 "Przed drukiem produkcyjnym wykonaj krotka probe pasowania kieszeni dla swojego filamentu.\n"
@@ -543,6 +535,7 @@ async def generate_housing(settings: HousingParams):
             "X-Back-Snap-Count": str(settings.back_snap_count),
             "X-Connection-Type": "usb_c",
             "X-USB-Side": settings.usb_side,
+            "X-Electronics-Position": settings.electronics_position,
             "X-Touch-Dimmer": "true",
             "X-Print-Orientation": "front-face-down",
             "X-Body-Triangle-Count": str(len(body.faces)),

@@ -42,7 +42,6 @@ class LithophaneParams(BaseModel):
     border_widths_mm: BorderWidths | None = None
     border_height_mm: float | None = Field(None, ge=0.4, le=20)
     mounting_flange: bool = Field(False, description="Standard 2.0 mm internal mounting rim with a fixed 1.6 mm thickness")
-    removable_support: bool = False
     invert: bool = False
     mirror: bool = Field(False, description="Creative mirror shown in preview; mesh applies the inverse technical orientation")
     rotation_degrees: float = Field(0, ge=-360, le=360)
@@ -119,10 +118,6 @@ class LithophaneParams(BaseModel):
         return pitches[self.nozzle_diameter_mm][self.quality_profile]
 
     @property
-    def line_width_mm(self) -> float:
-        return {0.2: 0.22, 0.4: 0.44}[self.nozzle_diameter_mm]
-
-    @property
     def effective_resolution(self) -> int:
         if self.resolution is not None:
             return self.resolution
@@ -145,6 +140,7 @@ class HousingParams(BaseModel):
     bezel_overlap_mm: float = Field(1.2, ge=0.6, le=1.8)
     back_thickness_mm: float = Field(2.4, ge=1.6, le=5.0)
     usb_side: Literal["left", "right"] = "right"
+    electronics_position: Literal["bottom", "top"] = "bottom"
 
     @model_validator(mode="after")
     def printable_relations(self):
@@ -158,9 +154,9 @@ class HousingParams(BaseModel):
             raise ValueError("Housing footprint must fit within 256 x 256 mm")
         if self.depth_mm < 24:
             raise ValueError("USB-C side mount requires at least 24 mm housing depth")
-        if self.usb_mount_top_mm >= self.outer_height_mm - self.wall_mm:
+        if self.usb_mount_bottom_mm <= self.wall_mm or self.usb_mount_top_mm >= self.outer_height_mm - self.wall_mm:
             raise ValueError("Housing is too short for the USB-C side mount")
-        if self.dimmer_mount_top_mm >= self.outer_height_mm - self.wall_mm:
+        if self.dimmer_mount_bottom_mm <= self.wall_mm or self.dimmer_mount_top_mm >= self.outer_height_mm - self.wall_mm:
             raise ValueError("Housing is too short for the touch dimmer mount")
         return self
 
@@ -349,7 +345,7 @@ class HousingParams(BaseModel):
 
     @property
     def usb_mount_center_z_mm(self) -> float:
-        return 12.0
+        return 12.0 if self.electronics_position == "bottom" else self.outer_height_mm - 12.0
 
     @property
     def usb_mount_bottom_mm(self) -> float:
@@ -386,11 +382,15 @@ class HousingParams(BaseModel):
 
     @property
     def dimmer_mount_bottom_mm(self) -> float:
-        return self.usb_mount_top_mm + 4.0
+        if self.electronics_position == "bottom":
+            return self.usb_mount_top_mm + 4.0
+        return self.usb_mount_bottom_mm - 4.0 - self.dimmer_board_length_mm - 0.5
 
     @property
     def dimmer_mount_top_mm(self) -> float:
-        return self.dimmer_mount_bottom_mm + self.dimmer_board_length_mm + 0.5
+        if self.electronics_position == "bottom":
+            return self.dimmer_mount_bottom_mm + self.dimmer_board_length_mm + 0.5
+        return self.usb_mount_bottom_mm - 4.0
 
     @property
     def dimmer_board_face_offset_mm(self) -> float:

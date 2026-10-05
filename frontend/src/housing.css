@@ -19,6 +19,9 @@
 .housing-toggle b { color: #263247; font-size: 11px; }
 .housing-toggle small { color: #7b8798; font-size: 8px; }
 .housing-toggle > strong { padding: 5px 7px; border-radius: 999px; background: #e7f7ed; color: #19733a; font-size: 8px; letter-spacing: .06em; }
+.electronics-placement { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.electronics-placement button { padding: 9px 5px; border: 1px solid #dbe0e8; border-radius: 7px; background: #fff; color: #667185; font-size: 9px; cursor: pointer; }
+.electronics-placement button.active { border-color: #d9732f; background: #fff7ed; color: #9a4615; box-shadow: inset 0 0 0 1px #d9732f; font-weight: 700; }
 .housing-spec { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
 .housing-spec span { padding: 8px 4px; border-radius: 7px; background: #f4f6f9; text-align: center; }
 .housing-spec small { display: block; color: #8a94a5; font-size: 7px; letter-spacing: .08em; }
@@ -27,12 +30,21 @@
 .housing-preview { width: min(1040px, 100%); }
 .housing-badge { padding: 8px 11px; border-radius: 999px; background: #edf2f7; color: #647187; font-size: 9px; font-weight: 700; }
 .housing-stage { min-height: 500px; display: flex; align-items: center; justify-content: center; gap: 65px; margin-top: 20px; overflow: hidden; border: 1px solid #252c38; border-radius: 12px; background: radial-gradient(circle at 45% 35%, #3a424f, #161b22 70%); }
-.housing-model { position: relative; box-sizing: border-box; width: min(62%, 610px); max-height: 420px; border-radius: 5px; background: linear-gradient(145deg, #e2e5e9, #89919d); box-shadow: 24px 26px 30px rgba(0,0,0,.35), inset -6px -5px 9px rgba(0,0,0,.2); }
+.housing-model { position: relative; box-sizing: border-box; flex: 0 0 auto; max-width: 62%; max-height: 420px; border-radius: 5px; background: linear-gradient(145deg, #e2e5e9, #89919d); box-shadow: 24px 26px 30px rgba(0,0,0,.35), inset -6px -5px 9px rgba(0,0,0,.2); transition: width .2s ease, height .2s ease; }
 .housing-model.box { background: #77818f; }
-.housing-panel { display: grid; height: 100%; min-height: 230px; place-items: center; align-content: center; gap: 5px; overflow: hidden; border-radius: 2px; background: radial-gradient(circle at 50% 44%, #fffce9, #e9d7a4 58%, #b6a06f); color: #806b41; box-shadow: inset 0 0 25px rgba(85,65,30,.28); }
+.housing-panel { display: grid; height: 100%; place-items: center; align-content: center; gap: 5px; overflow: hidden; border-radius: 2px; background: radial-gradient(circle at 50% 44%, #fffce9, #e9d7a4 58%, #b6a06f); color: #806b41; box-shadow: inset 0 0 25px rgba(85,65,30,.28); }
 .housing-model.box .housing-panel { box-shadow: 0 0 0 1px #252c38, inset 0 0 25px rgba(85,65,30,.28); }
+.electronics-marker { position: absolute; display: grid; gap: 3px; transform: translateY(-50%); z-index: 2; }
+.electronics-marker.left { left: -7px; }
+.electronics-marker.right { right: -7px; }
+.electronics-marker.top { top: 22%; }
+.electronics-marker.bottom { top: 78%; }
+.electronics-marker i { padding: 3px 5px; border-radius: 4px; background: #f58a42; color: #fff; box-shadow: 0 2px 6px #1118; font-size: 7px; font-style: normal; font-weight: 800; letter-spacing: .04em; }
+.electronics-marker.bottom i:first-child { order: 2; }
+.electronics-marker.left i { transform: translateX(-35%); }
+.electronics-marker.right i { transform: translateX(35%); }
 .housing-panel span { font-size: 34px; font-weight: 800; letter-spacing: .18em; opacity: .38; }
 .housing-panel small { font-size: 10px; opacity: .7; }
 .depth-preview { display: flex; flex-direction: column; align-items: center; gap: 10px; color: #aab1bd; font-size: 10px; }
 .depth-preview div { height: 190px; transform: skewY(-12deg); border: 1px solid #77818f; border-radius: 3px; background: linear-gradient(90deg, #76808d, #29313d); box-shadow: 18px 20px 25px rgba(0,0,0,.3); }
-@media (max-width: 900px) { .housing-stage { min-height: 360px; gap: 20px; } .depth-preview { display: none; } .housing-model { width: 82%; } }
+@media (max-width: 900px) { .housing-stage { min-height: 360px; gap: 20px; } .depth-preview { display: none; } .housing-model { max-width: 82%; } }

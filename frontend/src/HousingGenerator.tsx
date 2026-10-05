@@ -14,6 +14,7 @@ export type HousingParams = {
   bezel_overlap_mm: number;
   back_thickness_mm: number;
   usb_side: "left" | "right";
+  electronics_position: "bottom" | "top";
 };
 
 export const HOUSING_FORMATS = [
@@ -26,7 +27,7 @@ export const initialHousing: HousingParams = {
   kind: "box", panel_width_mm: 150, panel_height_mm: 100,
   panel_thickness_mm: 1.6, clearance_mm: .4, depth_mm: 40,
   wall_mm: 2.4, frame_border_mm: 12, bezel_overlap_mm: 1.2,
-  back_thickness_mm: 2.4, usb_side: "right",
+  back_thickness_mm: 2.4, usb_side: "right", electronics_position: "bottom",
 };
 
 export function housingOuterSize(params: HousingParams) {
@@ -43,6 +44,12 @@ export function housingBackSnapCount(params: HousingParams) {
   const edgeCount = (length: number) => length >= 175 ? 4 : length >= 125 ? 3 : 2;
   const outer = housingOuterSize(params);
   return 2 * (edgeCount(outer.width) + edgeCount(outer.height));
+}
+
+export function housingPreviewSize(params: HousingParams, maxWidth = 520, maxHeight = 390) {
+  const outer = housingOuterSize(params);
+  const scale = Math.min(maxWidth / outer.width, maxHeight / outer.height);
+  return {width: outer.width * scale, height: outer.height * scale};
 }
 
 export function validateHousing(params: HousingParams): string {
@@ -65,6 +72,7 @@ export default function HousingGenerator({active, onOpenLithophane}: {active: bo
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const outer = housingOuterSize(params);
+  const previewSize = housingPreviewSize(params);
   const clipCount = housingClipCount(params);
   const backSnapCount = housingBackSnapCount(params);
   const landscape = params.panel_width_mm >= params.panel_height_mm;
@@ -78,6 +86,8 @@ export default function HousingGenerator({active, onOpenLithophane}: {active: bo
     const long = Math.max(current.panel_width_mm, current.panel_height_mm);
     return {...current, panel_width_mm: nextLandscape ? long : short, panel_height_mm: nextLandscape ? short : long};
   });
+  const setElectronicsPlacement = (usb_side: HousingParams["usb_side"], electronics_position: HousingParams["electronics_position"]) =>
+    setParams(current => ({...current, usb_side, electronics_position}));
   const setDimension = (key: "panel_width_mm" | "panel_height_mm", raw: string) => {
     const value = Math.max(20, Math.min(250, Number(raw) || 20));
     setCustom(true); set(key, value);
@@ -132,12 +142,18 @@ export default function HousingGenerator({active, onOpenLithophane}: {active: bo
         <Range label="Głębokość obudowy" value={params.depth_mm} min={20} max={80} step={1} onChange={value => set("depth_mm", value)}/>
         <h2><span>04</span> Zasilanie i sterowanie</h2>
         <div className="housing-toggle"><span><b>Stały zestaw elektroniki</b><small>USB-C oraz sterownik zbliżeniowy 37,04 × 10,08 mm</small></span><strong>WYMAGANY</strong></div>
-        <div className="formats"><button className={params.usb_side === "left" ? "active" : ""} onClick={() => set("usb_side", "left")}>Lewa ściana</button><button className={params.usb_side === "right" ? "active" : ""} onClick={() => set("usb_side", "right")}>Prawa ściana</button></div>
+        <h3>Położenie USB-C i sterownika</h3>
+        <div className="electronics-placement">
+          <button className={params.usb_side === "left" && params.electronics_position === "top" ? "active" : ""} onClick={() => setElectronicsPlacement("left", "top")}>Lewy górny bok</button>
+          <button className={params.usb_side === "right" && params.electronics_position === "top" ? "active" : ""} onClick={() => setElectronicsPlacement("right", "top")}>Prawy górny bok</button>
+          <button className={params.usb_side === "left" && params.electronics_position === "bottom" ? "active" : ""} onClick={() => setElectronicsPlacement("left", "bottom")}>Lewy dolny bok</button>
+          <button className={params.usb_side === "right" && params.electronics_position === "bottom" ? "active" : ""} onClick={() => setElectronicsPlacement("right", "bottom")}>Prawy dolny bok</button>
+        </div>
         <p className="quality-note housing-note">USB-C: 8,85 × 3,12 mm, płytka 14,02 mm. Uchwyt sterownika jest zawsze dodawany obok USB-C. Antena sprężynowa dotyka ścianki z lekkim dociskiem 0,4 mm.</p>
         <div className="housing-spec">
           <span><small>KIESZEŃ PANELU</small><b>{(params.panel_thickness_mm + params.clearance_mm).toFixed(1)} mm</b></span>
           <span><small>KLIPSY PANELU</small><b>{clipCount} × 0.4 mm</b></span>
-          <span><small>PRZYŁĄCZE</small><b>{`USB-C · ${params.usb_side === "left" ? "lewa" : "prawa"}`}</b></span>
+          <span><small>PRZYŁĄCZE</small><b>{`USB-C · ${params.usb_side === "left" ? "lewy" : "prawy"} ${params.electronics_position === "bottom" ? "dół" : "góra"}`}</b></span>
         </div>
       </div>
       <div className="sidebar-foot">Zintegrowane zatrzaski · bez kleju · pokrywa serwisowa</div>
@@ -146,8 +162,9 @@ export default function HousingGenerator({active, onOpenLithophane}: {active: bo
       <article className="preview housing-preview">
         <div className="preview-head"><div><p className="eyebrow">PODGLĄD KONSTRUKCJI</p><h2>{params.kind === "box" ? "Podświetlany Box" : "Podświetlana ramka"}</h2></div><span className="housing-badge">{clipCount} klipsów panelu · {backSnapCount} zatrzasków pokrywy</span></div>
         <div className="housing-stage">
-          <div className={`housing-model ${params.kind}`} style={{aspectRatio: `${outer.width} / ${outer.height}`, padding: `${visualBorder}px`}}>
+          <div className={`housing-model ${params.kind}`} style={{width: `${previewSize.width}px`, height: `${previewSize.height}px`, padding: `${visualBorder}px`}}>
             <div className="housing-panel"><span>LITHO</span><small>{params.panel_width_mm} × {params.panel_height_mm} mm</small></div>
+            <div className={`electronics-marker ${params.usb_side} ${params.electronics_position}`}><i>USB-C</i><i>DOTYK</i></div>
           </div>
           <div className="depth-preview"><div style={{width: `${Math.max(70, params.depth_mm * 2)}px`}}/><span>{params.depth_mm} mm</span></div>
         </div>

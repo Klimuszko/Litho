@@ -11,7 +11,7 @@ export type Params = {
   nozzle_diameter_mm: 0.2 | 0.4; quality_profile: "economic" | "optimal" | "maximum";
   orientation: "portrait" | "landscape"; border_width_mm: number; border_height_mm: number;
   border_widths_mm: BorderWidths | null; mounting_flange: boolean;
-  removable_support: boolean; invert: boolean; mirror: boolean; rotation_degrees: number;
+  invert: boolean; mirror: boolean; rotation_degrees: number;
   crop: {x: number; y: number; width: number; height: number};
 };
 type Crop = Params["crop"];
@@ -120,7 +120,7 @@ export function imageArea(width: number, height: number, border: number | Border
   const borders = typeof border === "number" ? {top: border, right: border, bottom: border, left: border} : border;
   return {width: width - borders.left - borders.right, height: height - borders.top - borders.bottom};
 }
-export const initial: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: 1, max_thickness_mm: 4, gamma: 1, brightness: 1, contrast: 1.25, nozzle_diameter_mm: .4, quality_profile: "maximum", orientation: "landscape", border_width_mm: 0, border_widths_mm: null, border_height_mm: 4, mounting_flange: false, removable_support: false, invert: false, mirror: false, rotation_degrees: 0, crop: {x: 0, y: 0, width: 1, height: 1}};
+export const initial: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: 1, max_thickness_mm: 4, gamma: 1, brightness: 1, contrast: 1.25, nozzle_diameter_mm: .4, quality_profile: "maximum", orientation: "landscape", border_width_mm: 0, border_widths_mm: null, border_height_mm: 4, mounting_flange: false, invert: false, mirror: false, rotation_degrees: 0, crop: {x: 0, y: 0, width: 1, height: 1}};
 
 export function resolvedBorders(p: Params): BorderWidths {
   if (p.mounting_flange) return {top: MOUNTING_FLANGE_WIDTH_MM, right: MOUNTING_FLANGE_WIDTH_MM, bottom: MOUNTING_FLANGE_WIDTH_MM, left: MOUNTING_FLANGE_WIDTH_MM};
@@ -395,8 +395,6 @@ function LithophaneGenerator({active, onOpenHousing}: {active: boolean; onOpenHo
           {anyBorder && <Slider label="Grubość ramki" value={params.border_height_mm} min={params.nozzle_diameter_mm * 2} max={10} step={.1} unit=" mm" onChange={n => set("border_height_mm", n)}/>}
           {anyBorder && params.border_height_mm < params.max_thickness_mm && <p className="quality-note warning-note">Cienka ramka: ciemne fragmenty reliefu będą wystawały ponad jej powierzchnię. Do ramki ochronnej zalecamy grubość co najmniej równą maksymalnej grubości obrazu.</p>}
         </>}
-        <label className="check"><input type="checkbox" checked={params.removable_support} onChange={e => set("removable_support", e.target.checked)}/><span>Dodaj odrywaną stopę do druku pionowego</span></label>
-        {params.removable_support && <p className="quality-note">Kompaktowa podpora seryjna · 2 zastrzały, a dla dużych formatów 3 · maks. 45 mm wysokości i 25 mm wysunięcia na stronę · bez brimu w STL · lekko wzmocnione bezpieczniki nadal łatwe do odłamania</p>}
         <label className="check"><input type="checkbox" checked={params.invert} onChange={e => set("invert", e.target.checked)}/><span>Odwróć obraz</span></label>
         <label className="check"><input type="checkbox" checked={params.mirror} onChange={e => set("mirror", e.target.checked)}/><span>Odbij zdjęcie lustrzanie</span></label>
         </div>

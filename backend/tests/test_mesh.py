@@ -1,17 +1,12 @@
 import struct
 
 import numpy as np
-import pytest
 from hypothesis import given, strategies as st
 
 from app.exporter import binary_stl
 from app.mesh import (
-    add_removable_support,
     apply_border,
     build_plate,
-    removable_support_connector_dimensions,
-    removable_support_dimensions,
-    removable_support_gap,
     validate_mesh,
 )
 
@@ -94,86 +89,3 @@ def test_asymmetric_border_restores_exact_outer_dimensions():
     assert framed.shape == (13, 26)
     assert np.all(framed[0] == 2)
     assert np.all(framed[:, -1] == 2)
-
-
-def test_removable_support_extends_only_in_thickness_axis():
-    plate = build_plate(np.full((4, 5), 3.2, dtype=np.float32), 100, 75)
-    supported = add_removable_support(plate, 100, 75, 3.2, 0.45)
-    assert float(supported.vertices[:, 0].min()) == 0
-    assert float(supported.vertices[:, 0].max()) == 100
-    assert float(supported.vertices[:, 2].min()) == 0
-    assert float(supported.vertices[:, 2].max()) == 75
-    assert float(supported.vertices[:, 1].min()) == -18
-    assert np.isclose(float(supported.vertices[:, 1].max()), 21.2)
-    assert len(supported.faces) == len(plate.faces) + 192
-    validation = validate_mesh(supported)
-    assert validation == {"watertight": True, "boundary_edges": 0, "degenerate_faces": 0, "winding_errors": 0, "positive_volume": True}
-
-
-def test_removable_support_scales_for_two_hundred_mm_model():
-    plate = build_plate(np.full((4, 5), 3.2, dtype=np.float32), 150, 200)
-    supported = add_removable_support(plate, 150, 200, 3.2, 0.44)
-    assert np.isclose(float(supported.vertices[:, 1].min()), -25)
-    assert np.isclose(float(supported.vertices[:, 1].max()), 28.2)
-    support_vertices = supported.vertices[len(plate.vertices):]
-    assert np.isclose(float(support_vertices[:, 2].max()), 45)
-    assert len(supported.faces) == len(plate.faces) + 288
-
-
-def test_largest_landscape_model_keeps_full_size_support():
-    plate = build_plate(np.ones((4, 4), dtype=np.float32), 200, 150)
-    supported = add_removable_support(plate, 200, 150, 3.2, 0.44)
-    support_vertices = supported.vertices[len(plate.vertices):]
-    assert np.isclose(float(support_vertices[:, 2].max()), 45)
-    assert np.isclose(float(supported.vertices[:, 1].min()), -25)
-    assert np.isclose(float(supported.vertices[:, 1].max()), 28.2)
-    assert len(supported.faces) == len(plate.faces) + 288
-    top = support_vertices[np.isclose(support_vertices[:, 2], 45)]
-    # Each brace keeps a printable Y thickness at its top instead of ending in
-    # a zero-thickness knife edge that a slicer may discard.
-    assert float(top[:, 1].max() - top[:, 1].min()) >= 2 * 0.44
-
-
-def test_unusually_shallow_custom_model_does_not_get_oversized_braces():
-    brace_height, extension, count = removable_support_dimensions(50, 3.2, 200)
-    assert (brace_height, extension, count) == (25, 25, 2)
-
-
-def test_breakaway_connectors_are_small_and_only_minimally_overlap_plate():
-    tab_width, tab_height, overlap, bottom_neck_height = removable_support_connector_dimensions(0.44)
-    assert np.isclose(tab_width, 2.0)
-    assert tab_height == 0.50
-    assert overlap == 0.18
-    assert bottom_neck_height == 0.50
-    # Old connector section was 10 x 2 = 20 mm2 per bridge.
-    assert tab_width * tab_height == 1.0
-    assert tab_width * tab_height <= 0.05 * 20
-
-
-@pytest.mark.parametrize("front_depth", [1.6, 3.2, 10.0])
-def test_wide_braces_keep_line_width_clearance_from_actual_model_depth(front_depth):
-    line_width = 0.44
-    plate = build_plate(np.full((4, 5), front_depth, dtype=np.float32), 100, 100)
-    supported = add_removable_support(plate, 100, 100, front_depth, line_width)
-    brace_height, _, _ = removable_support_dimensions(100, front_depth, 100)
-    support_vertices = supported.vertices[len(plate.vertices):]
-    brace_top_y = support_vertices[np.isclose(support_vertices[:, 2], brace_height), 1]
-    rear = brace_top_y[brace_top_y < 0]
-    front = brace_top_y[brace_top_y > front_depth]
-    assert rear.max() == pytest.approx(-removable_support_gap(line_width))
-    assert front.min() == pytest.approx(front_depth + removable_support_gap(line_width))
-
-
-def test_largest_support_footprint_allows_three_rows_on_256_mm_bed():
-    brace_height, extension, count = removable_support_dimensions(200)
-    footprint_depth = 3.2 + 2 * extension
-    spacing = (256 - 3 * footprint_depth) / 2
-    assert (brace_height, extension, count) == (45, 25, 3)
-    assert footprint_depth == 53.2
-    assert spacing >= 8
-
-
-def test_compact_support_never_exceeds_fifty_five_mm_depth():
-    _, extension, count = removable_support_dimensions(200, 22)
-    assert count == 3
-    assert 22 + 2 * extension <= 55

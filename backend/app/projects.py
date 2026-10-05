@@ -54,7 +54,6 @@ class CustomerProjectConfig(BaseModel):
             nozzle_diameter_mm=0.4,
             quality_profile="maximum",
             mounting_flange=True,
-            removable_support=False,
             invert=False,
             mirror=False,
             rotation_degrees=self.rotation_degrees,

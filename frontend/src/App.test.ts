@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { automaticCrop, effectiveBorderHeight, effectiveGrid, imageArea, initial, inscribedSize, panCrop, Params, resolvedBorders, rotatedSize, validateParams, zoomCrop, zoomCropAt } from "./App";
-import { housingBackSnapCount, housingClipCount, housingOuterSize, initialHousing, validateHousing } from "./HousingGenerator";
+import { housingBackSnapCount, housingClipCount, housingOuterSize, housingPreviewSize, initialHousing, validateHousing } from "./HousingGenerator";
 
-const valid: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .8, max_thickness_mm: 3, gamma: 1, brightness: 1, contrast: 1, nozzle_diameter_mm: .4, quality_profile: "optimal", orientation: "landscape", border_width_mm: 0, border_widths_mm: null, border_height_mm: 3, mounting_flange: false, removable_support: false, invert: false, mirror: false, rotation_degrees: 0, crop: {x: 0, y: 0, width: 1, height: 1}};
+const valid: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .8, max_thickness_mm: 3, gamma: 1, brightness: 1, contrast: 1, nozzle_diameter_mm: .4, quality_profile: "optimal", orientation: "landscape", border_width_mm: 0, border_widths_mm: null, border_height_mm: 3, mounting_flange: false, invert: false, mirror: false, rotation_degrees: 0, crop: {x: 0, y: 0, width: 1, height: 1}};
 
 describe("client parameter validation", () => {
   it("uses a modest default contrast boost", () => expect(initial.contrast).toBe(1.25));
@@ -117,6 +117,14 @@ describe("housing generator", () => {
   it("uses at least two rear-cover snaps on every edge", () => {
     expect(housingBackSnapCount(initialHousing)).toBe(10);
     expect(housingBackSnapCount({...initialHousing, panel_width_mm: 200, panel_height_mm: 150})).toBe(14);
+  });
+  it("rotates the housing preview together with the selected panel orientation", () => {
+    const landscape = housingPreviewSize(initialHousing);
+    const portrait = housingPreviewSize({...initialHousing, panel_width_mm: 100, panel_height_mm: 150});
+    expect(landscape.width).toBeGreaterThan(landscape.height);
+    expect(portrait.width).toBeLessThan(portrait.height);
+    expect(landscape.width / landscape.height).toBeCloseTo(155.6 / 105.6);
+    expect(portrait.width / portrait.height).toBeCloseTo(105.6 / 155.6);
   });
   it("validates the USB-C side mount and touch controller envelope", () => {
     expect(validateHousing({...initialHousing, depth_mm: 23})).toContain("24 mm");

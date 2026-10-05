@@ -137,27 +137,16 @@ def test_mounting_flange_has_fixed_geometry_and_preserves_manual_frame_settings(
     assert float(mesh.vertices[front_vertex_count - 1, 1]) == pytest.approx(1.6)
 
 
-def test_optional_removable_support_is_reported_and_added():
+def test_legacy_removable_support_flag_no_longer_adds_printing_feet():
     response = client.post(
         "/api/generate",
         files={"image": ("photo.png", sample_png(), "image/png")},
         data={"params": '{"width_mm":150,"height_mm":100,"resolution":24,"removable_support":true}'},
     )
     assert response.status_code == 200, response.text
-    assert response.headers["x-removable-support"] == "true"
-    assert response.headers["x-support-count"] == "2"
-    assert response.headers["x-support-extension-mm"] == "18.75"
-
-
-def test_largest_landscape_format_reports_full_support_profile():
-    response = client.post(
-        "/api/generate",
-        files={"image": ("test.png", sample_png(), "image/png")},
-        data={"params": '{"width_mm":200,"height_mm":150,"resolution":24,"removable_support":true}'},
-    )
-    assert response.status_code == 200
-    assert response.headers["x-support-count"] == "3"
-    assert response.headers["x-support-extension-mm"] == "25.0"
+    assert "x-removable-support" not in response.headers
+    assert "x-support-count" not in response.headers
+    assert "x-support-extension-mm" not in response.headers
 
 
 def test_default_photo_contrast_is_slightly_enhanced():
