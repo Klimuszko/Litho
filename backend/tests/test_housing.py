@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from app.housing import build_housing_back, build_housing_body, orient_front_on_bed
+from app.housing import build_housing_back, build_housing_body, build_housing_wedges, orient_front_on_bed
 from app.main import app
 from app.mesh import validate_mesh
 from app.models import HousingParams
@@ -132,8 +132,10 @@ def test_housing_rejects_dimensions_outside_p1s_bed():
 
 
 def test_usb_c_side_mount_rejects_too_shallow_or_too_short_housing():
-    with pytest.raises(ValidationError, match="at least 24 mm"):
-        HousingParams(depth_mm=23)
+    with pytest.raises(ValidationError, match="at least 27 mm"):
+        HousingParams(depth_mm=26)
+    shallow = HousingParams(depth_mm=27)
+    assert shallow.electronics_pocket_floor_y_mm >= shallow.electronics_keepout_y_mm
     with pytest.raises(ValidationError, match="too short"):
         HousingParams(panel_height_mm=40)
 
@@ -161,6 +163,49 @@ def test_usb_c_and_touch_dimmer_mounts_are_mandatory_and_single_manifold_body(si
         and z == pytest.approx(aperture_z)
         for x, y, z in mesh.vertices
     )
+
+
+def test_usb_c_pocket_matches_measured_module_and_is_open_to_the_rear():
+    params = HousingParams(usb_side="left")
+    mesh = build_housing_body(params)
+    xs = {round(float(x), 3) for x in mesh.vertices[:, 0]}
+    bezel = params.usb_bezel_mm
+    # Bezel-to-stop length is the measured 14.02 mm module plus 0.3 mm play.
+    assert round(bezel + params.usb_total_length_mm + 0.3, 3) in xs
+    assert round(bezel + params.usb_shell_length_mm, 3) in xs
+    # The shell slot in the wall runs out through the rear edge of the body.
+    slot_z = params.usb_mount_center_z_mm - params.usb_pocket_half_height_mm
+    assert any(
+        x == pytest.approx(bezel) and y == pytest.approx(params.body_depth_mm) and z == pytest.approx(slot_z)
+        for x, y, z in mesh.vertices
+    )
+
+
+def test_touch_dimmer_channels_preload_the_antenna_spring_against_the_wall():
+    params = HousingParams(usb_side="left")
+    mesh = build_housing_body(params)
+    xs = {round(float(x), 3) for x in mesh.vertices[:, 0]}
+    rear_stop = params.wall_mm + params.dimmer_board_face_offset_mm + params.dimmer_board_thickness_mm
+    assert round(rear_stop, 3) in xs
+    assert params.dimmer_spring_height_mm - params.dimmer_board_face_offset_mm == pytest.approx(0.4)
+    # Channels stand outside both board ends and clear the USB-C pocket.
+    assert params.dimmer_mount_top_mm - params.dimmer_mount_bottom_mm == pytest.approx(37.54)
+    assert params.dimmer_mount_bottom_mm - params.dimmer_end_wall_mm > params.usb_mount_top_mm
+
+
+def test_locking_wedges_print_flat_and_jam_inside_their_slots():
+    params = HousingParams()
+    wedges = build_housing_wedges(params)
+    validation = validate_mesh(wedges)
+    assert validation["watertight"] and validation["winding_errors"] == 0 and validation["positive_volume"]
+    assert component_count(wedges) == params.wedge_count == 4
+    assert wedges.vertices[:, 2].min() == pytest.approx(0)
+    # The taper crosses the slot height, so the wedge enters freely and jams.
+    assert params.wedge_tip_thickness_mm < params.wedge_slot_height_mm < params.wedge_head_thickness_mm
+    assert params.wedge_width_mm < params.wedge_slot_width_mm
+    # Wedge slots end below the rear-cover lip.
+    slot_top = params.usb_mount_center_y_mm + (params.usb_shell_width_mm + 2 * params.usb_fit_clearance_mm) / 2 + 3.5
+    assert slot_top < params.body_depth_mm - params.back_lip_depth_mm
 
 
 def test_back_cover_is_closed_without_legacy_cable_pass_through():
@@ -197,6 +242,7 @@ def test_housing_api_returns_body_and_back_as_separate_stls():
             "README-PL.txt",
             "litho-frame-150x100-back.stl",
             "litho-frame-150x100-body.stl",
+            "litho-frame-150x100-wedges.stl",
         ]
         for name in (entry for entry in archive.namelist() if entry.endswith(".stl")):
             payload = archive.read(name)

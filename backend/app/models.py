@@ -1,3 +1,4 @@
+import math
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -152,11 +153,15 @@ class HousingParams(BaseModel):
             raise ValueError("Bezel overlap cannot exceed the 2 mm Litho mounting flange")
         if self.outer_width_mm > 256 or self.outer_height_mm > 256:
             raise ValueError("Housing footprint must fit within 256 x 256 mm")
-        if self.depth_mm < 24:
-            raise ValueError("USB-C side mount requires at least 24 mm housing depth")
+        minimum_depth = self.electronics_minimum_depth_mm
+        if self.depth_mm < minimum_depth:
+            raise ValueError(f"USB-C side mount requires at least {minimum_depth} mm housing depth")
         if self.usb_mount_bottom_mm <= self.wall_mm or self.usb_mount_top_mm >= self.outer_height_mm - self.wall_mm:
             raise ValueError("Housing is too short for the USB-C side mount")
-        if self.dimmer_mount_bottom_mm <= self.wall_mm or self.dimmer_mount_top_mm >= self.outer_height_mm - self.wall_mm:
+        if (
+            self.dimmer_mount_bottom_mm - self.dimmer_end_wall_mm <= self.wall_mm
+            or self.dimmer_mount_top_mm + self.dimmer_end_wall_mm >= self.outer_height_mm - self.wall_mm
+        ):
             raise ValueError("Housing is too short for the touch dimmer mount")
         return self
 
@@ -297,7 +302,7 @@ class HousingParams(BaseModel):
         return self.depth_mm - self.back_thickness_mm
 
     # Measured USB-C breakout used by Litho. The opening is deliberately
-    # smaller than the metal shell, so the 1 mm bezel carries unplugging load.
+    # smaller than the metal shell, so the thin bezel carries unplugging load.
     @property
     def usb_shell_width_mm(self) -> float:
         return 8.85
@@ -340,20 +345,60 @@ class HousingParams(BaseModel):
 
     @property
     def usb_mount_center_y_mm(self) -> float:
-        # Keep the cage clear of the rear-cover lip and snap sockets.
-        return self.body_depth_mm - 10.5
+        return self.body_depth_mm - self.electronics_rear_margin_mm
+
+    @property
+    def electronics_rear_margin_mm(self) -> float:
+        # Keeps the pockets and their wedge slots clear of the rear-cover lip.
+        return 12.5
 
     @property
     def usb_mount_center_z_mm(self) -> float:
         return 12.0 if self.electronics_position == "bottom" else self.outer_height_mm - 12.0
 
     @property
+    def usb_bezel_mm(self) -> float:
+        # Thin enough for a USB-C plug to seat fully through the side wall.
+        return 0.8
+
+    @property
+    def usb_pocket_wall_mm(self) -> float:
+        return 2.4
+
+    @property
+    def usb_pocket_half_height_mm(self) -> float:
+        return (self.usb_shell_height_mm + 2 * self.usb_fit_clearance_mm) / 2
+
+    @property
     def usb_mount_bottom_mm(self) -> float:
-        return self.usb_mount_center_z_mm - (self.usb_shell_height_mm + 2 * self.usb_fit_clearance_mm) / 2 - 1.2
+        return self.usb_mount_center_z_mm - self.usb_pocket_half_height_mm - self.usb_pocket_wall_mm
 
     @property
     def usb_mount_top_mm(self) -> float:
-        return self.usb_mount_center_z_mm + (self.usb_shell_height_mm + 2 * self.usb_fit_clearance_mm) / 2 + 0.8
+        return self.usb_mount_center_z_mm + self.usb_pocket_half_height_mm + self.usb_pocket_wall_mm
+
+    @property
+    def electronics_pocket_floor_mm(self) -> float:
+        return 1.6
+
+    @property
+    def electronics_pocket_floor_y_mm(self) -> float:
+        """Underside of both push-in pockets, measured from the housing front."""
+        shell_half = (self.usb_shell_width_mm + 2 * self.usb_fit_clearance_mm) / 2
+        return self.usb_mount_center_y_mm - shell_half - self.electronics_pocket_floor_mm
+
+    @property
+    def electronics_keepout_y_mm(self) -> float:
+        """Depth reserved for the Litho panel and its flexing clips."""
+        return (
+            self.front_thickness_mm + self.panel_thickness_mm + self.panel_clip_clearance_mm
+            + self.panel_clip_ramp_height_mm + self.panel_clip_end_relief_mm
+        )
+
+    @property
+    def electronics_minimum_depth_mm(self) -> int:
+        pocket_stack = self.usb_mount_center_y_mm - self.electronics_pocket_floor_y_mm + self.electronics_rear_margin_mm
+        return math.ceil(round(self.electronics_keepout_y_mm + pocket_stack + self.back_thickness_mm, 6))
 
     @property
     def dimmer_board_width_mm(self) -> float:
@@ -379,6 +424,45 @@ class HousingParams(BaseModel):
     def dimmer_spring_preload_mm(self) -> float:
         # Light contact only; the spring is an antenna, not a structural clamp.
         return 0.4
+
+    # One printed wedge locks each pocket: it is pushed in from the open
+    # interior, across the top of the part, until its taper jams in the slot.
+    @property
+    def wedge_slot_height_mm(self) -> float:
+        return 2.0
+
+    @property
+    def wedge_groove_mm(self) -> float:
+        return 0.8
+
+    @property
+    def wedge_slot_width_mm(self) -> float:
+        return 2 * self.usb_pocket_half_height_mm + 2 * self.wedge_groove_mm
+
+    @property
+    def wedge_width_mm(self) -> float:
+        return self.wedge_slot_width_mm - 0.3
+
+    @property
+    def wedge_length_mm(self) -> float:
+        return 11.0
+
+    @property
+    def wedge_tip_thickness_mm(self) -> float:
+        return 1.4
+
+    @property
+    def wedge_head_thickness_mm(self) -> float:
+        return 2.4
+
+    @property
+    def wedge_count(self) -> int:
+        # USB-C pocket, both dimmer channels, and one spare.
+        return 4
+
+    @property
+    def dimmer_end_wall_mm(self) -> float:
+        return 2.4
 
     @property
     def dimmer_mount_bottom_mm(self) -> float:

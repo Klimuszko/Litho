@@ -56,7 +56,7 @@ export function validateHousing(params: HousingParams): string {
   if (params.panel_width_mm < 20 || params.panel_height_mm < 20) return "Panel musi mieć co najmniej 20 × 20 mm.";
   const outer = housingOuterSize(params);
   if (outer.width > 256 || outer.height > 256) return "Obudowa nie mieści się na stole 256 × 256 mm.";
-  if (params.depth_mm < 24) return "Mocowanie USB-C wymaga co najmniej 24 mm głębokości obudowy.";
+  if (params.depth_mm < 27) return "Mocowanie USB-C wymaga co najmniej 27 mm głębokości obudowy.";
   if (outer.height < 59) return "Obudowa jest za niska na pionowe mocowanie ściemniacza.";
   return "";
 }
@@ -149,7 +149,7 @@ export default function HousingGenerator({active, onOpenLithophane}: {active: bo
           <button className={params.usb_side === "left" && params.electronics_position === "bottom" ? "active" : ""} onClick={() => setElectronicsPlacement("left", "bottom")}>Lewy dolny bok</button>
           <button className={params.usb_side === "right" && params.electronics_position === "bottom" ? "active" : ""} onClick={() => setElectronicsPlacement("right", "bottom")}>Prawy dolny bok</button>
         </div>
-        <p className="quality-note housing-note">USB-C: 8,85 × 3,12 mm, płytka 14,02 mm. Uchwyt sterownika jest zawsze dodawany obok USB-C. Antena sprężynowa dotyka ścianki z lekkim dociskiem 0,4 mm.</p>
+        <p className="quality-note housing-note">USB-C: 8,85 × 3,12 mm, płytka 14,02 mm. Oba elementy wsuwa się od tyłu w masywne kieszenie drukowane bez podpór i blokuje drukowanymi klinami (osobny plik STL). Antena sprężynowa dotyka ścianki z lekkim dociskiem 0,4 mm.</p>
         <div className="housing-spec">
           <span><small>KIESZEŃ PANELU</small><b>{(params.panel_thickness_mm + params.clearance_mm).toFixed(1)} mm</b></span>
           <span><small>KLIPSY PANELU</small><b>{clipCount} × 0.4 mm</b></span>
@@ -168,7 +168,7 @@ export default function HousingGenerator({active, onOpenLithophane}: {active: bo
           </div>
           <div className="depth-preview"><div style={{width: `${Math.max(70, params.depth_mm * 2)}px`}}/><span>{params.depth_mm} mm</span></div>
         </div>
-        <div className="stats"><span><small>PANEL LITHO</small><b>{params.panel_width_mm} × {params.panel_height_mm} mm</b></span><span><small>OBUDOWA</small><b>{outer.width.toFixed(1)} × {outer.height.toFixed(1)} × {params.depth_mm} mm</b></span><span><small>ZESTAW</small><b>2 pliki STL</b></span></div>
+        <div className="stats"><span><small>PANEL LITHO</small><b>{params.panel_width_mm} × {params.panel_height_mm} mm</b></span><span><small>OBUDOWA</small><b>{outer.width.toFixed(1)} × {outer.height.toFixed(1)} × {params.depth_mm} mm</b></span><span><small>ZESTAW</small><b>3 pliki STL</b></span></div>
         {(error || validateHousing(params)) && <p className="error">{error || validateHousing(params)}</p>}
         <button className="generate" disabled={busy || Boolean(validateHousing(params))} onClick={generate}>{busy ? "Generowanie zestawu…" : "Generuj korpus i pokrywę ZIP"}<span>→</span></button>
       </article>

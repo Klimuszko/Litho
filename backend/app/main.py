@@ -22,7 +22,7 @@ from .auth import (
 )
 from .exporter import binary_stl
 from .heightmap import grid_resolution, luminance_to_thickness
-from .housing import build_housing_back, build_housing_body, orient_front_on_bed
+from .housing import build_housing_back, build_housing_body, build_housing_wedges, orient_front_on_bed
 from .image_processing import InvalidImage, decode_image, prepare_image, preview_png, resample_luminance
 from .mesh import apply_border, build_plate, validate_mesh
 from .models import HousingParams, LithophaneParams
@@ -491,7 +491,8 @@ async def generate(image: UploadFile = File(...), params: str = Form(...)):
 async def generate_housing(settings: HousingParams):
     body = orient_front_on_bed(build_housing_body(settings))
     back = orient_front_on_bed(build_housing_back(settings))
-    validations = {"body": validate_mesh(body), "back": validate_mesh(back)}
+    wedges = build_housing_wedges(settings)
+    validations = {"body": validate_mesh(body), "back": validate_mesh(back), "wedges": validate_mesh(wedges)}
     for name, validation in validations.items():
         if (not validation["watertight"] or validation["degenerate_faces"]
                 or validation["winding_errors"] or not validation["positive_volume"]):
@@ -504,6 +505,7 @@ async def generate_housing(settings: HousingParams):
     with ZipFile(output, "w", compression=ZIP_DEFLATED) as archive:
         archive.writestr(f"{prefix}-body.stl", binary_stl(body))
         archive.writestr(f"{prefix}-back.stl", binary_stl(back))
+        archive.writestr(f"{prefix}-wedges.stl", binary_stl(wedges))
         archive.writestr(
             "README-PL.txt",
             (
@@ -512,11 +514,12 @@ async def generate_housing(settings: HousingParams):
                 f"Panel Litho: {settings.panel_width_mm:g} x {settings.panel_height_mm:g} mm\n"
                 f"Obudowa: {settings.outer_width_mm:g} x {settings.outer_height_mm:g} x {settings.depth_mm:g} mm\n"
                 f"Kieszen panelu: {settings.panel_pocket_depth_mm:g} mm (panel {settings.panel_thickness_mm:g} mm + luz {settings.clearance_mm:g} mm)\n\n"
-                "Oba pliki STL sa juz obrocone plaska strona do stolu i nie wymagaja podpor.\n"
-                "Wloz panel od otwartego tylu i rownomiernie docisnij jego kolnierz do frontu.\n"
+                "Wszystkie pliki STL sa juz obrocone plaska strona do stolu i nie wymagaja podpor.\n"
+                "Wloz panel od otwartego tylu, krawedzia od strony USB-C jako pierwsza (ukosnie pod kieszeniami elektroniki), i rownomiernie docisnij jego kolnierz do frontu.\n"
                 f"Panel przejdzie pod {settings.panel_clip_count} sprezystymi zatrzaskami i zablokuje sie bez kleju.\n"
-                + f"Wcisnij modul USB-C w koszyk w {('lewej' if settings.usb_side == 'left' else 'prawej')} scianie, przy {('dolnej' if settings.electronics_position == 'bottom' else 'gornej')} krawedzi: metalowa oslona opiera sie o wewnetrzny kolnierz.\n"
-                + "Wepnij pionowo plytke sterownika w cztery klipsy; sprezyna anteny ma tylko lekko dotykac bocznej scianki.\n"
+                + f"Wsun modul USB-C od tylu w kieszen w {('lewej' if settings.usb_side == 'left' else 'prawej')} scianie, przy {('dolnej' if settings.electronics_position == 'bottom' else 'gornej')} krawedzi, polami lutowniczymi w strone otwartego boku: metalowa oslona opiera sie o kolnierz w sciance, a plytka o niski tylny ogranicznik, nad ktorym wychodza przewody.\n"
+                + "Wsun plytke sterownika od tylu w dwa kanaly, sprezyna w strone scianki; sprezyna anteny ma tylko lekko dotykac bocznej scianki.\n"
+                + f"Zablokuj elementy klinami z pliku wedges ({settings.wedge_count} szt., jeden zapasowy): cienszym koncem wsun klin od srodka obudowy w strone scianki - jeden nad oslona USB-C i po jednym w tunel na kazdym koncu plytki sterownika - az sie zakleszczy.\n"
                 + "Uloz oswietlenie i przewody, a nastepnie docisnij tylna pokrywe do zatrzaskow.\n"
                 "Przed drukiem produkcyjnym wykonaj krotka probe pasowania kieszeni dla swojego filamentu.\n"
             ).encode("utf-8"),

@@ -113,72 +113,88 @@ def build_housing_body(params) -> Mesh:
 
     electronics_left = params.usb_side == "left"
     usb_center_y = params.usb_mount_center_y_mm
+    usb_center_z = params.usb_mount_center_z_mm
     usb_clearance = params.usb_fit_clearance_mm
     usb_shell_half_y = (params.usb_shell_width_mm + 2 * usb_clearance) / 2
-    usb_board_half_y = (params.usb_board_width_mm + 2 * usb_clearance) / 2
+    usb_half_z = params.usb_pocket_half_height_mm
+    usb_wall = params.usb_pocket_wall_mm
     usb_aperture_half_y = params.usb_aperture_width_mm / 2
-    usb_shell_z0 = params.usb_mount_center_z_mm - (params.usb_shell_height_mm + 2 * usb_clearance) / 2
-    usb_shell_z1 = params.usb_mount_center_z_mm + (params.usb_shell_height_mm + 2 * usb_clearance) / 2
-    usb_aperture_z0 = params.usb_mount_center_z_mm - params.usb_aperture_height_mm / 2
-    usb_aperture_z1 = params.usb_mount_center_z_mm + params.usb_aperture_height_mm / 2
-    usb_floor_z0 = usb_shell_z0 - 1.2
-    usb_cage_z1 = usb_shell_z1 + 0.8
-    usb_board_z1 = usb_shell_z0 + params.usb_board_thickness_mm + 2 * usb_clearance
-    usb_board_cage_z1 = usb_board_z1 + 0.8
-    usb_rail = 1.2
-    usb_lip = 0.55
-    usb_stop = 1.2
-    usb_bezel = 1.0
-    usb_wire_half_y = 2.5
+    usb_aperture_half_z = params.usb_aperture_height_mm / 2
+    usb_bezel = params.usb_bezel_mm
+    # Distances are measured from the inner face of the side wall; the
+    # connector nose sits inside the wall, directly behind the bezel.
+    usb_front_d = usb_bezel - wall
+    usb_shell_end_d = usb_front_d + params.usb_shell_length_mm
+    usb_stop_d = usb_front_d + params.usb_total_length_mm + 0.3
+    mount_reach = usb_stop_d + 2.0
+
+    # Both pockets are open towards the rear cover: the parts are pushed
+    # straight in, and nothing overhangs once the body is printed face down.
+    pocket_floor_y = params.electronics_pocket_floor_y_mm
+    usb_seat_y = usb_center_y - usb_shell_half_y
+    usb_top_y = usb_center_y + usb_shell_half_y
+    keepout_y = params.electronics_keepout_y_mm
+    gusset_step = 0.4
+    gusset_steps = int(np.ceil(mount_reach / gusset_step))
 
     dimmer_half_y = (params.dimmer_board_width_mm + 2 * usb_clearance) / 2
     dimmer_z0 = params.dimmer_mount_bottom_mm
     dimmer_z1 = params.dimmer_mount_top_mm
-    dimmer_corner = 4.0
-    dimmer_rail = 1.2
-    dimmer_edge_grip = 0.45
-    dimmer_face_d = params.dimmer_board_face_offset_mm
-    dimmer_back_d = dimmer_face_d + params.dimmer_board_thickness_mm + 2 * usb_clearance
-    dimmer_clip_d = dimmer_back_d + 0.8
+    dimmer_end_wall = params.dimmer_end_wall_mm
+    # Wide rear stops: each one also houses the tunnel for a locking wedge.
+    dimmer_grip = params.wedge_slot_width_mm + 1.2
+    dimmer_lip = 0.7
+    dimmer_lip_height = 3.0
+    dimmer_seat_y = usb_center_y - dimmer_half_y
+    dimmer_top_y = usb_center_y + dimmer_half_y
+    # The antenna spring presses the board against the rear stop, so the
+    # stop alone sets the preload; the front lip only keeps the board upright.
+    dimmer_slot_d0 = params.dimmer_board_face_offset_mm - 0.4
+    dimmer_slot_d1 = params.dimmer_board_face_offset_mm + params.dimmer_board_thickness_mm
+    dimmer_lip_d0 = dimmer_slot_d0 - 1.2
+
+    # Wedge slots sit just above each part; the drop lets the taper bear on
+    # the part itself instead of leaving it loose in the pocket.
+    wedge_drop = 0.3
+    wedge_cap = 3.5
+    wedge_groove = params.wedge_groove_mm
+    usb_wedge_y0 = usb_top_y - wedge_drop
+    usb_wedge_y1 = usb_wedge_y0 + params.wedge_slot_height_mm
+    dimmer_wedge_y0 = dimmer_top_y - wedge_drop
+    dimmer_wedge_y1 = dimmer_wedge_y0 + params.wedge_slot_height_mm
+    usb_stop_height = 3.0
 
     def side_x(distance_from_inner_wall: float) -> float:
         return wall + distance_from_inner_wall if electronics_left else width - wall - distance_from_inner_wall
 
-    usb_xs = [
-        usb_bezel if electronics_left else width - usb_bezel,
-        side_x(0), side_x(params.usb_shell_length_mm),
-        side_x(params.usb_total_length_mm), side_x(params.usb_total_length_mm + usb_stop),
-    ]
+    gusset_ds = [mount_reach - index * gusset_step for index in range(1, gusset_steps)]
+    gusset_ys = [pocket_floor_y - index * gusset_step for index in range(1, gusset_steps)]
+    usb_xs = [side_x(distance) for distance in (
+        usb_front_d, usb_shell_end_d, usb_stop_d, mount_reach, *gusset_ds,
+    )]
     usb_ys = [
-        usb_center_y - usb_shell_half_y - usb_rail,
-        usb_center_y - usb_shell_half_y,
-        usb_center_y - usb_shell_half_y + usb_lip,
-        usb_center_y - usb_board_half_y - usb_rail,
-        usb_center_y - usb_board_half_y,
-        usb_center_y - usb_board_half_y + usb_lip,
-        usb_center_y - usb_aperture_half_y,
-        usb_center_y - usb_wire_half_y,
-        usb_center_y + usb_wire_half_y,
-        usb_center_y + usb_aperture_half_y,
-        usb_center_y + usb_board_half_y - usb_lip,
-        usb_center_y + usb_board_half_y,
-        usb_center_y + usb_board_half_y + usb_rail,
-        usb_center_y + usb_shell_half_y - usb_lip,
-        usb_center_y + usb_shell_half_y,
-        usb_center_y + usb_shell_half_y + usb_rail,
+        keepout_y, pocket_floor_y, usb_seat_y, usb_seat_y + usb_stop_height, usb_top_y,
+        usb_wedge_y0, usb_wedge_y1, usb_top_y + wedge_cap,
+        usb_center_y - usb_aperture_half_y, usb_center_y + usb_aperture_half_y,
+        *(value for value in gusset_ys if value > keepout_y),
     ]
-    usb_zs = [usb_floor_z0, usb_shell_z0, usb_board_z1, usb_board_cage_z1, usb_aperture_z0, usb_aperture_z1, usb_shell_z1, usb_cage_z1]
+    usb_zs = [
+        usb_center_z - usb_half_z - usb_wall, usb_center_z - usb_half_z,
+        usb_center_z - usb_aperture_half_z, usb_center_z + usb_aperture_half_z,
+        usb_center_z + usb_half_z, usb_center_z + usb_half_z + usb_wall,
+        usb_center_z - usb_half_z - wedge_groove, usb_center_z + usb_half_z + wedge_groove,
+    ]
 
-    dimmer_xs = [side_x(dimmer_face_d - 0.8), side_x(dimmer_face_d), side_x(dimmer_back_d), side_x(dimmer_clip_d)]
+    dimmer_xs = [side_x(distance) for distance in (dimmer_lip_d0, dimmer_slot_d0, dimmer_slot_d1)]
     dimmer_ys = [
-        usb_center_y - dimmer_half_y - dimmer_rail,
-        usb_center_y - dimmer_half_y,
-        usb_center_y - dimmer_half_y + dimmer_edge_grip,
-        usb_center_y + dimmer_half_y - dimmer_edge_grip,
-        usb_center_y + dimmer_half_y,
-        usb_center_y + dimmer_half_y + dimmer_rail,
+        dimmer_seat_y, dimmer_seat_y + dimmer_lip_height, dimmer_top_y,
+        dimmer_wedge_y0, dimmer_wedge_y1, dimmer_top_y + wedge_cap,
     ]
-    dimmer_zs = [dimmer_z0, dimmer_z0 + dimmer_corner, dimmer_z1 - dimmer_corner, dimmer_z1]
+    dimmer_zs = [
+        dimmer_z0 - dimmer_end_wall, dimmer_z0, dimmer_z0 + dimmer_lip, dimmer_z0 + dimmer_grip,
+        dimmer_z1 - dimmer_grip, dimmer_z1 - dimmer_lip, dimmer_z1, dimmer_z1 + dimmer_end_wall,
+        dimmer_z0 + params.wedge_slot_width_mm, dimmer_z1 - params.wedge_slot_width_mm,
+    ]
 
     clip_xs = [value for interval in horizontal_clips for value in interval]
     clip_zs = [value for interval in vertical_clips for value in interval]
@@ -271,56 +287,66 @@ def build_housing_body(params) -> Mesh:
 
         outer_d = x if electronics_left else width - x
         inner_d = x - wall if electronics_left else width - wall - x
-        y_from_center = abs(y - usb_center_y)
+        usb_z = abs(z - usb_center_z)
 
-        # A stepped side-wall opening leaves a 1 mm retaining bezel in
-        # front of the measured 8.85 x 3.12 mm metal connector shell.
+        # The side-wall opening is smaller than the measured 8.85 x 3.12 mm
+        # metal shell, so the bezel in front of it carries unplugging load.
         in_outer_aperture = (
             0 < outer_d < usb_bezel
-            and y_from_center < usb_aperture_half_y
-            and usb_aperture_z0 < z < usb_aperture_z1
+            and abs(y - usb_center_y) < usb_aperture_half_y
+            and usb_z < usb_aperture_half_z
         )
-        in_shell_recess = (
-            usb_bezel < outer_d < wall
-            and y_from_center < usb_shell_half_y
-            and usb_shell_z0 < z < usb_shell_z1
-        )
-        if in_outer_aperture or in_shell_recess:
+        # Open to the rear edge so the connector nose can slide down the wall.
+        in_shell_slot = usb_bezel < outer_d < wall and usb_z < usb_half_z and y > usb_seat_y
+        if in_outer_aperture or in_shell_slot:
             material = False
 
-        if 0 < inner_d < params.usb_total_length_mm + usb_stop:
-            in_shell_channel = inner_d < params.usb_shell_length_mm
-            channel_half = usb_shell_half_y if in_shell_channel else usb_board_half_y
-            channel_top = usb_shell_z1 if in_shell_channel else usb_board_z1
-            cage_top = usb_cage_z1 if in_shell_channel else usb_board_cage_z1
-            cage_floor = (
-                y_from_center < channel_half + usb_rail
-                and usb_floor_z0 < z < usb_shell_z0
-            )
-            cage_rails = (
-                channel_half < y_from_center < channel_half + usb_rail
-                and usb_floor_z0 < z < cage_top
-                and inner_d < params.usb_total_length_mm
-            )
-            cage_lips = (
-                channel_half - usb_lip < y_from_center < channel_half
-                and channel_top < z < cage_top
-                and inner_d < params.usb_total_length_mm
-            )
-            end_stop = (
-                params.usb_total_length_mm < inner_d < params.usb_total_length_mm + usb_stop
-                and usb_wire_half_y < y_from_center < usb_board_half_y + usb_rail
-                and usb_floor_z0 < z < usb_board_cage_z1
-            )
-            material = material or cage_floor or cage_rails or cage_lips or end_stop
+        if 0 < inner_d < mount_reach:
+            # Distance into the board from its nearest end; negative values
+            # are the end walls that tie each dimmer channel to the side wall.
+            dimmer_end = min(z - dimmer_z0, dimmer_z1 - z)
+            in_usb_block = usb_z < usb_half_z + usb_wall
+            in_dimmer_block = -dimmer_end_wall < dimmer_end < dimmer_grip
 
-        at_corner = dimmer_z0 < z < dimmer_z0 + dimmer_corner or dimmer_z1 - dimmer_corner < z < dimmer_z1
-        at_side = dimmer_half_y < y_from_center < dimmer_half_y + dimmer_rail
-        edge_overlap = dimmer_half_y - dimmer_edge_grip < y_from_center < dimmer_half_y
-        bracket = at_corner and at_side and 0 < inner_d < dimmer_clip_d
-        front_seat = at_corner and edge_overlap and dimmer_face_d - 0.8 < inner_d < dimmer_face_d
-        rear_clip = at_corner and edge_overlap and dimmer_back_d < inner_d < dimmer_clip_d
-        material = material or bracket or front_seat or rear_clip
+            if in_usb_block and pocket_floor_y < y < usb_top_y:
+                usb_floor = y < usb_seat_y
+                # The lower wall backs the whole module; the upper one stops
+                # at the connector shell so the solder pads stay accessible.
+                usb_lower_wall = z < usb_center_z - usb_half_z
+                usb_upper_wall = z > usb_center_z + usb_half_z and inner_d < usb_shell_end_d
+                # Low stop: soldered wires leave straight back over it.
+                usb_end_stop = inner_d > usb_stop_d and y < usb_seat_y + usb_stop_height
+                material = material or usb_floor or usb_lower_wall or usb_upper_wall or usb_end_stop
+
+            if in_dimmer_block and pocket_floor_y < y < dimmer_top_y:
+                dimmer_end_plate = dimmer_end < 0
+                dimmer_floor = y < dimmer_seat_y
+                dimmer_rear_stop = inner_d > dimmer_slot_d1
+                dimmer_front_lip = (
+                    dimmer_end < dimmer_lip
+                    and dimmer_lip_d0 < inner_d < dimmer_slot_d0
+                    and y < dimmer_seat_y + dimmer_lip_height
+                )
+                material = material or dimmer_end_plate or dimmer_floor or dimmer_rear_stop or dimmer_front_lip
+
+            # Wedge guides: grooves in both USB-C walls above the shell,
+            # and a tunnel through each dimmer rear stop above the board.
+            usb_wedge_guide = in_usb_block and usb_z > usb_half_z and inner_d < usb_shell_end_d
+            if usb_wedge_guide and usb_top_y <= y < usb_top_y + wedge_cap:
+                material = True
+            if usb_wedge_guide and usb_wedge_y0 < y < usb_wedge_y1 and usb_z < usb_half_z + wedge_groove:
+                material = False
+            dimmer_wedge_guide = in_dimmer_block and inner_d > dimmer_slot_d1
+            if dimmer_wedge_guide and dimmer_top_y <= y < dimmer_top_y + wedge_cap:
+                material = True
+            if dimmer_wedge_guide and dimmer_wedge_y0 < y < dimmer_wedge_y1 and 0 < dimmer_end < params.wedge_slot_width_mm:
+                material = False
+
+            if (in_usb_block or in_dimmer_block) and keepout_y < y < pocket_floor_y:
+                # 45 degree stepped gusset: prints without supports and
+                # carries the pockets on the full height of the side wall.
+                step = int((pocket_floor_y - y) / gusset_step) + 1
+                material = material or inner_d < mount_reach - step * gusset_step
         return material
 
     return _cell_mesh(xs, ys, zs, solid)
@@ -365,6 +391,28 @@ def build_housing_back(params) -> Mesh:
         return plate or ring or snap
 
     return _cell_mesh(xs, ys, zs, solid)
+
+
+def build_housing_wedges(params) -> Mesh:
+    """Tapered locking wedges, laid flat on the bed side by side."""
+    length, width = params.wedge_length_mm, params.wedge_width_mm
+    tip, head = params.wedge_tip_thickness_mm, params.wedge_head_thickness_mm
+    vertices: list[tuple[float, float, float]] = []
+    faces: list[tuple[int, int, int]] = []
+    box = (
+        (0, 2, 1), (0, 3, 2), (4, 5, 6), (4, 6, 7), (0, 1, 5), (0, 5, 4),
+        (1, 2, 6), (1, 6, 5), (2, 3, 7), (2, 7, 6), (3, 0, 4), (3, 4, 7),
+    )
+    for index in range(params.wedge_count):
+        y0 = index * (width + 4.0)
+        y1 = y0 + width
+        base = len(vertices)
+        vertices.extend((
+            (0, y0, 0), (length, y0, 0), (length, y1, 0), (0, y1, 0),
+            (0, y0, tip), (length, y0, head), (length, y1, head), (0, y1, tip),
+        ))
+        faces.extend((base + a, base + b, base + c) for a, b, c in box)
+    return Mesh(np.asarray(vertices, dtype=np.float32), np.asarray(faces, dtype=np.int32))
 
 
 def orient_front_on_bed(mesh: Mesh) -> Mesh:
