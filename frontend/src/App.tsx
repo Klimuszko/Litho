@@ -162,6 +162,7 @@ function LithophaneGenerator({active, onOpenHousing}: {active: boolean; onOpenHo
   const [customBorder, setCustomBorder] = useState(false);
   const [sourceSize, setSourceSize] = useState<{width: number; height: number} | null>(null);
   const [rotatedPreview, setRotatedPreview] = useState<HTMLCanvasElement | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const drag = useRef<{pointerId: number; x: number; y: number; crop: Crop} | null>(null);
   const busyRef = useRef(false);
@@ -361,7 +362,7 @@ function LithophaneGenerator({active, onOpenHousing}: {active: boolean; onOpenHo
         <div className="product-switch"><button className="active">Litofania</button><button onClick={onOpenHousing}>Obudowa</button></div>
         <div className="sidebar-scroll">
         <h2><span>01</span> Obraz</h2>
-        <label className="drop"><input type="file" accept="image/jpeg,image/png" onChange={choose}/><b>{file ? file.name : "Wybierz zdjęcie"}</b><small>JPG lub PNG · maks. 20 MB</small></label>
+        <label className="drop"><input ref={fileInput} type="file" accept="image/jpeg,image/png" onChange={choose}/><b>{file ? file.name : "Wybierz zdjęcie"}</b><small>JPG lub PNG · maks. 20 MB</small></label>
         <h3>Kadrowanie</h3>
         <button className="auto-crop" disabled={!sourceSize} onClick={() => setParams(p => ({...p, crop: fitCrop(p.width_mm, p.height_mm)}))}>Dopasuj automatycznie</button>
         <Slider label="Pozycja X" value={params.crop.x} min={0} max={1 - params.crop.width} step={.01} onChange={n => setCrop("x", n)}/>
@@ -403,7 +404,7 @@ function LithophaneGenerator({active, onOpenHousing}: {active: boolean; onOpenHo
       <section className="workbench">
       <article className="preview">
         <div className="preview-head"><div><p className="eyebrow">PODGLĄD NA ŻYWO</p><h2>{view === "photo" ? "Przygotowane zdjęcie" : "Symulacja światła"}</h2></div><div className="tabs"><button className={view === "photo" ? "active" : ""} onClick={() => setView("photo")}>Obraz</button><button className={view === "lithophane" ? "active" : ""} onClick={() => setView("lithophane")}>Litofania</button></div></div>
-        <div className={`stage crop-stage${busy ? " interaction-locked" : ""}`} aria-busy={busy} style={{aspectRatio: `${params.width_mm} / ${params.height_mm}`, width: `min(100%, ${720 * params.width_mm / params.height_mm}px)`}}>{source ? <canvas ref={canvas} aria-disabled={busy} onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}/> : <div className="empty"><span>＋</span><b>Dodaj fotografię</b><small>Tutaj pojawi się jej podgląd</small></div>}{busy && <div className="interaction-lock" role="status">Generowanie STL — kadr zablokowany</div>}</div>
+        <div className={`stage crop-stage${busy ? " interaction-locked" : ""}`} aria-busy={busy} style={{aspectRatio: `${params.width_mm} / ${params.height_mm}`, width: `min(100%, ${720 * params.width_mm / params.height_mm}px)`}}>{source ? <canvas ref={canvas} aria-disabled={busy} onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}/> : <button type="button" className="empty empty-upload" onClick={() => fileInput.current?.click()} aria-label="Dodaj fotografię"><span>＋</span><b>Dodaj fotografię</b><small>Kliknij tutaj, aby wybrać plik</small></button>}{busy && <div className="interaction-lock" role="status">Generowanie STL — kadr zablokowany</div>}</div>
         <div className="stats"><span><small>WYMIAR</small><b>{params.width_mm} × {params.height_mm} mm</b></span><span><small>GRUBOŚĆ</small><b>{params.min_thickness_mm}–{params.max_thickness_mm} mm</b></span><span><small>SIATKA</small><b>{gridX} × {gridY}</b></span></div>
         {(error || validateParams(params)) && <p className="error">{error || validateParams(params)}</p>}
         <button className="generate" disabled={busy || !file || Boolean(validateParams(params))} onClick={generate}>{busy ? "Generowanie…" : "Generuj i pobierz STL"}<span>→</span></button>
