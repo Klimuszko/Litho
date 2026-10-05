@@ -193,6 +193,26 @@ def test_touch_dimmer_channels_preload_the_antenna_spring_against_the_wall():
     assert params.dimmer_mount_bottom_mm - params.dimmer_end_wall_mm > params.usb_mount_top_mm
 
 
+@pytest.mark.parametrize("side", ["left", "right"])
+@pytest.mark.parametrize("position", ["bottom", "top"])
+def test_usb_and_touch_icons_are_engraved_on_the_outer_side_wall(side, position):
+    params = HousingParams(usb_side=side, electronics_position=position)
+    mesh = build_housing_body(params)
+    assert validate_mesh(mesh)["watertight"]
+    assert component_count(mesh) == 1
+    direction = 1 if position == "bottom" else -1
+    assert params.touch_icon_center_z_mm - params.usb_mount_center_z_mm == pytest.approx(29.5 * direction)
+    assert params.dimmer_mount_bottom_mm < params.touch_icon_center_z_mm < params.dimmer_mount_top_mm
+    engraved_x = 0.4 if side == "left" else params.outer_width_mm - 0.4
+    # Triangles lying in the recess plane are the floors of the two icons.
+    corners = mesh.vertices[mesh.faces]
+    floors = corners[(abs(corners[:, :, 0] - engraved_x) < 1e-4).all(axis=1)].reshape(-1, 3)
+    near_usb = abs(floors[:, 2] - params.usb_icon_center_z_mm) <= 3.2 + 1e-4
+    near_touch = abs(floors[:, 2] - params.touch_icon_center_z_mm) <= 4.4 + 1e-4
+    assert near_usb.any() and near_touch.any() and (near_usb | near_touch).all()
+    assert abs(floors[:, 1] - params.usb_mount_center_y_mm).max() <= 7.2 + 1e-4
+
+
 def test_locking_wedges_print_flat_and_jam_inside_their_slots():
     params = HousingParams()
     wedges = build_housing_wedges(params)

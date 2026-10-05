@@ -365,6 +365,29 @@ class HousingParams(BaseModel):
     def usb_pocket_wall_mm(self) -> float:
         return 2.4
 
+    # Shallow icons engraved on the outside of the side wall mark the port
+    # and the spot to touch, which is the measured centre of the antenna.
+    @property
+    def icon_engrave_depth_mm(self) -> float:
+        return 0.4
+
+    @property
+    def electronics_direction(self) -> int:
+        """Sign of the height axis pointing from the USB-C port to the dimmer."""
+        return 1 if self.electronics_position == "bottom" else -1
+
+    @property
+    def usb_icon_center_z_mm(self) -> float:
+        return self.usb_mount_center_z_mm + 6.5 * self.electronics_direction
+
+    @property
+    def touch_antenna_offset_mm(self) -> float:
+        return 29.5
+
+    @property
+    def touch_icon_center_z_mm(self) -> float:
+        return self.usb_mount_center_z_mm + self.touch_antenna_offset_mm * self.electronics_direction
+
     @property
     def usb_slot_clearance_mm(self) -> float:
         # Tighter than the general fit: the shell must not rock in its slot.

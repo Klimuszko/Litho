@@ -520,6 +520,7 @@ async def generate_housing(settings: HousingParams):
                 + f"Wsun modul USB-C od tylu w kieszen w {('lewej' if settings.usb_side == 'left' else 'prawej')} scianie, przy {('dolnej' if settings.electronics_position == 'bottom' else 'gornej')} krawedzi, polami lutowniczymi w strone otwartego boku: metalowa oslona opiera sie o kolnierz w sciance, a plytka o niski tylny ogranicznik, nad ktorym wychodza przewody.\n"
                 + "Wsun plytke sterownika od tylu w dwa kanaly, sprezyna w strone scianki; sprezyna anteny ma tylko lekko dotykac bocznej scianki.\n"
                 + f"Zablokuj elementy klinami z pliku wedges ({settings.wedge_count} szt., jeden zapasowy): cienszym koncem wsun klin od srodka obudowy w strone scianki - jeden nad oslona USB-C i po jednym w tunel na kazdym koncu plytki sterownika - az sie zakleszczy.\n"
+                + "Na zewnatrz scianki sa wglebione ikony: USB przy gniezdzie oraz wlacznik nad srodkiem anteny (29,5 mm od gniazda) - tam dotykasz, aby sterowac swiatlem.\n"
                 + "Uloz oswietlenie i przewody, a nastepnie docisnij tylna pokrywe do zatrzaskow.\n"
                 "Przed drukiem produkcyjnym wykonaj krotka probe pasowania kieszeni dla swojego filamentu.\n"
             ).encode("utf-8"),

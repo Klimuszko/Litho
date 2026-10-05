@@ -72,6 +72,64 @@ def _cell_mesh(
     return Mesh(np.asarray(vertices, dtype=np.float32), np.asarray(faces, dtype=np.int32))
 
 
+ICON_PIXEL_MM = 0.4
+
+
+def _near_segment(u: float, v: float, a: tuple[float, float], b: tuple[float, float], radius: float) -> bool:
+    du, dv = b[0] - a[0], b[1] - a[1]
+    t = max(0.0, min(1.0, ((u - a[0]) * du + (v - a[1]) * dv) / (du * du + dv * dv)))
+    return (u - a[0] - t * du) ** 2 + (v - a[1] - t * dv) ** 2 < radius * radius
+
+
+def _usb_icon(u: float, v: float) -> bool:
+    """USB trident, 14 mm long; u runs along the housing depth."""
+    stroke = 0.4
+    stem = _near_segment(u, v, (-6.0, 0), (4.6, 0), stroke)
+    base = (u + 6.0) ** 2 + v * v < 1.2 ** 2
+    arrow = 4.6 < u < 7.0 and abs(v) < 1.2 * (7.0 - u) / 2.4
+    upper = (
+        _near_segment(u, v, (-3.4, 0), (-1.3, 2.1), stroke)
+        or _near_segment(u, v, (-1.3, 2.1), (1.8, 2.1), stroke)
+        or (u - 2.1) ** 2 + (v - 2.1) ** 2 < 0.8 ** 2
+    )
+    lower = (
+        _near_segment(u, v, (-1.6, 0), (0.5, -2.1), stroke)
+        or _near_segment(u, v, (0.5, -2.1), (3.2, -2.1), stroke)
+        or (abs(u - 3.8) < 0.8 and abs(v + 2.1) < 0.8)
+    )
+    return stem or base or arrow or upper or lower
+
+
+def _power_icon(u: float, v: float) -> bool:
+    """Power symbol, 8 mm across; v points to the top of the housing."""
+    radius = (u * u + v * v) ** 0.5
+    ring = 3.0 < radius < 4.0 and not (v > 0 and abs(u) < 1.5)
+    bar = abs(u) < 0.5 and 0.4 < v < 4.4
+    return ring or bar
+
+
+def _icon_mask(shape: Callable[[float, float], bool], half_u: float, half_v: float) -> np.ndarray:
+    """Rasterise an icon onto the axis-aligned grid the housing is built from."""
+    count_u = round(2 * half_u / ICON_PIXEL_MM)
+    count_v = round(2 * half_v / ICON_PIXEL_MM)
+    mask = np.zeros((count_u, count_v), dtype=bool)
+    for iu in range(count_u):
+        for iv in range(count_v):
+            mask[iu, iv] = shape(-half_u + (iu + 0.5) * ICON_PIXEL_MM, -half_v + (iv + 0.5) * ICON_PIXEL_MM)
+    # Pixels that touch only at a corner would leave a non-manifold edge in
+    # the wall, so widen every such contact into a full pixel.
+    changed = True
+    while changed:
+        changed = False
+        for iu in range(count_u - 1):
+            for iv in range(count_v - 1):
+                block = mask[iu:iu + 2, iv:iv + 2]
+                if block[0, 0] == block[1, 1] and block[0, 1] == block[1, 0] and block[0, 0] != block[0, 1]:
+                    block[:, :] = True
+                    changed = True
+    return mask
+
+
 def build_housing_body(params) -> Mesh:
     width, height, depth = params.outer_width_mm, params.outer_height_mm, params.body_depth_mm
     wall = params.wall_mm
@@ -167,6 +225,18 @@ def build_housing_body(params) -> Mesh:
     dimmer_wedge_y1 = dimmer_wedge_y0 + params.wedge_slot_height_mm
     usb_stop_height = 3.0
 
+    icon_depth = params.icon_engrave_depth_mm
+    # (mask, y of first pixel, z of first pixel) on the outer side wall.
+    usb_icon_mask = _icon_mask(_usb_icon, 7.2, 3.2)
+    touch_icon_mask = _icon_mask(_power_icon, 4.4, 4.4)
+    icons = [
+        (usb_icon_mask, usb_center_y - 7.2, params.usb_icon_center_z_mm - 3.2),
+        (touch_icon_mask, usb_center_y - 4.4, params.touch_icon_center_z_mm - 4.4),
+    ]
+    icon_ys = [y0 + index * ICON_PIXEL_MM for mask, y0, _ in icons for index in range(mask.shape[0] + 1)]
+    icon_zs = [z0 + index * ICON_PIXEL_MM for mask, _, z0 in icons for index in range(mask.shape[1] + 1)]
+    icon_xs = [icon_depth if electronics_left else width - icon_depth]
+
     def side_x(distance_from_inner_wall: float) -> float:
         return wall + distance_from_inner_wall if electronics_left else width - wall - distance_from_inner_wall
 
@@ -210,10 +280,10 @@ def build_housing_body(params) -> Mesh:
 
     snap_xs = [value for interval in back_horizontal_snaps for value in interval]
     snap_zs = [value for interval in back_vertical_snaps for value in interval]
-    xs = [0, wall - snap_socket_depth, wall, pocket_x0, panel_x0, opening_x0, opening_x1, panel_x1, pocket_x1, width - wall, width - wall + snap_socket_depth, width, *clip_xs, *reach_xs, *flex_xs, *snap_xs, *usb_xs, *dimmer_xs]
+    xs = [0, wall - snap_socket_depth, wall, pocket_x0, panel_x0, opening_x0, opening_x1, panel_x1, pocket_x1, width - wall, width - wall + snap_socket_depth, width, *clip_xs, *reach_xs, *flex_xs, *snap_xs, *usb_xs, *dimmer_xs, *icon_xs]
     clip_release_y1 = clip_ys[-1] + params.panel_clip_end_relief_mm
-    ys = [0, bezel_front, pocket_y1, clip_release_y1, depth, snap_y0, snap_y1, *clip_ys, *usb_ys, *dimmer_ys]
-    zs = [0, wall - snap_socket_depth, wall, pocket_z0, panel_z0, opening_z0, opening_z1, panel_z1, pocket_z1, height - wall, height - wall + snap_socket_depth, height, *clip_zs, *reach_zs, *flex_zs, *snap_zs, *usb_zs, *dimmer_zs]
+    ys = [0, bezel_front, pocket_y1, clip_release_y1, depth, snap_y0, snap_y1, *clip_ys, *usb_ys, *dimmer_ys, *icon_ys]
+    zs = [0, wall - snap_socket_depth, wall, pocket_z0, panel_z0, opening_z0, opening_z1, panel_z1, pocket_z1, height - wall, height - wall + snap_socket_depth, height, *clip_zs, *reach_zs, *flex_zs, *snap_zs, *usb_zs, *dimmer_zs, *icon_zs]
 
     def in_intervals(value: float, intervals: list[tuple[float, float]]) -> bool:
         return any(start < value < end for start, end in intervals)
@@ -303,6 +373,12 @@ def build_housing_body(params) -> Mesh:
         in_shell_slot = usb_bezel < outer_d < wall and usb_z < usb_half_z and y > usb_seat_y
         if in_outer_aperture or in_shell_slot:
             material = False
+        if 0 < outer_d < icon_depth:
+            for mask, icon_y0, icon_z0 in icons:
+                iu = int((y - icon_y0) // ICON_PIXEL_MM)
+                iv = int((z - icon_z0) // ICON_PIXEL_MM)
+                if 0 <= iu < mask.shape[0] and 0 <= iv < mask.shape[1] and mask[iu, iv]:
+                    material = False
 
         if 0 < inner_d < mount_reach:
             # Distance into the board from its nearest end; negative values
