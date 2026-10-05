@@ -523,7 +523,9 @@ async def generate_housing(settings: HousingParams):
                 "Oba pliki STL sa juz obrocone plaska strona do stolu i nie wymagaja podpor.\n"
                 "Wloz panel od otwartego tylu i rownomiernie docisnij jego kolnierz do frontu.\n"
                 f"Panel przejdzie pod {settings.panel_clip_count} sprezystymi zatrzaskami i zablokuje sie bez kleju.\n"
-                "Uloz oswietlenie i przewod, a nastepnie docisnij tylna pokrywe do szesciu zatrzaskow.\n"
+                + f"Wcisnij modul USB-C w koszyk w {('lewej' if settings.usb_side == 'left' else 'prawej')} scianie: metalowa oslona opiera sie o wewnetrzny kolnierz.\n"
+                + "Wepnij pionowo plytke sterownika w cztery klipsy; sprezyna anteny ma tylko lekko dotykac bocznej scianki.\n"
+                + "Uloz oswietlenie i przewody, a nastepnie docisnij tylna pokrywe do zatrzaskow.\n"
                 "Przed drukiem produkcyjnym wykonaj krotka probe pasowania kieszeni dla swojego filamentu.\n"
             ).encode("utf-8"),
         )
@@ -539,6 +541,9 @@ async def generate_housing(settings: HousingParams):
             "X-Panel-Pocket-Depth-Mm": f"{settings.panel_pocket_depth_mm:g}",
             "X-Panel-Clip-Count": str(settings.panel_clip_count),
             "X-Back-Snap-Count": str(settings.back_snap_count),
+            "X-Connection-Type": "usb_c",
+            "X-USB-Side": settings.usb_side,
+            "X-Touch-Dimmer": "true",
             "X-Print-Orientation": "front-face-down",
             "X-Body-Triangle-Count": str(len(body.faces)),
             "X-Back-Triangle-Count": str(len(back.faces)),

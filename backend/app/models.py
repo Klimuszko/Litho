@@ -144,8 +144,7 @@ class HousingParams(BaseModel):
     frame_border_mm: float = Field(12, ge=5, le=25)
     bezel_overlap_mm: float = Field(1.2, ge=0.6, le=1.8)
     back_thickness_mm: float = Field(2.4, ge=1.6, le=5.0)
-    cable_width_mm: float = Field(12, ge=6, le=25)
-    cable_height_mm: float = Field(8, ge=4, le=20)
+    usb_side: Literal["left", "right"] = "right"
 
     @model_validator(mode="after")
     def printable_relations(self):
@@ -157,10 +156,12 @@ class HousingParams(BaseModel):
             raise ValueError("Bezel overlap cannot exceed the 2 mm Litho mounting flange")
         if self.outer_width_mm > 256 or self.outer_height_mm > 256:
             raise ValueError("Housing footprint must fit within 256 x 256 mm")
-        if self.cable_width_mm >= self.outer_width_mm - 2 * self.wall_mm:
-            raise ValueError("Cable opening is too wide")
-        if self.cable_height_mm >= self.outer_height_mm / 3:
-            raise ValueError("Cable opening is too tall")
+        if self.depth_mm < 24:
+            raise ValueError("USB-C side mount requires at least 24 mm housing depth")
+        if self.usb_mount_top_mm >= self.outer_height_mm - self.wall_mm:
+            raise ValueError("Housing is too short for the USB-C side mount")
+        if self.dimmer_mount_top_mm >= self.outer_height_mm - self.wall_mm:
+            raise ValueError("Housing is too short for the touch dimmer mount")
         return self
 
     @property
@@ -298,3 +299,99 @@ class HousingParams(BaseModel):
     def body_depth_mm(self) -> float:
         """Body depth excluding the external plate of the fitted rear cover."""
         return self.depth_mm - self.back_thickness_mm
+
+    # Measured USB-C breakout used by Litho. The opening is deliberately
+    # smaller than the metal shell, so the 1 mm bezel carries unplugging load.
+    @property
+    def usb_shell_width_mm(self) -> float:
+        return 8.85
+
+    @property
+    def usb_shell_height_mm(self) -> float:
+        return 3.12
+
+    @property
+    def usb_shell_length_mm(self) -> float:
+        return 8.65
+
+    @property
+    def usb_board_width_mm(self) -> float:
+        return 8.35
+
+    @property
+    def usb_board_length_mm(self) -> float:
+        return 5.33
+
+    @property
+    def usb_board_thickness_mm(self) -> float:
+        return 1.2
+
+    @property
+    def usb_total_length_mm(self) -> float:
+        return 14.02
+
+    @property
+    def usb_fit_clearance_mm(self) -> float:
+        return 0.25
+
+    @property
+    def usb_aperture_width_mm(self) -> float:
+        return 8.5
+
+    @property
+    def usb_aperture_height_mm(self) -> float:
+        return 2.8
+
+    @property
+    def usb_mount_center_y_mm(self) -> float:
+        # Keep the cage clear of the rear-cover lip and snap sockets.
+        return self.body_depth_mm - 10.5
+
+    @property
+    def usb_mount_center_z_mm(self) -> float:
+        return 12.0
+
+    @property
+    def usb_mount_bottom_mm(self) -> float:
+        return self.usb_mount_center_z_mm - (self.usb_shell_height_mm + 2 * self.usb_fit_clearance_mm) / 2 - 1.2
+
+    @property
+    def usb_mount_top_mm(self) -> float:
+        return self.usb_mount_center_z_mm + (self.usb_shell_height_mm + 2 * self.usb_fit_clearance_mm) / 2 + 0.8
+
+    @property
+    def dimmer_board_width_mm(self) -> float:
+        return 10.08
+
+    @property
+    def dimmer_board_length_mm(self) -> float:
+        return 37.04
+
+    @property
+    def dimmer_board_thickness_mm(self) -> float:
+        return 1.2
+
+    @property
+    def dimmer_spring_height_mm(self) -> float:
+        return 10.11
+
+    @property
+    def dimmer_overall_depth_mm(self) -> float:
+        return 12.65
+
+    @property
+    def dimmer_spring_preload_mm(self) -> float:
+        # Light contact only; the spring is an antenna, not a structural clamp.
+        return 0.4
+
+    @property
+    def dimmer_mount_bottom_mm(self) -> float:
+        return self.usb_mount_top_mm + 4.0
+
+    @property
+    def dimmer_mount_top_mm(self) -> float:
+        return self.dimmer_mount_bottom_mm + self.dimmer_board_length_mm + 0.5
+
+    @property
+    def dimmer_board_face_offset_mm(self) -> float:
+        return self.dimmer_spring_height_mm - self.dimmer_spring_preload_mm

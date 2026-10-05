@@ -118,4 +118,9 @@ describe("housing generator", () => {
     expect(housingBackSnapCount(initialHousing)).toBe(10);
     expect(housingBackSnapCount({...initialHousing, panel_width_mm: 200, panel_height_mm: 150})).toBe(14);
   });
+  it("validates the USB-C side mount and touch controller envelope", () => {
+    expect(validateHousing({...initialHousing, depth_mm: 23})).toContain("24 mm");
+    expect(validateHousing({...initialHousing, panel_height_mm: 40})).toContain("za niska");
+    expect(validateHousing(initialHousing)).toBe("");
+  });
 });

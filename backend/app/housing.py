@@ -111,6 +111,75 @@ def build_housing_body(params) -> Mesh:
     snap_y0, snap_y1 = depth - 2.1, depth - 0.9
     snap_socket_depth = 0.25
 
+    electronics_left = params.usb_side == "left"
+    usb_center_y = params.usb_mount_center_y_mm
+    usb_clearance = params.usb_fit_clearance_mm
+    usb_shell_half_y = (params.usb_shell_width_mm + 2 * usb_clearance) / 2
+    usb_board_half_y = (params.usb_board_width_mm + 2 * usb_clearance) / 2
+    usb_aperture_half_y = params.usb_aperture_width_mm / 2
+    usb_shell_z0 = params.usb_mount_center_z_mm - (params.usb_shell_height_mm + 2 * usb_clearance) / 2
+    usb_shell_z1 = params.usb_mount_center_z_mm + (params.usb_shell_height_mm + 2 * usb_clearance) / 2
+    usb_aperture_z0 = params.usb_mount_center_z_mm - params.usb_aperture_height_mm / 2
+    usb_aperture_z1 = params.usb_mount_center_z_mm + params.usb_aperture_height_mm / 2
+    usb_floor_z0 = usb_shell_z0 - 1.2
+    usb_cage_z1 = usb_shell_z1 + 0.8
+    usb_board_z1 = usb_shell_z0 + params.usb_board_thickness_mm + 2 * usb_clearance
+    usb_board_cage_z1 = usb_board_z1 + 0.8
+    usb_rail = 1.2
+    usb_lip = 0.55
+    usb_stop = 1.2
+    usb_bezel = 1.0
+    usb_wire_half_y = 2.5
+
+    dimmer_half_y = (params.dimmer_board_width_mm + 2 * usb_clearance) / 2
+    dimmer_z0 = params.dimmer_mount_bottom_mm
+    dimmer_z1 = params.dimmer_mount_top_mm
+    dimmer_corner = 4.0
+    dimmer_rail = 1.2
+    dimmer_edge_grip = 0.45
+    dimmer_face_d = params.dimmer_board_face_offset_mm
+    dimmer_back_d = dimmer_face_d + params.dimmer_board_thickness_mm + 2 * usb_clearance
+    dimmer_clip_d = dimmer_back_d + 0.8
+
+    def side_x(distance_from_inner_wall: float) -> float:
+        return wall + distance_from_inner_wall if electronics_left else width - wall - distance_from_inner_wall
+
+    usb_xs = [
+        usb_bezel if electronics_left else width - usb_bezel,
+        side_x(0), side_x(params.usb_shell_length_mm),
+        side_x(params.usb_total_length_mm), side_x(params.usb_total_length_mm + usb_stop),
+    ]
+    usb_ys = [
+        usb_center_y - usb_shell_half_y - usb_rail,
+        usb_center_y - usb_shell_half_y,
+        usb_center_y - usb_shell_half_y + usb_lip,
+        usb_center_y - usb_board_half_y - usb_rail,
+        usb_center_y - usb_board_half_y,
+        usb_center_y - usb_board_half_y + usb_lip,
+        usb_center_y - usb_aperture_half_y,
+        usb_center_y - usb_wire_half_y,
+        usb_center_y + usb_wire_half_y,
+        usb_center_y + usb_aperture_half_y,
+        usb_center_y + usb_board_half_y - usb_lip,
+        usb_center_y + usb_board_half_y,
+        usb_center_y + usb_board_half_y + usb_rail,
+        usb_center_y + usb_shell_half_y - usb_lip,
+        usb_center_y + usb_shell_half_y,
+        usb_center_y + usb_shell_half_y + usb_rail,
+    ]
+    usb_zs = [usb_floor_z0, usb_shell_z0, usb_board_z1, usb_board_cage_z1, usb_aperture_z0, usb_aperture_z1, usb_shell_z1, usb_cage_z1]
+
+    dimmer_xs = [side_x(dimmer_face_d - 0.8), side_x(dimmer_face_d), side_x(dimmer_back_d), side_x(dimmer_clip_d)]
+    dimmer_ys = [
+        usb_center_y - dimmer_half_y - dimmer_rail,
+        usb_center_y - dimmer_half_y,
+        usb_center_y - dimmer_half_y + dimmer_edge_grip,
+        usb_center_y + dimmer_half_y - dimmer_edge_grip,
+        usb_center_y + dimmer_half_y,
+        usb_center_y + dimmer_half_y + dimmer_rail,
+    ]
+    dimmer_zs = [dimmer_z0, dimmer_z0 + dimmer_corner, dimmer_z1 - dimmer_corner, dimmer_z1]
+
     clip_xs = [value for interval in horizontal_clips for value in interval]
     clip_zs = [value for interval in vertical_clips for value in interval]
     reach_xs = [pocket_x0 + reach for reach in clip_reaches] + [pocket_x1 - reach for reach in clip_reaches]
@@ -122,10 +191,10 @@ def build_housing_body(params) -> Mesh:
 
     snap_xs = [value for interval in back_horizontal_snaps for value in interval]
     snap_zs = [value for interval in back_vertical_snaps for value in interval]
-    xs = [0, wall - snap_socket_depth, wall, pocket_x0, panel_x0, opening_x0, opening_x1, panel_x1, pocket_x1, width - wall, width - wall + snap_socket_depth, width, *clip_xs, *reach_xs, *flex_xs, *snap_xs]
+    xs = [0, wall - snap_socket_depth, wall, pocket_x0, panel_x0, opening_x0, opening_x1, panel_x1, pocket_x1, width - wall, width - wall + snap_socket_depth, width, *clip_xs, *reach_xs, *flex_xs, *snap_xs, *usb_xs, *dimmer_xs]
     clip_release_y1 = clip_ys[-1] + params.panel_clip_end_relief_mm
-    ys = [0, bezel_front, pocket_y1, clip_release_y1, depth, snap_y0, snap_y1, *clip_ys]
-    zs = [0, wall - snap_socket_depth, wall, pocket_z0, panel_z0, opening_z0, opening_z1, panel_z1, pocket_z1, height - wall, height - wall + snap_socket_depth, height, *clip_zs, *reach_zs, *flex_zs, *snap_zs]
+    ys = [0, bezel_front, pocket_y1, clip_release_y1, depth, snap_y0, snap_y1, *clip_ys, *usb_ys, *dimmer_ys]
+    zs = [0, wall - snap_socket_depth, wall, pocket_z0, panel_z0, opening_z0, opening_z1, panel_z1, pocket_z1, height - wall, height - wall + snap_socket_depth, height, *clip_zs, *reach_zs, *flex_zs, *snap_zs, *usb_zs, *dimmer_zs]
 
     def in_intervals(value: float, intervals: list[tuple[float, float]]) -> bool:
         return any(start < value < end for start, end in intervals)
@@ -199,6 +268,59 @@ def build_housing_body(params) -> Mesh:
             )
             if rear_snap_socket:
                 material = False
+
+        outer_d = x if electronics_left else width - x
+        inner_d = x - wall if electronics_left else width - wall - x
+        y_from_center = abs(y - usb_center_y)
+
+        # A stepped side-wall opening leaves a 1 mm retaining bezel in
+        # front of the measured 8.85 x 3.12 mm metal connector shell.
+        in_outer_aperture = (
+            0 < outer_d < usb_bezel
+            and y_from_center < usb_aperture_half_y
+            and usb_aperture_z0 < z < usb_aperture_z1
+        )
+        in_shell_recess = (
+            usb_bezel < outer_d < wall
+            and y_from_center < usb_shell_half_y
+            and usb_shell_z0 < z < usb_shell_z1
+        )
+        if in_outer_aperture or in_shell_recess:
+            material = False
+
+        if 0 < inner_d < params.usb_total_length_mm + usb_stop:
+            in_shell_channel = inner_d < params.usb_shell_length_mm
+            channel_half = usb_shell_half_y if in_shell_channel else usb_board_half_y
+            channel_top = usb_shell_z1 if in_shell_channel else usb_board_z1
+            cage_top = usb_cage_z1 if in_shell_channel else usb_board_cage_z1
+            cage_floor = (
+                y_from_center < channel_half + usb_rail
+                and usb_floor_z0 < z < usb_shell_z0
+            )
+            cage_rails = (
+                channel_half < y_from_center < channel_half + usb_rail
+                and usb_floor_z0 < z < cage_top
+                and inner_d < params.usb_total_length_mm
+            )
+            cage_lips = (
+                channel_half - usb_lip < y_from_center < channel_half
+                and channel_top < z < cage_top
+                and inner_d < params.usb_total_length_mm
+            )
+            end_stop = (
+                params.usb_total_length_mm < inner_d < params.usb_total_length_mm + usb_stop
+                and usb_wire_half_y < y_from_center < usb_board_half_y + usb_rail
+                and usb_floor_z0 < z < usb_board_cage_z1
+            )
+            material = material or cage_floor or cage_rails or cage_lips or end_stop
+
+        at_corner = dimmer_z0 < z < dimmer_z0 + dimmer_corner or dimmer_z1 - dimmer_corner < z < dimmer_z1
+        at_side = dimmer_half_y < y_from_center < dimmer_half_y + dimmer_rail
+        edge_overlap = dimmer_half_y - dimmer_edge_grip < y_from_center < dimmer_half_y
+        bracket = at_corner and at_side and 0 < inner_d < dimmer_clip_d
+        front_seat = at_corner and edge_overlap and dimmer_face_d - 0.8 < inner_d < dimmer_face_d
+        rear_clip = at_corner and edge_overlap and dimmer_back_d < inner_d < dimmer_clip_d
+        material = material or bracket or front_seat or rear_clip
         return material
 
     return _cell_mesh(xs, ys, zs, solid)
@@ -210,9 +332,6 @@ def build_housing_back(params) -> Mesh:
     lip_depth, lip = params.back_lip_depth_mm, params.back_lip_mm
     inset = params.wall_mm + params.back_clearance_mm
     x0, x1, z0, z1 = inset, width - inset, inset, height - inset
-    cable_x0 = (width - params.cable_width_mm) / 2
-    cable_x1 = cable_x0 + params.cable_width_mm
-
     horizontal_snaps = _centered_intervals(
         x0, x1, params.back_horizontal_snap_count, params.back_snap_width_mm,
     )
@@ -223,18 +342,16 @@ def build_housing_back(params) -> Mesh:
 
     snap_xs = [value for interval in horizontal_snaps for value in interval]
     snap_zs = [value for interval in vertical_snaps for value in interval]
-    xs = [0, x0 - params.back_snap_reach_mm, x0, x0 + lip, cable_x0, cable_x1, x1 - lip, x1, x1 + params.back_snap_reach_mm, width, *snap_xs]
+    xs = [0, x0 - params.back_snap_reach_mm, x0, x0 + lip, x1 - lip, x1, x1 + params.back_snap_reach_mm, width, *snap_xs]
     ys = [0, thickness, thickness + lip_depth, snap_y0, snap_y1]
-    zs = [0, params.cable_height_mm, z0 - params.back_snap_reach_mm, z0, z0 + lip, z1 - lip, z1, z1 + params.back_snap_reach_mm, height, *snap_zs]
+    zs = [0, z0 - params.back_snap_reach_mm, z0, z0 + lip, z1 - lip, z1, z1 + params.back_snap_reach_mm, height, *snap_zs]
 
     def solid(x: float, y: float, z: float) -> bool:
-        cable_notch = cable_x0 < x < cable_x1 and z < params.cable_height_mm
-        plate = y < thickness and not cable_notch
+        plate = y < thickness
         ring = (
             thickness < y < thickness + lip_depth
             and x0 < x < x1 and z0 < z < z1
             and (x < x0 + lip or x > x1 - lip or z < z0 + lip or z > z1 - lip)
-            and not cable_notch
         )
         snap = (
             snap_y0 < y < snap_y1
@@ -244,7 +361,6 @@ def build_housing_back(params) -> Mesh:
                 or any(start < z < end for start, end in vertical_snaps)
                 and (x0 - params.back_snap_reach_mm < x < x0 + lip or x1 - lip < x < x1 + params.back_snap_reach_mm)
             )
-            and not cable_notch
         )
         return plate or ring or snap
 

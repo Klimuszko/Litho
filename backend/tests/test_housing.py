@@ -79,7 +79,7 @@ def test_largest_preset_has_four_clips_per_long_edge_and_three_per_short_edge():
 
 
 def test_every_edge_has_at_least_two_panel_and_back_fasteners():
-    params = HousingParams(panel_width_mm=40, panel_height_mm=40)
+    params = HousingParams(panel_width_mm=60, panel_height_mm=60)
     assert params.panel_horizontal_clip_count == 2
     assert params.panel_vertical_clip_count == 2
     assert params.back_horizontal_snap_count >= 2
@@ -131,6 +131,43 @@ def test_housing_rejects_dimensions_outside_p1s_bed():
         HousingParams(kind="frame", panel_width_mm=240, panel_height_mm=150)
 
 
+def test_usb_c_side_mount_rejects_too_shallow_or_too_short_housing():
+    with pytest.raises(ValidationError, match="at least 24 mm"):
+        HousingParams(depth_mm=23)
+    with pytest.raises(ValidationError, match="too short"):
+        HousingParams(panel_height_mm=40)
+
+
+@pytest.mark.parametrize("side", ["left", "right"])
+def test_usb_c_and_touch_dimmer_mounts_are_mandatory_and_single_manifold_body(side):
+    params = HousingParams(usb_side=side)
+    mesh = build_housing_body(params)
+    assert validate_mesh(mesh) == {
+        "watertight": True,
+        "boundary_edges": 0,
+        "degenerate_faces": 0,
+        "winding_errors": 0,
+        "positive_volume": True,
+    }
+    assert component_count(mesh) == 1
+
+    expected_outer_x = 0 if side == "left" else params.outer_width_mm
+    aperture_y = params.usb_mount_center_y_mm - params.usb_aperture_width_mm / 2
+    aperture_z = params.usb_mount_center_z_mm - params.usb_aperture_height_mm / 2
+    assert any(
+        x == pytest.approx(expected_outer_x)
+        and y == pytest.approx(aperture_y)
+        and z == pytest.approx(aperture_z)
+        for x, y, z in mesh.vertices
+    )
+
+
+def test_back_cover_is_closed_without_legacy_cable_pass_through():
+    back = build_housing_back(HousingParams())
+    assert validate_mesh(back)["watertight"]
+    assert component_count(back) == 1
+
+
 @pytest.mark.parametrize("width,height", [(150, 100), (180, 130), (200, 150), (100, 150), (130, 180), (150, 200)])
 @pytest.mark.parametrize("kind", ["box", "frame"])
 def test_every_preset_orientation_fits_and_stays_manifold(kind, width, height):
@@ -167,3 +204,20 @@ def test_housing_api_returns_body_and_back_as_separate_stls():
         instructions = archive.read("README-PL.txt").decode("utf-8")
         assert "sprezystymi zatrzaskami" in instructions
         assert "bez kleju" in instructions
+
+
+def test_housing_api_describes_usb_c_and_touch_dimmer_mounts():
+    response = client.post("/api/housing/generate", json={
+        "kind": "box",
+        "panel_width_mm": 150,
+        "panel_height_mm": 100,
+        "usb_side": "left",
+    })
+    assert response.status_code == 200
+    assert response.headers["x-connection-type"] == "usb_c"
+    assert response.headers["x-usb-side"] == "left"
+    assert response.headers["x-touch-dimmer"] == "true"
+    with ZipFile(BytesIO(response.content)) as archive:
+        instructions = archive.read("README-PL.txt").decode("utf-8")
+        assert "modul USB-C" in instructions
+        assert "sprezyna anteny" in instructions

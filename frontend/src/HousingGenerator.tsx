@@ -13,8 +13,7 @@ export type HousingParams = {
   frame_border_mm: number;
   bezel_overlap_mm: number;
   back_thickness_mm: number;
-  cable_width_mm: number;
-  cable_height_mm: number;
+  usb_side: "left" | "right";
 };
 
 export const HOUSING_FORMATS = [
@@ -27,7 +26,7 @@ export const initialHousing: HousingParams = {
   kind: "box", panel_width_mm: 150, panel_height_mm: 100,
   panel_thickness_mm: 1.6, clearance_mm: .4, depth_mm: 40,
   wall_mm: 2.4, frame_border_mm: 12, bezel_overlap_mm: 1.2,
-  back_thickness_mm: 2.4, cable_width_mm: 12, cable_height_mm: 8,
+  back_thickness_mm: 2.4, usb_side: "right",
 };
 
 export function housingOuterSize(params: HousingParams) {
@@ -50,6 +49,8 @@ export function validateHousing(params: HousingParams): string {
   if (params.panel_width_mm < 20 || params.panel_height_mm < 20) return "Panel musi mieć co najmniej 20 × 20 mm.";
   const outer = housingOuterSize(params);
   if (outer.width > 256 || outer.height > 256) return "Obudowa nie mieści się na stole 256 × 256 mm.";
+  if (params.depth_mm < 24) return "Mocowanie USB-C wymaga co najmniej 24 mm głębokości obudowy.";
+  if (outer.height < 59) return "Obudowa jest za niska na pionowe mocowanie ściemniacza.";
   return "";
 }
 
@@ -129,10 +130,14 @@ export default function HousingGenerator({active, onOpenLithophane}: {active: bo
         <p className="quality-note flange-note">Wymagany panel z opcją „Kołnierz montażowy Litho Mount V1”. Panel wkłada się od tyłu i dociska pod sprężyste zatrzaski — bez kleju.</p>
         <h2><span>03</span> Głębokość</h2>
         <Range label="Głębokość obudowy" value={params.depth_mm} min={20} max={80} step={1} onChange={value => set("depth_mm", value)}/>
+        <h2><span>04</span> Zasilanie i sterowanie</h2>
+        <div className="housing-toggle"><span><b>Stały zestaw elektroniki</b><small>USB-C oraz sterownik zbliżeniowy 37,04 × 10,08 mm</small></span><strong>WYMAGANY</strong></div>
+        <div className="formats"><button className={params.usb_side === "left" ? "active" : ""} onClick={() => set("usb_side", "left")}>Lewa ściana</button><button className={params.usb_side === "right" ? "active" : ""} onClick={() => set("usb_side", "right")}>Prawa ściana</button></div>
+        <p className="quality-note housing-note">USB-C: 8,85 × 3,12 mm, płytka 14,02 mm. Uchwyt sterownika jest zawsze dodawany obok USB-C. Antena sprężynowa dotyka ścianki z lekkim dociskiem 0,4 mm.</p>
         <div className="housing-spec">
           <span><small>KIESZEŃ PANELU</small><b>{(params.panel_thickness_mm + params.clearance_mm).toFixed(1)} mm</b></span>
           <span><small>KLIPSY PANELU</small><b>{clipCount} × 0.4 mm</b></span>
-          <span><small>PRZEWÓD</small><b>{params.cable_width_mm} × {params.cable_height_mm} mm</b></span>
+          <span><small>PRZYŁĄCZE</small><b>{`USB-C · ${params.usb_side === "left" ? "lewa" : "prawa"}`}</b></span>
         </div>
       </div>
       <div className="sidebar-foot">Zintegrowane zatrzaski · bez kleju · pokrywa serwisowa</div>
