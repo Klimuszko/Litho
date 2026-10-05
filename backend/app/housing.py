@@ -158,8 +158,11 @@ def build_housing_body(params) -> Mesh:
     wedge_drop = 0.3
     wedge_cap = 3.5
     wedge_half_z = params.wedge_slot_width_mm / 2
-    usb_wedge_y0 = usb_top_y - wedge_drop
-    usb_wedge_y1 = usb_wedge_y0 + params.wedge_slot_height_mm
+    # The USB-C grooves reach below the top of the seated shell, so the wedge
+    # rides on the metal and jams against the groove roof about 4.5 mm in.
+    usb_shell_top_y = usb_seat_y + params.usb_shell_width_mm
+    usb_wedge_y0 = usb_shell_top_y - 0.3
+    usb_wedge_y1 = usb_shell_top_y + 1.8
     dimmer_wedge_y0 = dimmer_top_y - wedge_drop
     dimmer_wedge_y1 = dimmer_wedge_y0 + params.wedge_slot_height_mm
     usb_stop_height = 3.0
