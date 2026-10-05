@@ -5,7 +5,9 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from app.housing import build_housing_back, build_housing_body, build_housing_wedges, orient_front_on_bed
+from app.housing import (
+    build_housing_back, build_housing_body, build_housing_panel_wedges, build_housing_wedges, orient_front_on_bed,
+)
 from app.main import app
 from app.mesh import validate_mesh
 from app.models import HousingParams
@@ -213,6 +215,37 @@ def test_usb_and_touch_icons_are_engraved_on_the_outer_side_wall(side, position)
     assert abs(floors[:, 1] - params.usb_mount_center_y_mm).max() <= 7.9 + 1e-4
 
 
+def test_frame_panel_is_locked_by_wedge_sockets_between_the_clips():
+    params = HousingParams(kind="frame", panel_width_mm=150, panel_height_mm=100)
+    assert params.panel_horizontal_lock_centers_mm == pytest.approx([12 + 56.25, 12 + 93.75])
+    assert params.panel_vertical_lock_centers_mm == pytest.approx([12 + 50])
+    assert params.panel_lock_count == 6
+    body = build_housing_body(params)
+    assert validate_mesh(body)["watertight"] and validate_mesh(body)["winding_errors"] == 0
+    assert component_count(body) == 1
+    # Socket floor: 0.1 mm above the seated panel, at the left pocket edge.
+    floor_y = params.front_thickness_mm + params.panel_thickness_mm + 0.1
+    pocket_x0 = params.panel_x0_mm - params.clearance_mm / 2
+    assert any(
+        x == pytest.approx(pocket_x0 - params.panel_lock_depth_mm) and y == pytest.approx(floor_y)
+        for x, y, _ in body.vertices
+    )
+
+    wedges = build_housing_panel_wedges(params)
+    assert validate_mesh(wedges)["watertight"] and validate_mesh(wedges)["winding_errors"] == 0
+    assert component_count(wedges) == params.panel_wedge_count == 8
+    # A seated wedge covers the panel flange without reaching past its 2 mm.
+    overlap = params.panel_wedge_length_mm - params.panel_lock_depth_mm - params.clearance_mm / 2
+    assert 1.0 < overlap < 2.0
+    assert params.panel_wedge_tip_thickness_mm < params.wedge_slot_height_mm < params.panel_wedge_head_thickness_mm
+
+
+def test_box_and_narrow_frames_keep_clips_only():
+    assert HousingParams(kind="box").panel_lock_count == 0
+    assert HousingParams(kind="box").panel_wedge_count == 0
+    assert HousingParams(kind="frame", frame_border_mm=5).panel_lock_count == 0
+
+
 def test_locking_wedges_print_flat_and_jam_inside_their_slots():
     params = HousingParams()
     wedges = build_housing_wedges(params)
@@ -262,6 +295,7 @@ def test_housing_api_returns_body_and_back_as_separate_stls():
             "README-PL.txt",
             "litho-frame-150x100-back.stl",
             "litho-frame-150x100-body.stl",
+            "litho-frame-150x100-panel-wedges.stl",
             "litho-frame-150x100-wedges.stl",
         ]
         for name in (entry for entry in archive.namelist() if entry.endswith(".stl")):

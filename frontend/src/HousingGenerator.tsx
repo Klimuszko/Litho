@@ -137,7 +137,7 @@ export default function HousingGenerator({active, onOpenLithophane}: {active: bo
         <div className="housing-presets">{HOUSING_FORMATS.map(format => <button key={format.label} className={!custom && selectedPreset === format ? "active" : ""} onClick={() => chooseFormat(format.short, format.long)}>{format.label}</button>)}<button className={custom ? "active" : ""} onClick={() => setCustom(true)}>Custom</button></div>
         {custom && <div className="dimension-grid"><label>Szerokość<input type="number" min="20" max="250" value={params.panel_width_mm} onChange={event => setDimension("panel_width_mm", event.target.value)}/><span>mm</span></label><label>Wysokość<input type="number" min="20" max="250" value={params.panel_height_mm} onChange={event => setDimension("panel_height_mm", event.target.value)}/><span>mm</span></label></div>}
         <p className="quality-note housing-note">Podajesz dokładny wymiar gotowej litofanii. Kieszeń montażowa i obudowa są doliczane automatycznie.</p>
-        <p className="quality-note flange-note">Wymagany panel z opcją „Kołnierz montażowy Litho Mount V1”. Panel wkłada się od tyłu i dociska pod sprężyste zatrzaski — bez kleju.</p>
+        <p className="quality-note flange-note">Wymagany panel z opcją „Kołnierz montażowy Litho Mount V1”. Panel wkłada się od tyłu i dociska pod sprężyste zatrzaski — bez kleju. W ramce panel dodatkowo blokują drukowane kliny wsuwane w gniazda obok panelu.</p>
         <h2><span>03</span> Głębokość</h2>
         <Range label="Głębokość obudowy" value={params.depth_mm} min={20} max={80} step={1} onChange={value => set("depth_mm", value)}/>
         <h2><span>04</span> Zasilanie i sterowanie</h2>
@@ -168,7 +168,7 @@ export default function HousingGenerator({active, onOpenLithophane}: {active: bo
           </div>
           <div className="depth-preview"><div style={{width: `${Math.max(70, params.depth_mm * 2)}px`}}/><span>{params.depth_mm} mm</span></div>
         </div>
-        <div className="stats"><span><small>PANEL LITHO</small><b>{params.panel_width_mm} × {params.panel_height_mm} mm</b></span><span><small>OBUDOWA</small><b>{outer.width.toFixed(1)} × {outer.height.toFixed(1)} × {params.depth_mm} mm</b></span><span><small>ZESTAW</small><b>3 pliki STL</b></span></div>
+        <div className="stats"><span><small>PANEL LITHO</small><b>{params.panel_width_mm} × {params.panel_height_mm} mm</b></span><span><small>OBUDOWA</small><b>{outer.width.toFixed(1)} × {outer.height.toFixed(1)} × {params.depth_mm} mm</b></span><span><small>ZESTAW</small><b>{params.kind === "frame" && params.frame_border_mm - params.clearance_mm / 2 - params.wall_mm >= 4 ? "4 pliki STL" : "3 pliki STL"}</b></span></div>
         {(error || validateHousing(params)) && <p className="error">{error || validateHousing(params)}</p>}
         <button className="generate" disabled={busy || Boolean(validateHousing(params))} onClick={generate}>{busy ? "Generowanie zestawu…" : "Generuj korpus i pokrywę ZIP"}<span>→</span></button>
       </article>

@@ -341,6 +341,25 @@ def build_housing_body(params) -> Mesh:
     ys = [0, bezel_front, pocket_y1, clip_release_y1, depth, snap_y0, snap_y1, *clip_ys, *usb_ys, *dimmer_ys, *icon_ys]
     zs = [0, wall - snap_socket_depth, wall, pocket_z0, panel_z0, opening_z0, opening_z1, panel_z1, pocket_z1, height - wall, height - wall + snap_socket_depth, height, *clip_zs, *reach_zs, *flex_zs, *snap_zs, *usb_zs, *dimmer_zs, *icon_zs]
 
+    lock_xs_centers = params.panel_horizontal_lock_centers_mm
+    lock_zs_centers = params.panel_vertical_lock_centers_mm
+    lock_depth = params.panel_lock_depth_mm
+    lock_block = params.panel_lock_shelf_mm
+    lock_half = params.wedge_slot_width_mm / 2
+    lock_outer_half = lock_half + params.panel_lock_pier_mm
+    # The socket floor sits just above the seated panel, slightly below the
+    # shelf, so the wedge tail stops the panel without clamping it.
+    lock_y0 = pocket_y0 + params.panel_thickness_mm + params.panel_lock_gap_mm
+    lock_y1 = lock_y0 + params.wedge_slot_height_mm
+    lock_top_y = lock_y1 + 1.6
+    if lock_xs_centers or lock_zs_centers:
+        lock_offsets = (-lock_outer_half, -lock_half, lock_half, lock_outer_half)
+        xs += [center + offset for center in lock_xs_centers for offset in lock_offsets]
+        zs += [center + offset for center in lock_zs_centers for offset in lock_offsets]
+        xs += [pocket_x0 - lock_depth, pocket_x0 - lock_block, pocket_x1 + lock_depth, pocket_x1 + lock_block]
+        zs += [pocket_z0 - lock_depth, pocket_z0 - lock_block, pocket_z1 + lock_depth, pocket_z1 + lock_block]
+        ys += [lock_y0, lock_y1, lock_top_y]
+
     def in_intervals(value: float, intervals: list[tuple[float, float]]) -> bool:
         return any(start < value < end for start, end in intervals)
 
@@ -476,6 +495,20 @@ def build_housing_body(params) -> Mesh:
                 # carries the pockets on the full height of the side wall.
                 step = int((pocket_floor_y - y) / gusset_step) + 1
                 material = material or inner_d < mount_reach - step * gusset_step
+
+        # Panel wedge sockets: (distance outward from the pocket edge,
+        # position along that edge, socket centres on that edge).
+        for outward, along, centers in (
+            (pocket_x0 - x, z, lock_zs_centers), (x - pocket_x1, z, lock_zs_centers),
+            (pocket_z0 - z, x, lock_xs_centers), (z - pocket_z1, x, lock_xs_centers),
+        ):
+            if not 0 < outward < lock_block:
+                continue
+            offset = min((abs(along - center) for center in centers), default=lock_outer_half)
+            if offset < lock_outer_half and pocket_y1 <= y < lock_top_y:
+                material = True
+            if offset < lock_half and outward < lock_depth and lock_y0 < y < lock_y1:
+                material = False
         return material
 
     mesh = _cell_mesh(xs, ys, zs, solid)
@@ -527,15 +560,28 @@ def build_housing_back(params) -> Mesh:
 
 def build_housing_wedges(params) -> Mesh:
     """Tapered locking wedges, laid flat on the bed side by side."""
-    length, width = params.wedge_length_mm, params.wedge_width_mm
-    tip, head = params.wedge_tip_thickness_mm, params.wedge_head_thickness_mm
+    return _wedge_row(
+        params.wedge_length_mm, params.wedge_width_mm,
+        params.wedge_tip_thickness_mm, params.wedge_head_thickness_mm, params.wedge_count,
+    )
+
+
+def build_housing_panel_wedges(params) -> Mesh:
+    """Shorter wedges that lock the Litho panel into the frame sockets."""
+    return _wedge_row(
+        params.panel_wedge_length_mm, params.wedge_width_mm,
+        params.panel_wedge_tip_thickness_mm, params.panel_wedge_head_thickness_mm, params.panel_wedge_count,
+    )
+
+
+def _wedge_row(length: float, width: float, tip: float, head: float, count: int) -> Mesh:
     vertices: list[tuple[float, float, float]] = []
     faces: list[tuple[int, int, int]] = []
     box = (
         (0, 2, 1), (0, 3, 2), (4, 5, 6), (4, 6, 7), (0, 1, 5), (0, 5, 4),
         (1, 2, 6), (1, 6, 5), (2, 3, 7), (2, 7, 6), (3, 0, 4), (3, 4, 7),
     )
-    for index in range(params.wedge_count):
+    for index in range(count):
         y0 = index * (width + 4.0)
         y1 = y0 + width
         base = len(vertices)

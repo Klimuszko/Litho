@@ -484,6 +484,72 @@ class HousingParams(BaseModel):
     def wedge_head_thickness_mm(self) -> float:
         return 2.4
 
+    # Frame only: wedge sockets on the shelf beside the panel pocket. Each
+    # wedge is pushed towards the wall until it stops, leaving its tail over
+    # the 2 mm panel flange as a rigid stop behind the flexible clips.
+    @property
+    def panel_lock_shelf_mm(self) -> float:
+        """Flat shelf between the panel pocket and the inner wall."""
+        return self.panel_x0_mm - self.clearance_mm / 2 - self.wall_mm
+
+    @property
+    def panel_lock_depth_mm(self) -> float:
+        return min(self.panel_lock_shelf_mm, 7.0)
+
+    @property
+    def panel_lock_pier_mm(self) -> float:
+        return 2.4
+
+    @property
+    def panel_lock_gap_mm(self) -> float:
+        # Play between the seated panel and the underside of a wedge.
+        return 0.1
+
+    def _panel_lock_centers(self, start: float, span: float, clip_count: int) -> list[float]:
+        if self.kind != "frame" or self.panel_lock_shelf_mm < 4.0:
+            return []
+        pitch = span / (clip_count + 1)
+        clip_half = min(self.panel_clip_width_mm, pitch * 0.8) / 2
+        block_half = self.wedge_slot_width_mm / 2 + self.panel_lock_pier_mm
+        if pitch / 2 - clip_half - block_half < 1.0:
+            return []
+        # Midway between neighbouring clips, clear of their flex reliefs.
+        return [start + pitch * (index + 0.5) for index in range(1, clip_count)]
+
+    @property
+    def panel_horizontal_lock_centers_mm(self) -> list[float]:
+        return self._panel_lock_centers(self.panel_x0_mm, self.panel_width_mm, self.panel_horizontal_clip_count)
+
+    @property
+    def panel_vertical_lock_centers_mm(self) -> list[float]:
+        return self._panel_lock_centers(self.panel_z0_mm, self.panel_height_mm, self.panel_vertical_clip_count)
+
+    @property
+    def panel_lock_count(self) -> int:
+        return 2 * (len(self.panel_horizontal_lock_centers_mm) + len(self.panel_vertical_lock_centers_mm))
+
+    @property
+    def panel_wedge_length_mm(self) -> float:
+        # Seated against the socket end, the tail covers 1.4 mm of the flange.
+        return self.panel_lock_depth_mm + 1.6
+
+    @property
+    def panel_wedge_taper(self) -> float:
+        return 0.15
+
+    @property
+    def panel_wedge_tip_thickness_mm(self) -> float:
+        # Jams in the 2 mm socket about 0.5 mm before reaching its end.
+        return self.wedge_slot_height_mm - self.panel_wedge_taper * (self.panel_lock_depth_mm - 0.5)
+
+    @property
+    def panel_wedge_head_thickness_mm(self) -> float:
+        return self.panel_wedge_tip_thickness_mm + self.panel_wedge_taper * self.panel_wedge_length_mm
+
+    @property
+    def panel_wedge_count(self) -> int:
+        return self.panel_lock_count + 2 if self.panel_lock_count else 0
+
     @property
     def wedge_count(self) -> int:
         # USB-C pocket, both dimmer channels, and one spare.

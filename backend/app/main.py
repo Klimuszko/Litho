@@ -22,7 +22,7 @@ from .auth import (
 )
 from .exporter import binary_stl
 from .heightmap import grid_resolution, luminance_to_thickness
-from .housing import build_housing_back, build_housing_body, build_housing_wedges, orient_front_on_bed
+from .housing import build_housing_back, build_housing_body, build_housing_panel_wedges, build_housing_wedges, orient_front_on_bed
 from .image_processing import InvalidImage, decode_image, prepare_image, preview_png, resample_luminance
 from .mesh import apply_border, build_plate, validate_mesh
 from .models import HousingParams, LithophaneParams
@@ -493,6 +493,9 @@ async def generate_housing(settings: HousingParams):
     back = orient_front_on_bed(build_housing_back(settings))
     wedges = build_housing_wedges(settings)
     validations = {"body": validate_mesh(body), "back": validate_mesh(back), "wedges": validate_mesh(wedges)}
+    panel_wedges = build_housing_panel_wedges(settings) if settings.panel_wedge_count else None
+    if panel_wedges is not None:
+        validations["panel_wedges"] = validate_mesh(panel_wedges)
     for name, validation in validations.items():
         if (not validation["watertight"] or validation["degenerate_faces"]
                 or validation["winding_errors"] or not validation["positive_volume"]):
@@ -506,6 +509,8 @@ async def generate_housing(settings: HousingParams):
         archive.writestr(f"{prefix}-body.stl", binary_stl(body))
         archive.writestr(f"{prefix}-back.stl", binary_stl(back))
         archive.writestr(f"{prefix}-wedges.stl", binary_stl(wedges))
+        if panel_wedges is not None:
+            archive.writestr(f"{prefix}-panel-wedges.stl", binary_stl(panel_wedges))
         archive.writestr(
             "README-PL.txt",
             (
@@ -520,6 +525,10 @@ async def generate_housing(settings: HousingParams):
                 + f"Wsun modul USB-C od tylu w kieszen w {('lewej' if settings.usb_side == 'left' else 'prawej')} scianie, przy {('dolnej' if settings.electronics_position == 'bottom' else 'gornej')} krawedzi, polami lutowniczymi w strone otwartego boku: metalowa oslona opiera sie o kolnierz w sciance, a plytka o niski tylny ogranicznik, nad ktorym wychodza przewody.\n"
                 + "Wsun plytke sterownika od tylu w dwa kanaly, sprezyna w strone scianki; sprezyna anteny ma tylko lekko dotykac bocznej scianki.\n"
                 + f"Zablokuj elementy klinami z pliku wedges ({settings.wedge_count} szt., jeden zapasowy): cienszym koncem wsun klin od srodka obudowy w strone scianki - jeden nad oslona USB-C i po jednym w tunel na kazdym koncu plytki sterownika - az sie zakleszczy.\n"
+                + (
+                    f"Zablokuj panel klinami z pliku panel-wedges ({settings.panel_wedge_count} szt., dwa zapasowe): po wcisnieciu panelu pod zatrzaski wsun cienszym koncem po jednym klinie w kazde z {settings.panel_lock_count} gniazd obok panelu, w strone scianki, az do oporu - grubszy koniec zostaje nad brzegiem panelu i nie pozwala mu wypasc.\n"
+                    if settings.panel_lock_count else ""
+                )
                 + "Na zewnatrz scianki sa wglebione ikony: USB przy gniezdzie oraz wlacznik nad srodkiem anteny (29,5 mm od gniazda) - tam dotykasz, aby sterowac swiatlem.\n"
                 + "Uloz oswietlenie i przewody, a nastepnie docisnij tylna pokrywe do zatrzaskow.\n"
                 "Przed drukiem produkcyjnym wykonaj krotka probe pasowania kieszeni dla swojego filamentu.\n"
@@ -536,6 +545,7 @@ async def generate_housing(settings: HousingParams):
             "X-Housing-Outer-Size-Mm": f"{settings.outer_width_mm:g}x{settings.outer_height_mm:g}x{settings.depth_mm:g}",
             "X-Panel-Pocket-Depth-Mm": f"{settings.panel_pocket_depth_mm:g}",
             "X-Panel-Clip-Count": str(settings.panel_clip_count),
+            "X-Panel-Lock-Count": str(settings.panel_lock_count),
             "X-Back-Snap-Count": str(settings.back_snap_count),
             "X-Connection-Type": "usb_c",
             "X-USB-Side": settings.usb_side,
