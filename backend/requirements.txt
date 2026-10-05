@@ -4,3 +4,4 @@ python-multipart==0.0.20
 pillow==11.3.0
 numpy==2.3.3
 pydantic==2.11.9
+shapely==2.1.2

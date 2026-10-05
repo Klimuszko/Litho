@@ -1,6 +1,11 @@
 from collections.abc import Callable, Iterable
 
 import numpy as np
+import shapely
+import shapely.affinity
+from shapely.geometry import LineString, Point, Polygon, box
+from shapely.geometry.polygon import orient
+from shapely.ops import unary_union
 
 from .mesh import Mesh
 
@@ -72,62 +77,110 @@ def _cell_mesh(
     return Mesh(np.asarray(vertices, dtype=np.float32), np.asarray(faces, dtype=np.int32))
 
 
-ICON_PIXEL_MM = 0.4
+ICON_MARGIN_MM = 0.3
 
 
-def _near_segment(u: float, v: float, a: tuple[float, float], b: tuple[float, float], radius: float) -> bool:
-    du, dv = b[0] - a[0], b[1] - a[1]
-    t = max(0.0, min(1.0, ((u - a[0]) * du + (v - a[1]) * dv) / (du * du + dv * dv)))
-    return (u - a[0] - t * du) ** 2 + (v - a[1] - t * dv) ** 2 < radius * radius
+def _usb_icon():
+    """USB trident, 14 mm long; the first axis runs along the housing depth."""
+    stroke = 0.45
+    parts = [
+        LineString([(-6.0, 0), (4.8, 0)]).buffer(stroke),
+        Point(-6.0, 0).buffer(1.25),
+        Polygon([(4.6, -1.3), (7.0, 0), (4.6, 1.3)]),
+        LineString([(-3.4, 0), (-1.1, 2.3), (1.9, 2.3)]).buffer(stroke),
+        Point(2.1, 2.3).buffer(0.85),
+        LineString([(-1.6, 0), (0.7, -2.3), (3.2, -2.3)]).buffer(stroke),
+        box(3.0, -3.1, 4.6, -1.5),
+    ]
+    return unary_union(parts).simplify(0.01)
 
 
-def _usb_icon(u: float, v: float) -> bool:
-    """USB trident, 14 mm long; u runs along the housing depth."""
-    stroke = 0.4
-    stem = _near_segment(u, v, (-6.0, 0), (4.6, 0), stroke)
-    base = (u + 6.0) ** 2 + v * v < 1.2 ** 2
-    arrow = 4.6 < u < 7.0 and abs(v) < 1.2 * (7.0 - u) / 2.4
-    upper = (
-        _near_segment(u, v, (-3.4, 0), (-1.3, 2.1), stroke)
-        or _near_segment(u, v, (-1.3, 2.1), (1.8, 2.1), stroke)
-        or (u - 2.1) ** 2 + (v - 2.1) ** 2 < 0.8 ** 2
+def _power_icon():
+    """Power symbol, 8 mm across; the second axis points to the housing top."""
+    arc = [
+        (3.4 * np.cos(np.radians(angle)), 3.4 * np.sin(np.radians(angle)))
+        for angle in range(130, 411, 5)
+    ]
+    parts = [LineString(arc).buffer(0.5), LineString([(0, 0.6), (0, 4.2)]).buffer(0.5)]
+    return unary_union(parts).simplify(0.01)
+
+
+def _engrave_icon(mesh: Mesh, plane_x: float, floor_x: float, icon, bounds: tuple[float, float, float, float]) -> Mesh:
+    """Recess a smooth outline into the flat outer side wall.
+
+    The cell faces inside ``bounds`` are replaced by a triangulated plate
+    with the icon cut out, vertical recess walls, and the recess floor.
+    """
+    y0, y1, z0, z1 = bounds
+    eps = 1e-4
+    vertices = [tuple(map(float, vertex)) for vertex in mesh.vertices]
+    corners = mesh.vertices[mesh.faces]
+    on_plane = (abs(corners[:, :, 0] - plane_x) < eps).all(axis=1)
+    inside = (
+        (corners[:, :, 1] > y0 - eps) & (corners[:, :, 1] < y1 + eps)
+        & (corners[:, :, 2] > z0 - eps) & (corners[:, :, 2] < z1 + eps)
+    ).all(axis=1)
+    replaced = on_plane & inside
+    edges_y = corners[replaced][:, [1, 2, 0], 1] - corners[replaced][:, [0, 1, 2], 1]
+    edges_z = corners[replaced][:, [1, 2, 0], 2] - corners[replaced][:, [0, 1, 2], 2]
+    area = abs(edges_y[:, 0] * edges_z[:, 1] - edges_z[:, 0] * edges_y[:, 1]).sum() / 2
+    if abs(area - (y1 - y0) * (z1 - z0)) > 1e-2:
+        raise ValueError("Icon does not fit on a flat part of the side wall")
+
+    outward = np.array([1.0 if plane_x > floor_x else -1.0, 0.0, 0.0])
+    faces: list[tuple[int, int, int]] = []
+    index_at: dict[tuple[float, float, float], int] = {}
+
+    def vertex(x: float, y: float, z: float) -> int:
+        key = (round(x, 5), round(y, 5), round(z, 5))
+        if key not in index_at:
+            index_at[key] = len(vertices)
+            vertices.append((x, y, z))
+        return index_at[key]
+
+    def triangle(a: int, b: int, c: int, normal: np.ndarray) -> None:
+        pa, pb, pc = (np.asarray(vertices[index]) for index in (a, b, c))
+        faces.append((a, b, c) if np.dot(np.cross(pb - pa, pc - pa), normal) > 0 else (a, c, b))
+
+    # Frame: reuse the existing vertices on the patch outline so the new
+    # surface stays edge-to-edge with the surrounding cell faces.
+    rim = sorted({int(index) for index in mesh.faces[replaced].ravel()})
+    inner = (y0 + ICON_MARGIN_MM, y1 - ICON_MARGIN_MM, z0 + ICON_MARGIN_MM, z1 - ICON_MARGIN_MM)
+    sides = (
+        (lambda v: abs(v[2] - z0) < eps, lambda v: v[1], (inner[0], inner[2]), (inner[1], inner[2])),
+        (lambda v: abs(v[1] - y1) < eps, lambda v: v[2], (inner[1], inner[2]), (inner[1], inner[3])),
+        (lambda v: abs(v[2] - z1) < eps, lambda v: -v[1], (inner[1], inner[3]), (inner[0], inner[3])),
+        (lambda v: abs(v[1] - y0) < eps, lambda v: -v[2], (inner[0], inner[3]), (inner[0], inner[2])),
     )
-    lower = (
-        _near_segment(u, v, (-1.6, 0), (0.5, -2.1), stroke)
-        or _near_segment(u, v, (0.5, -2.1), (3.2, -2.1), stroke)
-        or (abs(u - 3.8) < 0.8 and abs(v + 2.1) < 0.8)
-    )
-    return stem or base or arrow or upper or lower
+    for on_side, along, start, end in sides:
+        outline = sorted((index for index in rim if on_side(vertices[index])), key=lambda index: along(vertices[index]))
+        a, b = vertex(plane_x, *start), vertex(plane_x, *end)
+        for first, second in zip(outline, outline[1:]):
+            triangle(first, second, a, outward)
+        triangle(a, outline[-1], b, outward)
 
+    icon = orient(icon, 1) if icon.geom_type == "Polygon" else shapely.MultiPolygon([orient(part, 1) for part in icon.geoms])
+    plate = box(inner[0], inner[2], inner[1], inner[3]).difference(icon)
+    for surface, x in ((plate, plane_x), (icon, floor_x)):
+        for part in shapely.constrained_delaunay_triangles(surface).geoms:
+            a, b, c = (vertex(x, y, z) for y, z in part.exterior.coords[:3])
+            triangle(a, b, c, outward)
+    for part in getattr(icon, "geoms", [icon]):
+        for ring in (part.exterior, *part.interiors):
+            points = list(ring.coords)
+            for (ay, az), (by, bz) in zip(points, points[1:]):
+                # The recess lies to the left of every oriented outline edge.
+                normal = np.array([0.0, az - bz, by - ay])
+                top_a, top_b = vertex(plane_x, ay, az), vertex(plane_x, by, bz)
+                floor_a, floor_b = vertex(floor_x, ay, az), vertex(floor_x, by, bz)
+                triangle(top_a, top_b, floor_b, normal)
+                triangle(top_a, floor_b, floor_a, normal)
 
-def _power_icon(u: float, v: float) -> bool:
-    """Power symbol, 8 mm across; v points to the top of the housing."""
-    radius = (u * u + v * v) ** 0.5
-    ring = 3.0 < radius < 4.0 and not (v > 0 and abs(u) < 1.5)
-    bar = abs(u) < 0.5 and 0.4 < v < 4.4
-    return ring or bar
-
-
-def _icon_mask(shape: Callable[[float, float], bool], half_u: float, half_v: float) -> np.ndarray:
-    """Rasterise an icon onto the axis-aligned grid the housing is built from."""
-    count_u = round(2 * half_u / ICON_PIXEL_MM)
-    count_v = round(2 * half_v / ICON_PIXEL_MM)
-    mask = np.zeros((count_u, count_v), dtype=bool)
-    for iu in range(count_u):
-        for iv in range(count_v):
-            mask[iu, iv] = shape(-half_u + (iu + 0.5) * ICON_PIXEL_MM, -half_v + (iv + 0.5) * ICON_PIXEL_MM)
-    # Pixels that touch only at a corner would leave a non-manifold edge in
-    # the wall, so widen every such contact into a full pixel.
-    changed = True
-    while changed:
-        changed = False
-        for iu in range(count_u - 1):
-            for iv in range(count_v - 1):
-                block = mask[iu:iu + 2, iv:iv + 2]
-                if block[0, 0] == block[1, 1] and block[0, 1] == block[1, 0] and block[0, 0] != block[0, 1]:
-                    block[:, :] = True
-                    changed = True
-    return mask
+    all_faces = np.vstack((mesh.faces[~replaced], np.asarray(faces, dtype=np.int32)))
+    used = np.unique(all_faces)
+    remap = np.full(len(vertices), -1, dtype=np.int32)
+    remap[used] = np.arange(len(used), dtype=np.int32)
+    return Mesh(np.asarray(vertices, dtype=np.float32)[used], remap[all_faces])
 
 
 def build_housing_body(params) -> Mesh:
@@ -225,17 +278,20 @@ def build_housing_body(params) -> Mesh:
     dimmer_wedge_y1 = dimmer_wedge_y0 + params.wedge_slot_height_mm
     usb_stop_height = 3.0
 
-    icon_depth = params.icon_engrave_depth_mm
-    # (mask, y of first pixel, z of first pixel) on the outer side wall.
-    usb_icon_mask = _icon_mask(_usb_icon, 7.2, 3.2)
-    touch_icon_mask = _icon_mask(_power_icon, 4.4, 4.4)
-    icons = [
-        (usb_icon_mask, usb_center_y - 7.2, params.usb_icon_center_z_mm - 3.2),
-        (touch_icon_mask, usb_center_y - 4.4, params.touch_icon_center_z_mm - 4.4),
-    ]
-    icon_ys = [y0 + index * ICON_PIXEL_MM for mask, y0, _ in icons for index in range(mask.shape[0] + 1)]
-    icon_zs = [z0 + index * ICON_PIXEL_MM for mask, _, z0 in icons for index in range(mask.shape[1] + 1)]
-    icon_xs = [icon_depth if electronics_left else width - icon_depth]
+    icon_plane_x = 0.0 if electronics_left else width
+    icon_floor_x = params.icon_engrave_depth_mm if electronics_left else width - params.icon_engrave_depth_mm
+    # (outline, patch bounds as y0, y1, z0, z1) on the outer side wall.
+    icons = []
+    for outline, center_z, half_y, half_z in (
+        (_usb_icon(), params.usb_icon_center_z_mm, 7.9, 3.6),
+        (_power_icon(), params.touch_icon_center_z_mm, 5.2, 5.2),
+    ):
+        icons.append((
+            shapely.affinity.translate(outline, usb_center_y, center_z),
+            (usb_center_y - half_y, usb_center_y + half_y, center_z - half_z, center_z + half_z),
+        ))
+    icon_ys = [value for _, bounds in icons for value in bounds[:2]]
+    icon_zs = [value for _, bounds in icons for value in bounds[2:]]
 
     def side_x(distance_from_inner_wall: float) -> float:
         return wall + distance_from_inner_wall if electronics_left else width - wall - distance_from_inner_wall
@@ -280,7 +336,7 @@ def build_housing_body(params) -> Mesh:
 
     snap_xs = [value for interval in back_horizontal_snaps for value in interval]
     snap_zs = [value for interval in back_vertical_snaps for value in interval]
-    xs = [0, wall - snap_socket_depth, wall, pocket_x0, panel_x0, opening_x0, opening_x1, panel_x1, pocket_x1, width - wall, width - wall + snap_socket_depth, width, *clip_xs, *reach_xs, *flex_xs, *snap_xs, *usb_xs, *dimmer_xs, *icon_xs]
+    xs = [0, wall - snap_socket_depth, wall, pocket_x0, panel_x0, opening_x0, opening_x1, panel_x1, pocket_x1, width - wall, width - wall + snap_socket_depth, width, *clip_xs, *reach_xs, *flex_xs, *snap_xs, *usb_xs, *dimmer_xs]
     clip_release_y1 = clip_ys[-1] + params.panel_clip_end_relief_mm
     ys = [0, bezel_front, pocket_y1, clip_release_y1, depth, snap_y0, snap_y1, *clip_ys, *usb_ys, *dimmer_ys, *icon_ys]
     zs = [0, wall - snap_socket_depth, wall, pocket_z0, panel_z0, opening_z0, opening_z1, panel_z1, pocket_z1, height - wall, height - wall + snap_socket_depth, height, *clip_zs, *reach_zs, *flex_zs, *snap_zs, *usb_zs, *dimmer_zs, *icon_zs]
@@ -373,12 +429,6 @@ def build_housing_body(params) -> Mesh:
         in_shell_slot = usb_bezel < outer_d < wall and usb_z < usb_half_z and y > usb_seat_y
         if in_outer_aperture or in_shell_slot:
             material = False
-        if 0 < outer_d < icon_depth:
-            for mask, icon_y0, icon_z0 in icons:
-                iu = int((y - icon_y0) // ICON_PIXEL_MM)
-                iv = int((z - icon_z0) // ICON_PIXEL_MM)
-                if 0 <= iu < mask.shape[0] and 0 <= iv < mask.shape[1] and mask[iu, iv]:
-                    material = False
 
         if 0 < inner_d < mount_reach:
             # Distance into the board from its nearest end; negative values
@@ -428,7 +478,10 @@ def build_housing_body(params) -> Mesh:
                 material = material or inner_d < mount_reach - step * gusset_step
         return material
 
-    return _cell_mesh(xs, ys, zs, solid)
+    mesh = _cell_mesh(xs, ys, zs, solid)
+    for outline, bounds in icons:
+        mesh = _engrave_icon(mesh, icon_plane_x, icon_floor_x, outline, bounds)
+    return mesh
 
 
 def build_housing_back(params) -> Mesh:
