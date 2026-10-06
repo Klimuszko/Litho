@@ -111,7 +111,7 @@ describe("housing generator", () => {
   });
   it("scales clips independently for every panel edge", () => {
     expect(housingClipCount(initialHousing)).toBe(10);
-    expect(housingClipCount({...initialHousing, kind: "frame", panel_width_mm: 200, panel_height_mm: 150})).toBe(8);
+    expect(housingClipCount({...initialHousing, kind: "frame", panel_width_mm: 200, panel_height_mm: 150})).toBe(12);
     expect(housingClipCount({...initialHousing, panel_width_mm: 180, panel_height_mm: 130})).toBe(14);
     expect(housingClipCount({...initialHousing, panel_width_mm: 200, panel_height_mm: 150})).toBe(14);
   });

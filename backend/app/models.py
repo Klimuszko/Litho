@@ -527,21 +527,26 @@ class HousingParams(BaseModel):
     def _panel_edge_layout(self, length: float, long_edge: bool) -> tuple[list[float], list[float]]:
         """Wedge socket and clip offsets along one panel edge, from its start.
 
-        Sockets take the evenly spread spots - the middle of every edge and
-        both ends of the long edges - and the clips sit halfway between them.
+        Long edges carry four evenly spaced sockets, the outer two at the
+        corners. Short edges carry two, set in from the corners at thirds.
+        Clips sit halfway between neighbouring sockets.
         """
         count = self.edge_clip_count(length)
         default_clips = [length * index / (count + 1) for index in range(1, count + 1)]
         if self.kind != "frame" or self.panel_lock_shelf_mm < 4.0:
             return [], default_clips
+        # Half the socket spacing must fit half a clip, half a socket and 1 mm.
         needed = self.panel_clip_width_mm / 2 + self.wedge_slot_width_mm / 2 + self.panel_lock_pier_mm + 1.0
-        if length / 4 < needed:
-            return [], default_clips
         corner = self.panel_lock_corner_offset_mm
-        if long_edge and (length / 2 - corner) / 2 >= needed:
-            first_clip = (corner + length / 2) / 2
-            return [corner, length / 2, length - corner], [first_clip, length - first_clip]
-        return [length / 2], [length / 4, length * 3 / 4]
+        pitch = (length - 2 * corner) / 3
+        if long_edge and pitch / 2 >= needed:
+            locks = [corner + pitch * index for index in range(4)]
+            return locks, [corner + pitch * (index + 0.5) for index in range(3)]
+        if length / 6 >= needed:
+            return [length / 3, length * 2 / 3], [length / 6, length / 2, length * 5 / 6]
+        if length / 4 >= needed:
+            return [length / 2], [length / 4, length * 3 / 4]
+        return [], default_clips
 
     @property
     def panel_horizontal_lock_centers_mm(self) -> list[float]:

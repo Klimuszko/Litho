@@ -36,9 +36,9 @@ export function housingOuterSize(params: HousingParams) {
 }
 
 export function housingClipCount(params: HousingParams) {
-  // Frames with wedge sockets keep two clips per edge, halfway between the sockets.
+  // Frames with wedge sockets carry three clips per edge, halfway between the sockets.
   const wedgeSockets = params.kind === "frame" && params.frame_border_mm - params.clearance_mm / 2 - params.wall_mm >= 4;
-  const edgeCount = (length: number) => wedgeSockets && length / 4 >= 10.51 ? 2 : length >= 175 ? 4 : length >= 125 ? 3 : 2;
+  const edgeCount = (length: number) => wedgeSockets && length / 6 >= 10.51 ? 3 : length >= 175 ? 4 : length >= 125 ? 3 : 2;
   return 2 * (edgeCount(params.panel_width_mm) + edgeCount(params.panel_height_mm));
 }
 

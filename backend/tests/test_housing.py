@@ -215,19 +215,23 @@ def test_usb_and_touch_icons_are_engraved_on_the_outer_side_wall(side, position)
     assert abs(floors[:, 1] - params.usb_mount_center_y_mm).max() <= 7.9 + 1e-4
 
 
-def test_frame_panel_is_locked_by_wedge_sockets_at_corners_and_edge_centres():
+def test_frame_panel_is_locked_by_evenly_spaced_wedge_sockets():
     params = HousingParams(kind="frame", panel_width_mm=150, panel_height_mm=100)
-    assert params.panel_horizontal_lock_centers_mm == pytest.approx([12 + 10, 12 + 75, 12 + 140])
-    assert params.panel_vertical_lock_centers_mm == pytest.approx([12 + 50])
-    assert params.panel_lock_count == 8
+    # Long edge: both corners plus two evenly spaced between them.
+    assert params.panel_horizontal_lock_centers_mm == pytest.approx([12 + 10, 12 + 10 + 130 / 3, 12 + 10 + 260 / 3, 12 + 140])
+    # Short edge: two sockets set in from the corners.
+    assert params.panel_vertical_lock_centers_mm == pytest.approx([12 + 100 / 3, 12 + 200 / 3])
+    assert params.panel_lock_count == 12
     # Clips sit halfway between neighbouring sockets.
-    assert params.panel_horizontal_clip_centers_mm == pytest.approx([12 + 42.5, 12 + 107.5])
-    assert params.panel_vertical_clip_centers_mm == pytest.approx([12 + 25, 12 + 75])
+    assert params.panel_horizontal_clip_centers_mm == pytest.approx([12 + 10 + 130 / 6, 12 + 75, 12 + 140 - 130 / 6])
+    assert params.panel_vertical_clip_centers_mm == pytest.approx([12 + 100 / 6, 12 + 50, 12 + 500 / 6])
     portrait = HousingParams(kind="frame", panel_width_mm=100, panel_height_mm=150)
-    assert len(portrait.panel_vertical_lock_centers_mm) == 3
-    assert len(portrait.panel_horizontal_lock_centers_mm) == 1
+    assert len(portrait.panel_vertical_lock_centers_mm) == 4
+    assert len(portrait.panel_horizontal_lock_centers_mm) == 2
     for width, height in ((180, 130), (200, 150), (130, 180)):
-        assert HousingParams(kind="frame", panel_width_mm=width, panel_height_mm=height).panel_lock_count == 8
+        sized = HousingParams(kind="frame", panel_width_mm=width, panel_height_mm=height)
+        assert sized.panel_lock_count == 12
+        assert validate_mesh(build_housing_body(sized))["watertight"]
     body = build_housing_body(params)
     assert validate_mesh(body)["watertight"] and validate_mesh(body)["winding_errors"] == 0
     assert component_count(body) == 1
@@ -241,7 +245,7 @@ def test_frame_panel_is_locked_by_wedge_sockets_at_corners_and_edge_centres():
 
     wedges = build_housing_panel_wedges(params)
     assert validate_mesh(wedges)["watertight"] and validate_mesh(wedges)["winding_errors"] == 0
-    assert component_count(wedges) == params.panel_wedge_count == 10
+    assert component_count(wedges) == params.panel_wedge_count == 14
     # A seated wedge covers the panel flange without reaching past its 2 mm.
     overlap = params.panel_wedge_length_mm - params.panel_lock_depth_mm - params.clearance_mm / 2
     assert 1.0 < overlap < 2.0
@@ -295,8 +299,8 @@ def test_housing_api_returns_body_and_back_as_separate_stls():
     assert response.headers["x-housing-kind"] == "frame"
     assert response.headers["x-housing-outer-size-mm"] == "174x124x40"
     assert response.headers["x-panel-pocket-depth-mm"] == "2"
-    assert response.headers["x-panel-clip-count"] == "8"
-    assert response.headers["x-panel-lock-count"] == "8"
+    assert response.headers["x-panel-clip-count"] == "12"
+    assert response.headers["x-panel-lock-count"] == "12"
     assert response.headers["x-back-snap-count"] == "10"
     assert response.headers["x-print-orientation"] == "front-face-down"
     with ZipFile(BytesIO(response.content)) as archive:
