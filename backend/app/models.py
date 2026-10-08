@@ -153,7 +153,7 @@ class HousingParams(BaseModel):
     wall_mm: float = Field(2.4, ge=2.4, le=5.0)
     frame_border_mm: float = Field(12, ge=5, le=25)
     bezel_overlap_mm: float = Field(1.2, ge=0.6, le=1.8)
-    back_thickness_mm: float = Field(2.4, ge=1.6, le=5.0)
+    back_thickness_mm: float = Field(3.0, ge=3.0, le=5.0)
     usb_side: Literal["left", "right"] = "right"
     electronics_position: Literal["bottom", "top"] = "bottom"
 
@@ -329,7 +329,7 @@ class HousingParams(BaseModel):
 
     @property
     def back_screw_size(self) -> str:
-        return "ST2.9x9.5 DIN 7981 / ISO 7049"
+        return "wkret uniwersalny 3x12 mm, leb stozkowy PZ1"
 
     @property
     def back_screw_count_per_edge(self) -> int:
@@ -358,20 +358,48 @@ class HousingParams(BaseModel):
 
     @property
     def back_screw_boss_depth_mm(self) -> float:
-        return 8.0
+        return 9.8
 
     @property
     def back_screw_pilot_mm(self) -> float:
-        # Blind printed pilot for a commonly available ST2.9 screw.
-        return 2.4
+        # Blind printed pilot for a common 3 mm universal wood screw.
+        return 2.3
 
     @property
     def back_screw_pilot_depth_mm(self) -> float:
-        return 7.3
+        return 9.2
 
     @property
     def back_screw_clearance_mm(self) -> float:
-        return 3.3
+        return 3.4
+
+    @property
+    def back_screw_head_diameter_mm(self) -> float:
+        return 6.2
+
+    @property
+    def back_screw_countersink_depth_mm(self) -> float:
+        return 1.6
+
+    @property
+    def back_screw_cap_recess_mm(self) -> float:
+        return 7.4
+
+    @property
+    def back_screw_cap_recess_depth_mm(self) -> float:
+        return 0.8
+
+    @property
+    def back_screw_cap_size_mm(self) -> float:
+        return 7.1
+
+    @property
+    def back_screw_cap_thickness_mm(self) -> float:
+        return 0.75
+
+    @property
+    def back_screw_cap_count(self) -> int:
+        return self.back_screw_count + 1
 
     @property
     def back_rib_width_mm(self) -> float:

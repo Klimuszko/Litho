@@ -29,7 +29,7 @@ export const initialHousing: HousingParams = {
   kind: "box", panel_width_mm: 150, panel_height_mm: 100,
   panel_thickness_mm: 1.6, clearance_mm: .4, depth_mm: 40,
   wall_mm: 2.4, frame_border_mm: 12, bezel_overlap_mm: 1.2,
-  back_thickness_mm: 2.4, usb_side: "right", electronics_position: "bottom",
+  back_thickness_mm: 3.0, usb_side: "right", electronics_position: "bottom",
 };
 
 export function housingOuterSize(params: HousingParams) {
@@ -164,7 +164,7 @@ export default function HousingGenerator({active, onOpenLithophane}: {active: bo
           <span><small>PRZYŁĄCZE</small><b>{`USB-C · ${params.usb_side === "left" ? "lewy" : "prawy"} ${params.electronics_position === "bottom" ? "dół" : "góra"}`}</b></span>
         </div>
       </div>
-      <div className="sidebar-foot">Pokrywa na wkręty ST2.9 × 9.5 · bez kleju</div>
+      <div className="sidebar-foot">Wkręty uniwersalne 3 × 12 · ukryte pod zaślepkami</div>
     </aside>
     <section className="workbench housing-workbench">
       <article className="preview housing-preview">

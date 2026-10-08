@@ -6,7 +6,8 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from app.housing import (
-    build_housing_back, build_housing_body, build_housing_panel_wedges, build_housing_wedges, orient_front_on_bed,
+    build_housing_back, build_housing_back_plugs, build_housing_body,
+    build_housing_panel_wedges, build_housing_wedges, orient_front_on_bed,
 )
 from app.main import app
 from app.mesh import validate_mesh
@@ -59,7 +60,7 @@ def test_box_and_frame_derive_outer_size_from_exact_panel_size():
     assert box.panel_pocket_depth_mm == pytest.approx(2.0)
     assert frame.panel_pocket_depth_mm == pytest.approx(2.0)
     assert (box.rear_opening_width_mm, box.rear_opening_height_mm) == pytest.approx((156.8, 106.8))
-    assert build_housing_body(box).vertices[:, 1].max() == pytest.approx(37.6)
+    assert build_housing_body(box).vertices[:, 1].max() == pytest.approx(37.0)
 
 
 @pytest.mark.parametrize("width,height,expected", [
@@ -94,13 +95,23 @@ def test_panel_and_rear_cover_have_enough_fasteners():
 
 def test_common_rear_screw_has_clearance_and_blind_plastic_pilot():
     params = HousingParams()
-    assert params.back_screw_size == "ST2.9x9.5 DIN 7981 / ISO 7049"
-    assert params.back_screw_clearance_mm == pytest.approx(3.3)
-    assert params.back_screw_pilot_mm == pytest.approx(2.4)
-    screw_engagement = 9.5 - params.back_thickness_mm
+    assert params.back_screw_size == "wkret uniwersalny 3x12 mm, leb stozkowy PZ1"
+    assert params.back_screw_clearance_mm == pytest.approx(3.4)
+    assert params.back_screw_pilot_mm == pytest.approx(2.3)
+    screw_engagement = 12 - params.back_thickness_mm
     assert screw_engagement < params.back_screw_pilot_depth_mm
     assert params.back_screw_pilot_depth_mm < params.back_screw_boss_depth_mm
     assert params.back_screw_boss_width_mm >= 8.0
+    assert params.back_screw_cap_size_mm < params.back_screw_cap_recess_mm
+    assert params.back_screw_cap_thickness_mm < params.back_screw_cap_recess_depth_mm
+
+
+def test_rear_screw_caps_print_as_separate_flush_spares():
+    params = HousingParams(kind="frame")
+    plugs = build_housing_back_plugs(params)
+    assert validate_mesh(plugs)["watertight"]
+    assert component_count(plugs) == params.back_screw_cap_count == params.back_screw_count + 1
+    assert plugs.vertices[:, 2].max() == pytest.approx(params.back_screw_cap_thickness_mm)
 
 
 def test_rear_cover_grid_is_shallow_and_clear_of_side_electronics():
@@ -384,11 +395,13 @@ def test_housing_api_returns_body_and_back_as_separate_stls():
     assert response.headers["x-panel-lock-count"] == "12"
     assert response.headers["x-back-snap-count"] == "0"
     assert response.headers["x-back-screw-count"] == "6"
-    assert response.headers["x-back-screw-size"] == "ST2.9x9.5 DIN 7981 / ISO 7049"
+    assert response.headers["x-back-screw-size"] == "wkret uniwersalny 3x12 mm, leb stozkowy PZ1"
+    assert response.headers["x-back-screw-cap-count"] == "7"
     assert response.headers["x-print-orientation"] == "front-face-down"
     with ZipFile(BytesIO(response.content)) as archive:
         assert sorted(archive.namelist()) == [
             "README-PL.txt",
+            "litho-frame-150x100-back-plugs.stl",
             "litho-frame-150x100-back.stl",
             "litho-frame-150x100-body.stl",
             "litho-frame-150x100-panel-wedges.stl",
@@ -403,8 +416,9 @@ def test_housing_api_returns_body_and_back_as_separate_stls():
         assert "bez kleju" in instructions
         assert "ukrytym kolnierzem" in instructions
         assert "tasme COB" in instructions
-        assert "ST2.9x9.5" in instructions
+        assert "3x12 mm" in instructions
         assert "kratownica" in instructions
+        assert "zaslepek" in instructions
 
 
 def test_housing_api_describes_usb_c_and_touch_dimmer_mounts():

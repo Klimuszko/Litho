@@ -614,7 +614,19 @@ def build_housing_back(params) -> Mesh:
         params.wall_mm + params.back_screw_boss_reach_mm / 2,
         height - params.wall_mm - params.back_screw_boss_reach_mm / 2,
     )
-    screw_hole_half = params.back_screw_clearance_mm / 2
+    screw_clearance_half = params.back_screw_clearance_mm / 2
+    screw_head_half = params.back_screw_head_diameter_mm / 2
+    screw_cap_half = params.back_screw_cap_recess_mm / 2
+    countersink_step = 0.4
+    countersink_steps = int(np.ceil(params.back_screw_countersink_depth_mm / countersink_step))
+    countersink_ys = [
+        params.back_screw_cap_recess_depth_mm + index * params.back_screw_countersink_depth_mm / countersink_steps
+        for index in range(countersink_steps + 1)
+    ]
+    countersink_halves = [
+        screw_head_half - (screw_head_half - screw_clearance_half) * index / countersink_steps
+        for index in range(countersink_steps + 1)
+    ]
     screw_relief_half_x = params.back_screw_boss_width_mm / 2 + params.back_clearance_mm
     screw_relief_half_z = params.back_screw_boss_reach_mm / 2 + params.back_clearance_mm
 
@@ -635,20 +647,43 @@ def build_housing_back(params) -> Mesh:
     screw_grid_xs = [
         center + offset
         for center in screw_xs
-        for offset in (-screw_relief_half_x, -screw_hole_half, screw_hole_half, screw_relief_half_x)
+        for offset in (
+            -screw_relief_half_x, -screw_cap_half,
+            *(-half for half in countersink_halves),
+            *(half for half in reversed(countersink_halves)),
+            screw_cap_half, screw_relief_half_x,
+        )
     ]
     screw_grid_zs = [
         center + offset
         for center in screw_zs
-        for offset in (-screw_relief_half_z, -screw_hole_half, screw_hole_half, screw_relief_half_z)
+        for offset in (
+            -screw_relief_half_z, -screw_cap_half,
+            *(-half for half in countersink_halves),
+            *(half for half in reversed(countersink_halves)),
+            screw_cap_half, screw_relief_half_z,
+        )
     ]
     rib_grid_xs = [value for center in vertical_ribs for value in (center - rib_half, center + rib_half)]
     rib_grid_zs = [value for center in horizontal_ribs for value in (center - rib_half, center + rib_half)]
     xs = [0, x0, x0 + lip, x1 - lip, x1, width, rib_x0, rib_x1, *screw_grid_xs, *rib_grid_xs]
-    ys = [0, thickness, thickness + params.back_rib_height_mm, thickness + lip_depth]
+    ys = [
+        0, params.back_screw_cap_recess_depth_mm, *countersink_ys,
+        thickness, thickness + params.back_rib_height_mm, thickness + lip_depth,
+    ]
     zs = [0, z0, z0 + lip, z1 - lip, z1, height, rib_z0, rib_z1, *screw_grid_zs, *rib_grid_zs]
 
     def solid(x: float, y: float, z: float) -> bool:
+        if y < params.back_screw_cap_recess_depth_mm:
+            screw_hole_half = screw_cap_half
+        elif y < countersink_ys[-1]:
+            step = min(
+                int((y - params.back_screw_cap_recess_depth_mm) / (params.back_screw_countersink_depth_mm / countersink_steps)),
+                countersink_steps - 1,
+            )
+            screw_hole_half = countersink_halves[step]
+        else:
+            screw_hole_half = screw_clearance_half
         screw_hole = any(
             abs(x - screw_x) < screw_hole_half and abs(z - screw_z) < screw_hole_half
             for screw_x in screw_xs for screw_z in screw_zs
@@ -675,6 +710,17 @@ def build_housing_back(params) -> Mesh:
         return plate or ring or rib
 
     return _cell_mesh(xs, ys, zs, solid)
+
+
+def build_housing_back_plugs(params) -> Mesh:
+    """Flush colour-matched covers for the recessed rear screw heads."""
+    return _wedge_row(
+        params.back_screw_cap_size_mm,
+        params.back_screw_cap_size_mm,
+        params.back_screw_cap_thickness_mm,
+        params.back_screw_cap_thickness_mm,
+        params.back_screw_cap_count,
+    )
 
 
 def build_housing_wedges(params) -> Mesh:
