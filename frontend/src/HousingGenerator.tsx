@@ -58,7 +58,7 @@ export function validateHousing(params: HousingParams): string {
   if (params.panel_width_mm < 20 || params.panel_height_mm < 20) return "Panel musi mieć co najmniej 20 × 20 mm.";
   const outer = housingOuterSize(params);
   if (outer.width > 256 || outer.height > 256) return "Obudowa nie mieści się na stole 256 × 256 mm.";
-  if (params.depth_mm < 27) return "Mocowanie USB-C wymaga co najmniej 27 mm głębokości obudowy.";
+  if (params.depth_mm < 40) return "Obudowa z taśmą COB i elektroniką wymaga co najmniej 40 mm głębokości.";
   if (outer.height < 59) return "Obudowa jest za niska na pionowe mocowanie ściemniacza.";
   return "";
 }
@@ -141,7 +141,7 @@ export default function HousingGenerator({active, onOpenLithophane}: {active: bo
         <p className="quality-note housing-note">Podajesz dokładny wymiar gotowej litofanii. Kieszeń montażowa i obudowa są doliczane automatycznie.</p>
         <p className="quality-note flange-note">Wymagany panel z opcją „Kołnierz montażowy Litho Mount V1”. Panel wkłada się od tyłu i dociska pod sprężyste zatrzaski — bez kleju. W ramce panel dodatkowo blokują drukowane kliny wsuwane w gniazda obok panelu.</p>
         <h2><span>03</span> Głębokość</h2>
-        <Range label="Głębokość obudowy" value={params.depth_mm} min={20} max={80} step={1} onChange={value => set("depth_mm", value)}/>
+        <Range label="Głębokość obudowy" value={params.depth_mm} min={40} max={80} step={1} onChange={value => set("depth_mm", value)}/>
         <h2><span>04</span> Zasilanie i sterowanie</h2>
         <div className="housing-toggle"><span><b>Stały zestaw elektroniki</b><small>USB-C oraz sterownik zbliżeniowy 37,04 × 10,08 mm</small></span><strong>WYMAGANY</strong></div>
         <h3>Położenie USB-C i sterownika</h3>

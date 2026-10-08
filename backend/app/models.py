@@ -135,7 +135,7 @@ class HousingParams(BaseModel):
     panel_height_mm: float = Field(100, ge=20, le=250)
     panel_thickness_mm: Literal[1.6] = 1.6
     clearance_mm: float = Field(0.4, ge=0.2, le=0.8)
-    depth_mm: float = Field(40, ge=20, le=80)
+    depth_mm: float = Field(40, ge=40, le=80)
     wall_mm: float = Field(2.4, ge=2.4, le=5.0)
     frame_border_mm: float = Field(12, ge=5, le=25)
     bezel_overlap_mm: float = Field(1.2, ge=0.6, le=1.8)
@@ -400,8 +400,14 @@ class HousingParams(BaseModel):
         return 29.5
 
     @property
+    def touch_icon_offset_mm(self) -> float:
+        # The engraved ON symbol sits 7.6 mm closer to USB-C than the antenna
+        # centre, without changing the board pocket or antenna preload.
+        return self.touch_antenna_offset_mm - 7.6
+
+    @property
     def touch_icon_center_z_mm(self) -> float:
-        return self.usb_mount_center_z_mm + self.touch_antenna_offset_mm * self.electronics_direction
+        return self.usb_mount_center_z_mm + self.touch_icon_offset_mm * self.electronics_direction
 
     @property
     def usb_slot_clearance_mm(self) -> float:

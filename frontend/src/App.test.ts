@@ -128,7 +128,7 @@ describe("housing generator", () => {
     expect(portrait.width / portrait.height).toBeCloseTo(105.6 / 155.6);
   });
   it("validates the USB-C side mount and touch controller envelope", () => {
-    expect(validateHousing({...initialHousing, depth_mm: 26})).toContain("27 mm");
+    expect(validateHousing({...initialHousing, depth_mm: 39})).toContain("40 mm");
     expect(validateHousing({...initialHousing, panel_height_mm: 40})).toContain("za niska");
     expect(validateHousing(initialHousing)).toBe("");
   });

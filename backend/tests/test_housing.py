@@ -134,9 +134,9 @@ def test_housing_rejects_dimensions_outside_p1s_bed():
 
 
 def test_usb_c_side_mount_rejects_too_shallow_or_too_short_housing():
-    with pytest.raises(ValidationError, match="at least 27 mm"):
-        HousingParams(depth_mm=26)
-    shallow = HousingParams(depth_mm=27)
+    with pytest.raises(ValidationError, match="greater than or equal to 40"):
+        HousingParams(depth_mm=39)
+    shallow = HousingParams(depth_mm=40)
     assert shallow.electronics_pocket_floor_y_mm >= shallow.electronics_keepout_y_mm
     with pytest.raises(ValidationError, match="too short"):
         HousingParams(panel_height_mm=40)
@@ -203,7 +203,7 @@ def test_usb_and_touch_icons_are_engraved_on_the_outer_side_wall(side, position)
     assert validate_mesh(mesh)["watertight"]
     assert component_count(mesh) == 1
     direction = 1 if position == "bottom" else -1
-    assert params.touch_icon_center_z_mm - params.usb_mount_center_z_mm == pytest.approx(29.5 * direction)
+    assert params.touch_icon_center_z_mm - params.usb_mount_center_z_mm == pytest.approx(21.9 * direction)
     assert params.dimmer_mount_bottom_mm < params.touch_icon_center_z_mm < params.dimmer_mount_top_mm
     engraved_x = 0.4 if side == "left" else params.outer_width_mm - 0.4
     # Triangles lying in the recess plane are the floors of the two icons.
