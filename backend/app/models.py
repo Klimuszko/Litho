@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-MOUNTING_FLANGE_WIDTH_MM = 2.0
+MOUNTING_FLANGE_WIDTH_MM = 3.0
 MOUNTING_FLANGE_HEIGHT_MM = 1.6
 
 
@@ -28,8 +28,8 @@ class BorderWidths(BaseModel):
 
 
 class LithophaneParams(BaseModel):
-    width_mm: float = Field(150, ge=20, le=256, description="Final model width, including the optional border")
-    height_mm: float = Field(100, ge=20, le=256, description="Final model height, including the optional border")
+    width_mm: float = Field(150, ge=20, le=256, description="Visible image width; ordinary borders remain inside it")
+    height_mm: float = Field(100, ge=20, le=256, description="Visible image height; ordinary borders remain inside it")
     min_thickness_mm: float = Field(1.0, ge=0.4, le=10)
     max_thickness_mm: float = Field(4.0, gt=0.4, le=22)
     gamma: float = Field(1.0, ge=0.1, le=5)
@@ -42,7 +42,7 @@ class LithophaneParams(BaseModel):
     border_width_mm: float = Field(0, ge=0, le=20)
     border_widths_mm: BorderWidths | None = None
     border_height_mm: float | None = Field(None, ge=0.4, le=20)
-    mounting_flange: bool = Field(False, description="Standard 2.0 mm internal mounting rim with a fixed 1.6 mm thickness")
+    mounting_flange: bool = Field(False, description="Litho Mount V2: external 3.0 mm hidden rim with a fixed 1.6 mm thickness")
     invert: bool = False
     mirror: bool = Field(False, description="Creative mirror shown in preview; mesh applies the inverse technical orientation")
     rotation_degrees: float = Field(0, ge=-360, le=360)
@@ -60,6 +60,8 @@ class LithophaneParams(BaseModel):
             raise ValueError("max_thickness_mm must exceed min_thickness_mm")
         if self.max_thickness_mm - self.min_thickness_mm > 12:
             raise ValueError("Thickness range cannot exceed 12 mm")
+        if self.model_width_mm > 256 or self.model_height_mm > 256:
+            raise ValueError("Final model footprint must fit within 256 x 256 mm")
         if self.has_border:
             height = self.effective_border_height
             if height > 20:
@@ -104,11 +106,23 @@ class LithophaneParams(BaseModel):
 
     @property
     def image_width_mm(self) -> float:
+        if self.mounting_flange:
+            return self.width_mm
         return self.width_mm - self.border_left_mm - self.border_right_mm
 
     @property
     def image_height_mm(self) -> float:
+        if self.mounting_flange:
+            return self.height_mm
         return self.height_mm - self.border_top_mm - self.border_bottom_mm
+
+    @property
+    def model_width_mm(self) -> float:
+        return self.image_width_mm + self.border_left_mm + self.border_right_mm
+
+    @property
+    def model_height_mm(self) -> float:
+        return self.image_height_mm + self.border_top_mm + self.border_bottom_mm
 
     @property
     def sample_pitch_mm(self) -> float:
@@ -156,6 +170,8 @@ class HousingParams(BaseModel):
         minimum_depth = self.electronics_minimum_depth_mm
         if self.depth_mm < minimum_depth:
             raise ValueError(f"USB-C side mount requires at least {minimum_depth} mm housing depth")
+        if self.stiffener_y1_mm + 0.2 > self.electronics_pocket_floor_y_mm:
+            raise ValueError("Housing depth leaves no clearance between the COB stiffener and electronics")
         if self.usb_mount_bottom_mm <= self.wall_mm or self.usb_mount_top_mm >= self.outer_height_mm - self.wall_mm:
             raise ValueError("Housing is too short for the USB-C side mount")
         if (
@@ -175,11 +191,19 @@ class HousingParams(BaseModel):
 
     @property
     def outer_width_mm(self) -> float:
-        return self.panel_width_mm + 2 * self.outer_margin_mm
+        return self.panel_outer_width_mm + 2 * self.outer_margin_mm
 
     @property
     def outer_height_mm(self) -> float:
-        return self.panel_height_mm + 2 * self.outer_margin_mm
+        return self.panel_outer_height_mm + 2 * self.outer_margin_mm
+
+    @property
+    def panel_outer_width_mm(self) -> float:
+        return self.panel_width_mm + 2 * MOUNTING_FLANGE_WIDTH_MM
+
+    @property
+    def panel_outer_height_mm(self) -> float:
+        return self.panel_height_mm + 2 * MOUNTING_FLANGE_WIDTH_MM
 
     @property
     def panel_x0_mm(self) -> float:
@@ -187,7 +211,7 @@ class HousingParams(BaseModel):
 
     @property
     def panel_x1_mm(self) -> float:
-        return self.panel_x0_mm + self.panel_width_mm
+        return self.panel_x0_mm + self.panel_outer_width_mm
 
     @property
     def panel_z0_mm(self) -> float:
@@ -195,7 +219,12 @@ class HousingParams(BaseModel):
 
     @property
     def panel_z1_mm(self) -> float:
-        return self.panel_z0_mm + self.panel_height_mm
+        return self.panel_z0_mm + self.panel_outer_height_mm
+
+    @property
+    def panel_mask_mm(self) -> float:
+        """Width of the external V2 flange hidden behind the front face."""
+        return MOUNTING_FLANGE_WIDTH_MM
 
     @property
     def front_thickness_mm(self) -> float:
@@ -219,20 +248,20 @@ class HousingParams(BaseModel):
 
     @property
     def panel_horizontal_clip_count(self) -> int:
-        return len(self._panel_edge_layout(self.panel_width_mm, self.panel_width_mm >= self.panel_height_mm)[1])
+        return len(self._panel_edge_layout(self.panel_outer_width_mm, self.panel_outer_width_mm >= self.panel_outer_height_mm)[1])
 
     @property
     def panel_vertical_clip_count(self) -> int:
-        return len(self._panel_edge_layout(self.panel_height_mm, self.panel_height_mm > self.panel_width_mm)[1])
+        return len(self._panel_edge_layout(self.panel_outer_height_mm, self.panel_outer_height_mm > self.panel_outer_width_mm)[1])
 
     @property
     def panel_horizontal_clip_centers_mm(self) -> list[float]:
-        clips = self._panel_edge_layout(self.panel_width_mm, self.panel_width_mm >= self.panel_height_mm)[1]
+        clips = self._panel_edge_layout(self.panel_outer_width_mm, self.panel_outer_width_mm >= self.panel_outer_height_mm)[1]
         return [self.panel_x0_mm + offset for offset in clips]
 
     @property
     def panel_vertical_clip_centers_mm(self) -> list[float]:
-        clips = self._panel_edge_layout(self.panel_height_mm, self.panel_height_mm > self.panel_width_mm)[1]
+        clips = self._panel_edge_layout(self.panel_outer_height_mm, self.panel_outer_height_mm > self.panel_outer_width_mm)[1]
         return [self.panel_z0_mm + offset for offset in clips]
 
     def panel_edge_clip_width_mm(self, length: float, clip_count: int) -> float:
@@ -315,6 +344,42 @@ class HousingParams(BaseModel):
     def body_depth_mm(self) -> float:
         """Body depth excluding the external plate of the fitted rear cover."""
         return self.depth_mm - self.back_thickness_mm
+
+    @property
+    def led_strip_width_mm(self) -> float:
+        return 8.0
+
+    @property
+    def led_channel_width_mm(self) -> float:
+        # Half a millimetre of assembly tolerance around the 8 mm COB strip.
+        return 8.5
+
+    @property
+    def led_channel_y0_mm(self) -> float:
+        clip_end = (
+            self.front_thickness_mm + self.panel_thickness_mm + self.panel_clip_clearance_mm
+            + self.panel_clip_ramp_height_mm + self.panel_clip_end_relief_mm
+        )
+        if not self.panel_lock_count:
+            return clip_end
+        lock_floor = self.front_thickness_mm + self.panel_thickness_mm + self.panel_lock_gap_mm
+        return max(clip_end, lock_floor + self.wedge_slot_height_mm + 1.6)
+
+    @property
+    def led_channel_y1_mm(self) -> float:
+        return self.led_channel_y0_mm + self.led_channel_width_mm
+
+    @property
+    def stiffener_depth_mm(self) -> float:
+        return 2.2
+
+    @property
+    def stiffener_reach_mm(self) -> float:
+        return 6.0
+
+    @property
+    def stiffener_y1_mm(self) -> float:
+        return self.led_channel_y1_mm + self.stiffener_depth_mm
 
     # Measured USB-C breakout used by Litho. The opening is deliberately
     # smaller than the metal shell, so the thin bezel carries unplugging load.
@@ -556,12 +621,12 @@ class HousingParams(BaseModel):
 
     @property
     def panel_horizontal_lock_centers_mm(self) -> list[float]:
-        locks = self._panel_edge_layout(self.panel_width_mm, self.panel_width_mm >= self.panel_height_mm)[0]
+        locks = self._panel_edge_layout(self.panel_outer_width_mm, self.panel_outer_width_mm >= self.panel_outer_height_mm)[0]
         return [self.panel_x0_mm + offset for offset in locks]
 
     @property
     def panel_vertical_lock_centers_mm(self) -> list[float]:
-        locks = self._panel_edge_layout(self.panel_height_mm, self.panel_height_mm > self.panel_width_mm)[0]
+        locks = self._panel_edge_layout(self.panel_outer_height_mm, self.panel_outer_height_mm > self.panel_outer_width_mm)[0]
         return [self.panel_z0_mm + offset for offset in locks]
 
     @property

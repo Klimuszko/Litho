@@ -514,9 +514,10 @@ async def generate_housing(settings: HousingParams):
         archive.writestr(
             "README-PL.txt",
             (
-                "LITHO - ZESTAW OBUDOWY V1\n\n"
+                "LITHO - ZESTAW OBUDOWY V2\n\n"
                 f"Typ: {settings.kind}\n"
-                f"Panel Litho: {settings.panel_width_mm:g} x {settings.panel_height_mm:g} mm\n"
+                f"Widoczny obraz: {settings.panel_width_mm:g} x {settings.panel_height_mm:g} mm\n"
+                f"Panel Litho z ukrytym kolnierzem: {settings.panel_outer_width_mm:g} x {settings.panel_outer_height_mm:g} mm\n"
                 f"Obudowa: {settings.outer_width_mm:g} x {settings.outer_height_mm:g} x {settings.depth_mm:g} mm\n"
                 f"Kieszen panelu: {settings.panel_pocket_depth_mm:g} mm (panel {settings.panel_thickness_mm:g} mm + luz {settings.clearance_mm:g} mm)\n\n"
                 "Wszystkie pliki STL sa juz obrocone plaska strona do stolu i nie wymagaja podpor.\n"
@@ -529,8 +530,9 @@ async def generate_housing(settings: HousingParams):
                     f"Zablokuj panel klinami z pliku panel-wedges ({settings.panel_wedge_count} szt., dwa zapasowe): po wcisnieciu panelu pod zatrzaski wsun cienszym koncem po jednym klinie w kazde z {settings.panel_lock_count} gniazd obok panelu, w strone scianki, az do oporu - grubszy koniec zostaje nad brzegiem panelu i nie pozwala mu wypasc.\n"
                     if settings.panel_lock_count else ""
                 )
-                + "Na zewnatrz scianki sa wglebione ikony: USB przy gniezdzie oraz wlacznik nad srodkiem anteny (29,5 mm od gniazda) - tam dotykasz, aby sterowac swiatlem.\n"
-                + "Uloz oswietlenie i przewody, a nastepnie docisnij tylna pokrywe do zatrzaskow.\n"
+                + "Na zewnatrz scianki sa wglebione ikony: USB przy gniezdzie oraz wlacznik 21,9 mm od gniazda - tam dotykasz, aby sterowac swiatlem.\n"
+                + f"Przyklej tasme COB do nieprzerwanego pasa o szerokosci {settings.led_channel_width_mm:g} mm dookola wnetrza. Pas konczy sie przed obwodowym zebrem usztywniajacym; rozpocznij i zakoncz tasme przy sterowniku.\n"
+                + "Uloz przewody, a nastepnie docisnij tylna pokrywe do zatrzaskow.\n"
                 "Przed drukiem produkcyjnym wykonaj krotka probe pasowania kieszeni dla swojego filamentu.\n"
             ).encode("utf-8"),
         )
@@ -541,7 +543,9 @@ async def generate_housing(settings: HousingParams):
             "Content-Disposition": f'attachment; filename="{prefix}.zip"',
             "Cache-Control": "no-store",
             "X-Housing-Kind": settings.kind,
-            "X-Panel-Size-Mm": f"{settings.panel_width_mm:g}x{settings.panel_height_mm:g}",
+            "X-Panel-Size-Mm": f"{settings.panel_outer_width_mm:g}x{settings.panel_outer_height_mm:g}",
+            "X-Visible-Image-Size-Mm": f"{settings.panel_width_mm:g}x{settings.panel_height_mm:g}",
+            "X-LED-Channel-Width-Mm": f"{settings.led_channel_width_mm:g}",
             "X-Housing-Outer-Size-Mm": f"{settings.outer_width_mm:g}x{settings.outer_height_mm:g}x{settings.depth_mm:g}",
             "X-Panel-Pocket-Depth-Mm": f"{settings.panel_pocket_depth_mm:g}",
             "X-Panel-Clip-Count": str(settings.panel_clip_count),

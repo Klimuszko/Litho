@@ -126,12 +126,13 @@ def test_mounting_flange_has_fixed_geometry_and_preserves_manual_frame_settings(
     )
     assert params.border_width_mm == 10
     assert params.border_height_mm == 0.7
-    assert (params.border_top_mm, params.border_right_mm, params.border_bottom_mm, params.border_left_mm) == (2, 2, 2, 2)
+    assert (params.border_top_mm, params.border_right_mm, params.border_bottom_mm, params.border_left_mm) == (3, 3, 3, 3)
     assert params.effective_border_height == 1.6
-    assert (params.image_width_mm, params.image_height_mm) == (146, 96)
+    assert (params.image_width_mm, params.image_height_mm) == (150, 100)
+    assert (params.model_width_mm, params.model_height_mm) == (156, 106)
     _, mesh, _ = pipeline(sample_png(), params)
-    assert float(mesh.vertices[:, 0].max()) == 150
-    assert float(mesh.vertices[:, 2].max()) == 100
+    assert float(mesh.vertices[:, 0].max()) == 156
+    assert float(mesh.vertices[:, 2].max()) == 106
     front_vertex_count = len(mesh.vertices) // 2
     assert float(mesh.vertices[0, 1]) == pytest.approx(1.6)
     assert float(mesh.vertices[front_vertex_count - 1, 1]) == pytest.approx(1.6)

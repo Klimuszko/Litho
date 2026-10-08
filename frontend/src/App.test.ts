@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { automaticCrop, effectiveBorderHeight, effectiveGrid, imageArea, initial, inscribedSize, panCrop, Params, resolvedBorders, rotatedSize, validateParams, zoomCrop, zoomCropAt } from "./App";
+import { automaticCrop, effectiveBorderHeight, effectiveGrid, imageArea, imageAreaForParams, initial, inscribedSize, modelSize, panCrop, Params, resolvedBorders, rotatedSize, validateParams, zoomCrop, zoomCropAt } from "./App";
 import { housingBackSnapCount, housingClipCount, housingOuterSize, housingPreviewSize, initialHousing, validateHousing } from "./HousingGenerator";
 
 const valid: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .8, max_thickness_mm: 3, gamma: 1, brightness: 1, contrast: 1, nozzle_diameter_mm: .4, quality_profile: "optimal", orientation: "landscape", border_width_mm: 0, border_widths_mm: null, border_height_mm: 3, mounting_flange: false, invert: false, mirror: false, rotation_degrees: 0, crop: {x: 0, y: 0, width: 1, height: 1}};
@@ -22,7 +22,7 @@ describe("client parameter validation", () => {
   it("rejects a custom size outside the build envelope", () => expect(validateParams({...valid, width_mm: 257})).toContain("256"));
   it("uses the fixed mounting flange without overwriting manual frame values", () => {
     const flange = {...valid, mounting_flange: true, border_width_mm: 8, border_height_mm: .7};
-    expect(resolvedBorders(flange)).toEqual({top: 2, right: 2, bottom: 2, left: 2});
+    expect(resolvedBorders(flange)).toEqual({top: 3, right: 3, bottom: 3, left: 3});
     expect(effectiveBorderHeight(flange)).toBe(1.6);
     expect(validateParams(flange)).toBe("");
     expect(flange.border_width_mm).toBe(8);
@@ -99,12 +99,17 @@ describe("frame dimensions", () => {
   it("subtracts every custom border side from the final format", () => {
     expect(imageArea(150, 100, {top: 2, right: 4, bottom: 6, left: 8})).toEqual({width: 138, height: 92});
   });
+  it("adds the Mount V2 flange outside the selected visible image", () => {
+    const mounted = {...initial, mounting_flange: true};
+    expect(imageAreaForParams(mounted)).toEqual({width: 150, height: 100});
+    expect(modelSize(mounted)).toEqual({width: 156, height: 106});
+  });
 });
 
 describe("housing generator", () => {
-  it("treats preset dimensions as the exact lithophane panel size", () => {
-    expect(housingOuterSize(initialHousing)).toEqual({width: 155.6, height: 105.6});
-    expect(housingOuterSize({...initialHousing, kind: "frame"})).toEqual({width: 174, height: 124});
+  it("treats preset dimensions as visible image size and adds the hidden flange", () => {
+    expect(housingOuterSize(initialHousing)).toEqual({width: 161.6, height: 111.6});
+    expect(housingOuterSize({...initialHousing, kind: "frame"})).toEqual({width: 180, height: 130});
   });
   it("rejects a frame that exceeds the 256 mm bed", () => {
     expect(validateHousing({...initialHousing, kind: "frame", panel_width_mm: 240})).toContain("256");
@@ -124,8 +129,8 @@ describe("housing generator", () => {
     const portrait = housingPreviewSize({...initialHousing, panel_width_mm: 100, panel_height_mm: 150});
     expect(landscape.width).toBeGreaterThan(landscape.height);
     expect(portrait.width).toBeLessThan(portrait.height);
-    expect(landscape.width / landscape.height).toBeCloseTo(155.6 / 105.6);
-    expect(portrait.width / portrait.height).toBeCloseTo(105.6 / 155.6);
+    expect(landscape.width / landscape.height).toBeCloseTo(161.6 / 111.6);
+    expect(portrait.width / portrait.height).toBeCloseTo(111.6 / 161.6);
   });
   it("validates the USB-C side mount and touch controller envelope", () => {
     expect(validateHousing({...initialHousing, depth_mm: 39})).toContain("40 mm");

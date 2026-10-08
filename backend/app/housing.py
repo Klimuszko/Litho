@@ -195,10 +195,13 @@ def build_housing_body(params) -> Mesh:
     pocket_x1 = panel_x1 + params.clearance_mm / 2
     pocket_z0 = panel_z0 - params.clearance_mm / 2
     pocket_z1 = panel_z1 + params.clearance_mm / 2
-    opening_x0 = panel_x0 + params.effective_bezel_overlap_mm
-    opening_x1 = panel_x1 - params.effective_bezel_overlap_mm
-    opening_z0 = panel_z0 + params.effective_bezel_overlap_mm
-    opening_z1 = panel_z1 - params.effective_bezel_overlap_mm
+    # Litho Mount V2 adds its mounting flange outside the requested visible
+    # image. The front face masks the complete flange, so panel wedges and
+    # clips can never cast a visible silhouette through the image area.
+    opening_x0 = panel_x0 + params.panel_mask_mm
+    opening_x1 = panel_x1 - params.panel_mask_mm
+    opening_z0 = panel_z0 + params.panel_mask_mm
+    opening_z1 = panel_z1 - params.panel_mask_mm
 
     clip_y0 = pocket_y0 + params.panel_thickness_mm + params.panel_clip_clearance_mm
     clip_steps = 4
@@ -206,8 +209,8 @@ def build_housing_body(params) -> Mesh:
     clip_ys = [clip_y0 + index * clip_step_height for index in range(clip_steps + 1)]
     clip_reaches = [params.panel_clip_reach_mm * index / clip_steps for index in range(1, clip_steps + 1)]
 
-    vertical_clip_half = params.panel_edge_clip_width_mm(params.panel_height_mm, params.panel_vertical_clip_count) / 2
-    horizontal_clip_half = params.panel_edge_clip_width_mm(params.panel_width_mm, params.panel_horizontal_clip_count) / 2
+    vertical_clip_half = params.panel_edge_clip_width_mm(params.panel_outer_height_mm, params.panel_vertical_clip_count) / 2
+    horizontal_clip_half = params.panel_edge_clip_width_mm(params.panel_outer_width_mm, params.panel_horizontal_clip_count) / 2
     vertical_clips = [
         (center - vertical_clip_half, center + vertical_clip_half) for center in params.panel_vertical_clip_centers_mm
     ]
@@ -223,6 +226,14 @@ def build_housing_body(params) -> Mesh:
     )
     snap_y0, snap_y1 = depth - 2.1, depth - 0.9
     snap_socket_depth = 0.25
+
+    # The flat side-wall segment between the panel hardware and this collar
+    # is an uninterrupted 8.5 mm path for an 8 mm COB strip. The closed
+    # rectangular collar works as an internal L-profile and prevents long
+    # frame edges from bowing without crossing the LED adhesive path.
+    stiffener_y0 = params.led_channel_y1_mm
+    stiffener_y1 = params.stiffener_y1_mm
+    stiffener_reach = params.stiffener_reach_mm
 
     electronics_left = params.usb_side == "left"
     usb_center_y = params.usb_mount_center_y_mm
@@ -338,10 +349,10 @@ def build_housing_body(params) -> Mesh:
 
     snap_xs = [value for interval in back_horizontal_snaps for value in interval]
     snap_zs = [value for interval in back_vertical_snaps for value in interval]
-    xs = [0, wall - snap_socket_depth, wall, pocket_x0, panel_x0, opening_x0, opening_x1, panel_x1, pocket_x1, width - wall, width - wall + snap_socket_depth, width, *clip_xs, *reach_xs, *flex_xs, *snap_xs, *usb_xs, *dimmer_xs]
+    xs = [0, wall - snap_socket_depth, wall, wall + stiffener_reach, pocket_x0, panel_x0, opening_x0, opening_x1, panel_x1, pocket_x1, width - wall - stiffener_reach, width - wall, width - wall + snap_socket_depth, width, *clip_xs, *reach_xs, *flex_xs, *snap_xs, *usb_xs, *dimmer_xs]
     clip_release_y1 = clip_ys[-1] + params.panel_clip_end_relief_mm
-    ys = [0, bezel_front, pocket_y1, clip_release_y1, depth, snap_y0, snap_y1, *clip_ys, *usb_ys, *dimmer_ys, *icon_ys]
-    zs = [0, wall - snap_socket_depth, wall, pocket_z0, panel_z0, opening_z0, opening_z1, panel_z1, pocket_z1, height - wall, height - wall + snap_socket_depth, height, *clip_zs, *reach_zs, *flex_zs, *snap_zs, *usb_zs, *dimmer_zs, *icon_zs]
+    ys = [0, bezel_front, pocket_y1, clip_release_y1, params.led_channel_y0_mm, stiffener_y0, stiffener_y1, depth, snap_y0, snap_y1, *clip_ys, *usb_ys, *dimmer_ys, *icon_ys]
+    zs = [0, wall - snap_socket_depth, wall, wall + stiffener_reach, pocket_z0, panel_z0, opening_z0, opening_z1, panel_z1, pocket_z1, height - wall - stiffener_reach, height - wall, height - wall + snap_socket_depth, height, *clip_zs, *reach_zs, *flex_zs, *snap_zs, *usb_zs, *dimmer_zs, *icon_zs]
 
     lock_xs_centers = params.panel_horizontal_lock_centers_mm
     lock_zs_centers = params.panel_vertical_lock_centers_mm
@@ -375,6 +386,12 @@ def build_housing_body(params) -> Mesh:
 
     def solid(x: float, y: float, z: float) -> bool:
         material = x < wall or x > width - wall or z < wall or z > height - wall
+        if stiffener_y0 < y < stiffener_y1:
+            collar = (
+                x < wall + stiffener_reach or x > width - wall - stiffener_reach
+                or z < wall + stiffener_reach or z > height - wall - stiffener_reach
+            )
+            material = material or collar
         if y < bezel_front:
             opening = opening_x0 < x < opening_x1 and opening_z0 < z < opening_z1
             material = material or not opening

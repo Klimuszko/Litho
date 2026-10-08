@@ -53,11 +53,12 @@ def test_housing_parts_are_watertight_manifold_solids(kind):
 def test_box_and_frame_derive_outer_size_from_exact_panel_size():
     box = HousingParams(kind="box", panel_width_mm=150, panel_height_mm=100)
     frame = HousingParams(kind="frame", panel_width_mm=150, panel_height_mm=100)
-    assert (box.outer_width_mm, box.outer_height_mm) == pytest.approx((155.6, 105.6))
-    assert (frame.outer_width_mm, frame.outer_height_mm) == pytest.approx((174, 124))
+    assert (box.panel_outer_width_mm, box.panel_outer_height_mm) == pytest.approx((156, 106))
+    assert (box.outer_width_mm, box.outer_height_mm) == pytest.approx((161.6, 111.6))
+    assert (frame.outer_width_mm, frame.outer_height_mm) == pytest.approx((180, 130))
     assert box.panel_pocket_depth_mm == pytest.approx(2.0)
     assert frame.panel_pocket_depth_mm == pytest.approx(2.0)
-    assert (box.rear_opening_width_mm, box.rear_opening_height_mm) == pytest.approx((150.8, 100.8))
+    assert (box.rear_opening_width_mm, box.rear_opening_height_mm) == pytest.approx((156.8, 106.8))
     assert build_housing_body(box).vertices[:, 1].max() == pytest.approx(37.6)
 
 
@@ -105,7 +106,7 @@ def test_clip_hook_reaches_over_panel_edge_at_controlled_clearance():
     left_hook_tip = params.panel_x0_mm - params.clearance_mm / 2 + params.panel_clip_reach_mm
     clip_center_z = (
         params.panel_z0_mm
-        + params.panel_height_mm / (params.panel_vertical_clip_count + 1)
+        + params.panel_outer_height_mm / (params.panel_vertical_clip_count + 1)
     )
     vertices = mesh.vertices
     assert any(
@@ -195,6 +196,28 @@ def test_touch_dimmer_channels_preload_the_antenna_spring_against_the_wall():
     assert params.dimmer_mount_bottom_mm - params.dimmer_end_wall_mm > params.usb_mount_top_mm
 
 
+@pytest.mark.parametrize("kind", ["box", "frame"])
+def test_cob_path_is_continuous_and_ends_at_closed_stiffening_collar(kind):
+    params = HousingParams(kind=kind, panel_width_mm=200, panel_height_mm=150)
+    assert params.led_strip_width_mm == pytest.approx(8.0)
+    assert params.led_channel_width_mm == pytest.approx(8.5)
+    assert params.led_channel_y1_mm - params.led_channel_y0_mm == pytest.approx(8.5)
+    assert params.stiffener_y1_mm - params.led_channel_y1_mm == pytest.approx(2.2)
+    assert params.stiffener_reach_mm == pytest.approx(6.0)
+    assert params.stiffener_y1_mm + 0.2 <= params.electronics_pocket_floor_y_mm
+    mesh = build_housing_body(params)
+    assert validate_mesh(mesh)["watertight"]
+    assert component_count(mesh) == 1
+    # The collar is present on every inner wall at both ends of a long edge.
+    collar_y = params.led_channel_y1_mm
+    for x, z in (
+        (params.wall_mm + params.stiffener_reach_mm, params.wall_mm),
+        (params.wall_mm, params.wall_mm + params.stiffener_reach_mm),
+        (params.outer_width_mm - params.wall_mm - params.stiffener_reach_mm, params.outer_height_mm - params.wall_mm),
+    ):
+        assert any(vx == pytest.approx(x) and vy == pytest.approx(collar_y) and vz == pytest.approx(z) for vx, vy, vz in mesh.vertices)
+
+
 @pytest.mark.parametrize("side", ["left", "right"])
 @pytest.mark.parametrize("position", ["bottom", "top"])
 def test_usb_and_touch_icons_are_engraved_on_the_outer_side_wall(side, position):
@@ -218,13 +241,13 @@ def test_usb_and_touch_icons_are_engraved_on_the_outer_side_wall(side, position)
 def test_frame_panel_is_locked_by_evenly_spaced_wedge_sockets():
     params = HousingParams(kind="frame", panel_width_mm=150, panel_height_mm=100)
     # Long edge: both corners plus two evenly spaced between them.
-    assert params.panel_horizontal_lock_centers_mm == pytest.approx([12 + 10, 12 + 10 + 130 / 3, 12 + 10 + 260 / 3, 12 + 140])
+    assert params.panel_horizontal_lock_centers_mm == pytest.approx([12 + 10, 12 + 10 + 136 / 3, 12 + 10 + 272 / 3, 12 + 146])
     # Short edge: two sockets set in from the corners.
-    assert params.panel_vertical_lock_centers_mm == pytest.approx([12 + 100 / 3, 12 + 200 / 3])
+    assert params.panel_vertical_lock_centers_mm == pytest.approx([12 + 106 / 3, 12 + 212 / 3])
     assert params.panel_lock_count == 12
     # Clips sit halfway between neighbouring sockets.
-    assert params.panel_horizontal_clip_centers_mm == pytest.approx([12 + 10 + 130 / 6, 12 + 75, 12 + 140 - 130 / 6])
-    assert params.panel_vertical_clip_centers_mm == pytest.approx([12 + 100 / 6, 12 + 50, 12 + 500 / 6])
+    assert params.panel_horizontal_clip_centers_mm == pytest.approx([12 + 10 + 136 / 6, 12 + 78, 12 + 146 - 136 / 6])
+    assert params.panel_vertical_clip_centers_mm == pytest.approx([12 + 106 / 6, 12 + 53, 12 + 530 / 6])
     portrait = HousingParams(kind="frame", panel_width_mm=100, panel_height_mm=150)
     assert len(portrait.panel_vertical_lock_centers_mm) == 4
     assert len(portrait.panel_horizontal_lock_centers_mm) == 2
@@ -249,6 +272,7 @@ def test_frame_panel_is_locked_by_evenly_spaced_wedge_sockets():
     # A seated wedge covers the panel flange without reaching past its 2 mm.
     overlap = params.panel_wedge_length_mm - params.panel_lock_depth_mm - params.clearance_mm / 2
     assert 1.0 < overlap < 2.0
+    assert overlap < params.panel_mask_mm
     assert params.panel_wedge_tip_thickness_mm < params.wedge_slot_height_mm < params.panel_wedge_head_thickness_mm
 
 
@@ -297,11 +321,14 @@ def test_housing_api_returns_body_and_back_as_separate_stls():
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/zip"
     assert response.headers["x-housing-kind"] == "frame"
-    assert response.headers["x-housing-outer-size-mm"] == "174x124x40"
+    assert response.headers["x-panel-size-mm"] == "156x106"
+    assert response.headers["x-visible-image-size-mm"] == "150x100"
+    assert response.headers["x-housing-outer-size-mm"] == "180x130x40"
+    assert response.headers["x-led-channel-width-mm"] == "8.5"
     assert response.headers["x-panel-pocket-depth-mm"] == "2"
     assert response.headers["x-panel-clip-count"] == "12"
     assert response.headers["x-panel-lock-count"] == "12"
-    assert response.headers["x-back-snap-count"] == "10"
+    assert response.headers["x-back-snap-count"] == "14"
     assert response.headers["x-print-orientation"] == "front-face-down"
     with ZipFile(BytesIO(response.content)) as archive:
         assert sorted(archive.namelist()) == [
@@ -318,6 +345,8 @@ def test_housing_api_returns_body_and_back_as_separate_stls():
         instructions = archive.read("README-PL.txt").decode("utf-8")
         assert "sprezystymi zatrzaskami" in instructions
         assert "bez kleju" in instructions
+        assert "ukrytym kolnierzem" in instructions
+        assert "tasme COB" in instructions
 
 
 def test_housing_api_describes_usb_c_and_touch_dimmer_mounts():
