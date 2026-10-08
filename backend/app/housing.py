@@ -227,15 +227,21 @@ def build_housing_body(params) -> Mesh:
     snap_y0, snap_y1 = depth - 2.1, depth - 0.9
     snap_socket_depth = 0.25
 
-    # The flat side-wall segment between the panel hardware and this collar
-    # is an uninterrupted 8.5 mm path for an 8 mm COB strip. The closed
-    # rectangular collar works as an internal L-profile and prevents long
-    # frame edges from bowing without crossing the LED adhesive path.
+    # The flat side-wall segment before this rib is an uninterrupted 8.5 mm
+    # path for an 8 mm COB strip. The rib then grows inward at 45 degrees in
+    # 0.4 mm steps. With the front face on the print bed every new step is
+    # supported by the previous one, unlike the old horizontal collar.
     stiffener_y0 = params.led_channel_y1_mm
     stiffener_y1 = params.stiffener_y1_mm
     stiffener_reach = params.stiffener_reach_mm
+    stiffener_step = params.stiffener_step_mm
+    stiffener_steps = int(np.ceil(stiffener_reach / stiffener_step))
+    stiffener_reaches = [min(stiffener_reach, index * stiffener_step) for index in range(1, stiffener_steps + 1)]
+    stiffener_ys = [stiffener_y0 + reach for reach in stiffener_reaches]
 
-    electronics_left = params.usb_side == "left"
+    # The UI names the side as seen from the finished display front. This
+    # mesh is assembled from the open rear, so its horizontal axis is mirrored.
+    electronics_min_x = params.electronics_on_min_x_wall
     usb_center_y = params.usb_mount_center_y_mm
     usb_center_z = params.usb_mount_center_z_mm
     usb_clearance = params.usb_fit_clearance_mm
@@ -276,12 +282,28 @@ def build_housing_body(params) -> Mesh:
     dimmer_slot_d0 = params.dimmer_board_face_offset_mm - 0.4
     dimmer_slot_d1 = params.dimmer_board_face_offset_mm + params.dimmer_board_thickness_mm
     dimmer_lip_d0 = dimmer_slot_d0 - 1.2
+    dimmer_cable_center_d = (dimmer_slot_d0 + dimmer_slot_d1) / 2
+    dimmer_cable_d0 = dimmer_cable_center_d - params.dimmer_cable_notch_width_mm / 2
+    dimmer_cable_d1 = dimmer_cable_center_d + params.dimmer_cable_notch_width_mm / 2
+    dimmer_cable_y0 = dimmer_top_y - params.dimmer_cable_notch_depth_mm
+
+    # The side rib is interrupted only where the electronics occupy the
+    # wall. The top, bottom and opposite-side ribs remain continuous, while
+    # the USB and dimmer mounts themselves stiffen this short open section.
+    electronics_rib_gap_z0 = min(
+        usb_center_z - usb_half_z - usb_wall,
+        dimmer_z0 - dimmer_end_wall,
+    ) - 1.0
+    electronics_rib_gap_z1 = max(
+        usb_center_z + usb_half_z + usb_wall,
+        dimmer_z1 + dimmer_end_wall,
+    ) + 1.0
 
     # Wedge slots sit just above each part; the drop lets the taper bear on
     # the part itself instead of leaving it loose in the pocket.
     wedge_drop = 0.3
     wedge_cap = 3.5
-    wedge_half_z = params.wedge_slot_width_mm / 2
+    usb_wedge_half_z = params.usb_wedge_slot_width_mm / 2
     # The USB-C grooves reach below the top of the seated shell, so the wedge
     # rides on the metal and jams against the groove roof about 4.5 mm in.
     usb_shell_top_y = usb_seat_y + params.usb_shell_width_mm
@@ -291,8 +313,8 @@ def build_housing_body(params) -> Mesh:
     dimmer_wedge_y1 = dimmer_wedge_y0 + params.wedge_slot_height_mm
     usb_stop_height = 3.0
 
-    icon_plane_x = 0.0 if electronics_left else width
-    icon_floor_x = params.icon_engrave_depth_mm if electronics_left else width - params.icon_engrave_depth_mm
+    icon_plane_x = 0.0 if electronics_min_x else width
+    icon_floor_x = params.icon_engrave_depth_mm if electronics_min_x else width - params.icon_engrave_depth_mm
     # (outline, patch bounds as y0, y1, z0, z1) on the outer side wall.
     icons = []
     for outline, center_z, half_y, half_z in (
@@ -307,7 +329,7 @@ def build_housing_body(params) -> Mesh:
     icon_zs = [value for _, bounds in icons for value in bounds[2:]]
 
     def side_x(distance_from_inner_wall: float) -> float:
-        return wall + distance_from_inner_wall if electronics_left else width - wall - distance_from_inner_wall
+        return wall + distance_from_inner_wall if electronics_min_x else width - wall - distance_from_inner_wall
 
     gusset_ds = [mount_reach - index * gusset_step for index in range(1, gusset_steps)]
     gusset_ys = [pocket_floor_y - index * gusset_step for index in range(1, gusset_steps)]
@@ -324,13 +346,17 @@ def build_housing_body(params) -> Mesh:
         usb_center_z - usb_half_z - usb_wall, usb_center_z - usb_half_z,
         usb_center_z - usb_aperture_half_z, usb_center_z + usb_aperture_half_z,
         usb_center_z + usb_half_z, usb_center_z + usb_half_z + usb_wall,
-        usb_center_z - wedge_half_z, usb_center_z + wedge_half_z,
+        usb_center_z - usb_wedge_half_z, usb_center_z + usb_wedge_half_z,
     ]
 
-    dimmer_xs = [side_x(distance) for distance in (dimmer_lip_d0, dimmer_slot_d0, dimmer_slot_d1)]
+    dimmer_xs = [side_x(distance) for distance in (
+        dimmer_lip_d0, dimmer_slot_d0, dimmer_slot_d1,
+        dimmer_cable_d0, dimmer_cable_d1,
+    )]
     dimmer_ys = [
         dimmer_seat_y, dimmer_seat_y + dimmer_lip_height, dimmer_top_y,
         dimmer_wedge_y0, dimmer_wedge_y1, dimmer_top_y + wedge_cap,
+        dimmer_cable_y0,
     ]
     dimmer_zs = [
         dimmer_z0 - dimmer_end_wall, dimmer_z0, dimmer_z0 + dimmer_lip, dimmer_z0 + dimmer_grip,
@@ -349,10 +375,12 @@ def build_housing_body(params) -> Mesh:
 
     snap_xs = [value for interval in back_horizontal_snaps for value in interval]
     snap_zs = [value for interval in back_vertical_snaps for value in interval]
-    xs = [0, wall - snap_socket_depth, wall, wall + stiffener_reach, pocket_x0, panel_x0, opening_x0, opening_x1, panel_x1, pocket_x1, width - wall - stiffener_reach, width - wall, width - wall + snap_socket_depth, width, *clip_xs, *reach_xs, *flex_xs, *snap_xs, *usb_xs, *dimmer_xs]
+    stiffener_xs = [wall + reach for reach in stiffener_reaches] + [width - wall - reach for reach in stiffener_reaches]
+    stiffener_zs = [wall + reach for reach in stiffener_reaches] + [height - wall - reach for reach in stiffener_reaches]
+    xs = [0, wall - snap_socket_depth, wall, pocket_x0, panel_x0, opening_x0, opening_x1, panel_x1, pocket_x1, width - wall, width - wall + snap_socket_depth, width, *stiffener_xs, *clip_xs, *reach_xs, *flex_xs, *snap_xs, *usb_xs, *dimmer_xs]
     clip_release_y1 = clip_ys[-1] + params.panel_clip_end_relief_mm
-    ys = [0, bezel_front, pocket_y1, clip_release_y1, params.led_channel_y0_mm, stiffener_y0, stiffener_y1, depth, snap_y0, snap_y1, *clip_ys, *usb_ys, *dimmer_ys, *icon_ys]
-    zs = [0, wall - snap_socket_depth, wall, wall + stiffener_reach, pocket_z0, panel_z0, opening_z0, opening_z1, panel_z1, pocket_z1, height - wall - stiffener_reach, height - wall, height - wall + snap_socket_depth, height, *clip_zs, *reach_zs, *flex_zs, *snap_zs, *usb_zs, *dimmer_zs, *icon_zs]
+    ys = [0, bezel_front, pocket_y1, clip_release_y1, params.led_channel_y0_mm, stiffener_y0, stiffener_y1, depth, snap_y0, snap_y1, *stiffener_ys, *clip_ys, *usb_ys, *dimmer_ys, *icon_ys]
+    zs = [0, wall - snap_socket_depth, wall, pocket_z0, panel_z0, opening_z0, opening_z1, panel_z1, pocket_z1, height - wall, height - wall + snap_socket_depth, height, *stiffener_zs, *clip_zs, *reach_zs, *flex_zs, *snap_zs, *usb_zs, *dimmer_zs, *icon_zs]
 
     lock_xs_centers = params.panel_horizontal_lock_centers_mm
     lock_zs_centers = params.panel_vertical_lock_centers_mm
@@ -387,11 +415,22 @@ def build_housing_body(params) -> Mesh:
     def solid(x: float, y: float, z: float) -> bool:
         material = x < wall or x > width - wall or z < wall or z > height - wall
         if stiffener_y0 < y < stiffener_y1:
-            collar = (
-                x < wall + stiffener_reach or x > width - wall - stiffener_reach
-                or z < wall + stiffener_reach or z > height - wall - stiffener_reach
-            )
-            material = material or collar
+            step = min(int((y - stiffener_y0) / stiffener_step) + 1, stiffener_steps)
+            rib_reach = min(stiffener_reach, step * stiffener_step)
+            left_rib = x < wall + rib_reach
+            right_rib = x > width - wall - rib_reach
+            top_bottom_rib = z < wall + rib_reach or z > height - wall - rib_reach
+            if electronics_rib_gap_z0 < z < electronics_rib_gap_z1:
+                if electronics_min_x:
+                    left_rib = False
+                    if x < wall + stiffener_reach:
+                        top_bottom_rib = False
+                else:
+                    right_rib = False
+                    if x > width - wall - stiffener_reach:
+                        top_bottom_rib = False
+            perimeter_rib = left_rib or right_rib or top_bottom_rib
+            material = material or perimeter_rib
         if y < bezel_front:
             opening = opening_x0 < x < opening_x1 and opening_z0 < z < opening_z1
             material = material or not opening
@@ -452,8 +491,8 @@ def build_housing_body(params) -> Mesh:
             if rear_snap_socket:
                 material = False
 
-        outer_d = x if electronics_left else width - x
-        inner_d = x - wall if electronics_left else width - wall - x
+        outer_d = x if electronics_min_x else width - x
+        inner_d = x - wall if electronics_min_x else width - wall - x
         usb_z = abs(z - usb_center_z)
 
         # The side-wall opening is smaller than the measured 8.85 x 3.12 mm
@@ -495,13 +534,23 @@ def build_housing_body(params) -> Mesh:
                     and y < dimmer_seat_y + dimmer_lip_height
                 )
                 material = material or dimmer_end_plate or dimmer_floor or dimmer_rear_stop or dimmer_front_lip
+                # Open U-shaped notches at both board ends let the wires pass
+                # through after the PCB is pressed into place. Their lower
+                # edge remains solid, so the end walls keep supporting it.
+                dimmer_cable_notch = (
+                    dimmer_end_plate
+                    and dimmer_cable_d0 < inner_d < dimmer_cable_d1
+                    and dimmer_cable_y0 < y
+                )
+                if dimmer_cable_notch:
+                    material = False
 
             # Wedge guides: grooves in both USB-C walls above the shell,
             # and a tunnel through each dimmer rear stop above the board.
             usb_wedge_guide = in_usb_block and usb_z > usb_half_z and inner_d < usb_shell_end_d
             if usb_wedge_guide and usb_top_y <= y < usb_top_y + wedge_cap:
                 material = True
-            if usb_wedge_guide and usb_wedge_y0 < y < usb_wedge_y1 and usb_z < wedge_half_z:
+            if usb_wedge_guide and usb_wedge_y0 < y < usb_wedge_y1 and usb_z < usb_wedge_half_z:
                 material = False
             dimmer_wedge_guide = in_dimmer_block and inner_d > dimmer_slot_d1
             if dimmer_wedge_guide and dimmer_top_y <= y < dimmer_top_y + wedge_cap:

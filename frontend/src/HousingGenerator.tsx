@@ -152,7 +152,7 @@ export default function HousingGenerator({active, onOpenLithophane}: {active: bo
         <Range label="Głębokość obudowy" value={params.depth_mm} min={40} max={80} step={1} onChange={value => set("depth_mm", value)}/>
         <h2><span>04</span> Zasilanie i sterowanie</h2>
         <div className="housing-toggle"><span><b>Stały zestaw elektroniki</b><small>USB-C oraz sterownik zbliżeniowy 37,04 × 10,08 mm</small></span><strong>WYMAGANY</strong></div>
-        <h3>Położenie USB-C i sterownika</h3>
+        <h3>Położenie USB-C i sterownika (widok od frontu)</h3>
         <div className="electronics-placement">
           <button className={params.usb_side === "left" && params.electronics_position === "top" ? "active" : ""} onClick={() => setElectronicsPlacement("left", "top")}>Lewy górny bok</button>
           <button className={params.usb_side === "right" && params.electronics_position === "top" ? "active" : ""} onClick={() => setElectronicsPlacement("right", "top")}>Prawy górny bok</button>

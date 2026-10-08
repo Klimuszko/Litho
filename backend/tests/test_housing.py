@@ -143,6 +143,11 @@ def test_usb_c_side_mount_rejects_too_shallow_or_too_short_housing():
         HousingParams(panel_height_mm=40)
 
 
+def test_electronics_side_is_named_from_the_finished_front_view():
+    assert HousingParams(usb_side="right").electronics_on_min_x_wall
+    assert not HousingParams(usb_side="left").electronics_on_min_x_wall
+
+
 @pytest.mark.parametrize("side", ["left", "right"])
 @pytest.mark.parametrize("position", ["bottom", "top"])
 def test_usb_c_and_touch_dimmer_mounts_are_mandatory_and_single_manifold_body(side, position):
@@ -157,7 +162,9 @@ def test_usb_c_and_touch_dimmer_mounts_are_mandatory_and_single_manifold_body(si
     }
     assert component_count(mesh) == 1
 
-    expected_outer_x = 0 if side == "left" else params.outer_width_mm
+    # Side names are from the finished display front; the construction mesh
+    # is viewed from its open rear, where horizontal sides are mirrored.
+    expected_outer_x = 0 if side == "right" else params.outer_width_mm
     aperture_y = params.usb_mount_center_y_mm - params.usb_aperture_width_mm / 2
     aperture_z = params.usb_mount_center_z_mm - params.usb_aperture_height_mm / 2
     assert any(
@@ -169,7 +176,7 @@ def test_usb_c_and_touch_dimmer_mounts_are_mandatory_and_single_manifold_body(si
 
 
 def test_usb_c_pocket_matches_measured_module_and_is_open_to_the_rear():
-    params = HousingParams(usb_side="left")
+    params = HousingParams(usb_side="right")
     mesh = build_housing_body(params)
     xs = {round(float(x), 3) for x in mesh.vertices[:, 0]}
     bezel = params.usb_bezel_mm
@@ -185,7 +192,7 @@ def test_usb_c_pocket_matches_measured_module_and_is_open_to_the_rear():
 
 
 def test_touch_dimmer_channels_preload_the_antenna_spring_against_the_wall():
-    params = HousingParams(usb_side="left")
+    params = HousingParams(usb_side="right")
     mesh = build_housing_body(params)
     xs = {round(float(x), 3) for x in mesh.vertices[:, 0]}
     rear_stop = params.wall_mm + params.dimmer_board_face_offset_mm + params.dimmer_board_thickness_mm
@@ -194,28 +201,36 @@ def test_touch_dimmer_channels_preload_the_antenna_spring_against_the_wall():
     # Channels stand outside both board ends and clear the USB-C pocket.
     assert params.dimmer_mount_top_mm - params.dimmer_mount_bottom_mm == pytest.approx(37.54)
     assert params.dimmer_mount_bottom_mm - params.dimmer_end_wall_mm > params.usb_mount_top_mm
+    assert params.dimmer_cable_notch_width_mm == pytest.approx(5.0)
+    assert params.dimmer_cable_notch_depth_mm == pytest.approx(3.0)
+    dimmer_half_y = (params.dimmer_board_width_mm + 2 * params.usb_fit_clearance_mm) / 2
+    notch_floor_y = params.usb_mount_center_y_mm + dimmer_half_y - params.dimmer_cable_notch_depth_mm
+    assert any(y == pytest.approx(notch_floor_y) for _, y, _ in mesh.vertices)
 
 
 @pytest.mark.parametrize("kind", ["box", "frame"])
-def test_cob_path_is_continuous_and_ends_at_closed_stiffening_collar(kind):
+def test_cob_path_ends_at_support_free_45_degree_stiffener(kind):
     params = HousingParams(kind=kind, panel_width_mm=200, panel_height_mm=150)
     assert params.led_strip_width_mm == pytest.approx(8.0)
     assert params.led_channel_width_mm == pytest.approx(8.5)
     assert params.led_channel_y1_mm - params.led_channel_y0_mm == pytest.approx(8.5)
-    assert params.stiffener_y1_mm - params.led_channel_y1_mm == pytest.approx(2.2)
     assert params.stiffener_reach_mm == pytest.approx(6.0)
-    assert params.stiffener_y1_mm + 0.2 <= params.electronics_pocket_floor_y_mm
+    assert params.stiffener_depth_mm == pytest.approx(params.stiffener_reach_mm)
+    assert params.stiffener_step_mm == pytest.approx(0.4)
+    assert params.stiffener_y1_mm - params.led_channel_y1_mm == pytest.approx(6.0)
+    assert params.stiffener_y1_mm + 0.2 <= params.body_depth_mm - params.back_lip_depth_mm
     mesh = build_housing_body(params)
     assert validate_mesh(mesh)["watertight"]
     assert component_count(mesh) == 1
-    # The collar is present on every inner wall at both ends of a long edge.
-    collar_y = params.led_channel_y1_mm
-    for x, z in (
-        (params.wall_mm + params.stiffener_reach_mm, params.wall_mm),
-        (params.wall_mm, params.wall_mm + params.stiffener_reach_mm),
-        (params.outer_width_mm - params.wall_mm - params.stiffener_reach_mm, params.outer_height_mm - params.wall_mm),
-    ):
-        assert any(vx == pytest.approx(x) and vy == pytest.approx(collar_y) and vz == pytest.approx(z) for vx, vy, vz in mesh.vertices)
+    # Each 0.4 mm of print height adds no more than 0.4 mm of inward reach.
+    # Check the uninterrupted bottom rib, away from the electronics cutout.
+    for reach in (0.4, 2.0, 4.0, 6.0):
+        expected_y = params.led_channel_y1_mm + reach
+        expected_z = params.wall_mm + reach
+        assert any(
+            vy == pytest.approx(expected_y) and vz == pytest.approx(expected_z)
+            for _, vy, vz in mesh.vertices
+        )
 
 
 @pytest.mark.parametrize("side", ["left", "right"])
@@ -228,7 +243,7 @@ def test_usb_and_touch_icons_are_engraved_on_the_outer_side_wall(side, position)
     direction = 1 if position == "bottom" else -1
     assert params.touch_icon_center_z_mm - params.usb_mount_center_z_mm == pytest.approx(21.9 * direction)
     assert params.dimmer_mount_bottom_mm < params.touch_icon_center_z_mm < params.dimmer_mount_top_mm
-    engraved_x = 0.4 if side == "left" else params.outer_width_mm - 0.4
+    engraved_x = 0.4 if side == "right" else params.outer_width_mm - 0.4
     # Triangles lying in the recess plane are the floors of the two icons.
     corners = mesh.vertices[mesh.faces]
     floors = corners[(abs(corners[:, :, 0] - engraved_x) < 1e-4).all(axis=1)].reshape(-1, 3)
@@ -292,6 +307,8 @@ def test_locking_wedges_print_flat_and_jam_inside_their_slots():
     # The taper crosses the slot height, so the wedge enters freely and jams.
     assert params.wedge_tip_thickness_mm < params.wedge_slot_height_mm < params.wedge_head_thickness_mm
     assert params.wedge_width_mm < params.wedge_slot_width_mm
+    assert params.wedge_slot_width_mm - params.wedge_width_mm == pytest.approx(0.3)
+    assert params.usb_wedge_slot_width_mm - params.wedge_width_mm == pytest.approx(0.7)
     # Wedge slots end below the rear-cover lip.
     slot_top = params.usb_mount_center_y_mm + (params.usb_shell_width_mm + 2 * params.usb_fit_clearance_mm) / 2 + 3.5
     assert slot_top < params.body_depth_mm - params.back_lip_depth_mm

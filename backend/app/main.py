@@ -523,7 +523,7 @@ async def generate_housing(settings: HousingParams):
                 "Wszystkie pliki STL sa juz obrocone plaska strona do stolu i nie wymagaja podpor.\n"
                 "Wloz panel od otwartego tylu, krawedzia od strony USB-C jako pierwsza (ukosnie pod kieszeniami elektroniki), i rownomiernie docisnij jego kolnierz do frontu.\n"
                 f"Panel przejdzie pod {settings.panel_clip_count} sprezystymi zatrzaskami i zablokuje sie bez kleju.\n"
-                + f"Wsun modul USB-C od tylu w kieszen w {('lewej' if settings.usb_side == 'left' else 'prawej')} scianie, przy {('dolnej' if settings.electronics_position == 'bottom' else 'gornej')} krawedzi, polami lutowniczymi w strone otwartego boku: metalowa oslona opiera sie o kolnierz w sciance, a plytka o niski tylny ogranicznik, nad ktorym wychodza przewody.\n"
+                + f"Wsun modul USB-C od tylu w kieszen w {('lewej' if settings.usb_side == 'left' else 'prawej')} scianie (patrzac od pokazowego frontu), przy {('dolnej' if settings.electronics_position == 'bottom' else 'gornej')} krawedzi, polami lutowniczymi w strone otwartego boku: metalowa oslona opiera sie o kolnierz w sciance, a plytka o niski tylny ogranicznik, nad ktorym wychodza przewody.\n"
                 + "Wsun plytke sterownika od tylu w dwa kanaly, sprezyna w strone scianki; sprezyna anteny ma tylko lekko dotykac bocznej scianki.\n"
                 + f"Zablokuj elementy klinami z pliku wedges ({settings.wedge_count} szt., jeden zapasowy): cienszym koncem wsun klin od srodka obudowy w strone scianki - jeden nad oslona USB-C i po jednym w tunel na kazdym koncu plytki sterownika - az sie zakleszczy.\n"
                 + (

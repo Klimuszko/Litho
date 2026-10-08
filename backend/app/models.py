@@ -157,6 +157,16 @@ class HousingParams(BaseModel):
     usb_side: Literal["left", "right"] = "right"
     electronics_position: Literal["bottom", "top"] = "bottom"
 
+    @property
+    def electronics_on_min_x_wall(self) -> bool:
+        """Map the front-view selection to the rear-built assembly axes.
+
+        The body mesh is constructed while looking into its open rear. That
+        view mirrors left and right relative to the finished display front,
+        which is the viewpoint used by the UI and assembly instructions.
+        """
+        return self.usb_side == "right"
+
     @model_validator(mode="after")
     def printable_relations(self):
         if self.panel_pocket_depth_mm > 4.8:
@@ -170,8 +180,8 @@ class HousingParams(BaseModel):
         minimum_depth = self.electronics_minimum_depth_mm
         if self.depth_mm < minimum_depth:
             raise ValueError(f"USB-C side mount requires at least {minimum_depth} mm housing depth")
-        if self.stiffener_y1_mm + 0.2 > self.electronics_pocket_floor_y_mm:
-            raise ValueError("Housing depth leaves no clearance between the COB stiffener and electronics")
+        if self.stiffener_y1_mm + 0.2 > self.body_depth_mm - self.back_lip_depth_mm:
+            raise ValueError("Housing depth leaves no clearance behind the support-free COB stiffener")
         if self.usb_mount_bottom_mm <= self.wall_mm or self.usb_mount_top_mm >= self.outer_height_mm - self.wall_mm:
             raise ValueError("Housing is too short for the USB-C side mount")
         if (
@@ -371,11 +381,19 @@ class HousingParams(BaseModel):
 
     @property
     def stiffener_depth_mm(self) -> float:
-        return 2.2
+        # A 1:1 rise lets the rib grow towards the interior without a
+        # horizontal ceiling when the housing is printed front-face-down.
+        return self.stiffener_reach_mm
 
     @property
     def stiffener_reach_mm(self) -> float:
         return 6.0
+
+    @property
+    def stiffener_step_mm(self) -> float:
+        # Two typical 0.2 mm layers per step: small enough to print cleanly,
+        # coarse enough to keep the generated mesh reasonably compact.
+        return 0.4
 
     @property
     def stiffener_y1_mm(self) -> float:
@@ -559,6 +577,13 @@ class HousingParams(BaseModel):
         return self.wedge_slot_width_mm - 0.3
 
     @property
+    def usb_wedge_slot_width_mm(self) -> float:
+        # The USB guide is printed above an interrupted pocket and its edges
+        # can pull inward slightly. Keep the common wedge, but give this one
+        # guide 0.35 mm clearance per side instead of 0.15 mm.
+        return self.wedge_width_mm + 0.7
+
+    @property
     def wedge_length_mm(self) -> float:
         return 11.0
 
@@ -663,6 +688,16 @@ class HousingParams(BaseModel):
     @property
     def dimmer_end_wall_mm(self) -> float:
         return 2.4
+
+    @property
+    def dimmer_cable_notch_width_mm(self) -> float:
+        """Opening along the wall depth for a pair of low-voltage wires."""
+        return 5.0
+
+    @property
+    def dimmer_cable_notch_depth_mm(self) -> float:
+        """Notch height measured from the open rear edge of the holder."""
+        return 3.0
 
     @property
     def dimmer_mount_bottom_mm(self) -> float:
