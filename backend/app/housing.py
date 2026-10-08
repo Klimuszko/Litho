@@ -218,14 +218,18 @@ def build_housing_body(params) -> Mesh:
         (center - horizontal_clip_half, center + horizontal_clip_half) for center in params.panel_horizontal_clip_centers_mm
     ]
 
-    back_horizontal_snaps = _centered_intervals(
-        wall, width - wall, params.back_horizontal_snap_count, params.back_snap_width_mm,
+    # Rear cover screws enter blind bosses on the top and bottom walls. This
+    # keeps every fixing away from the side-mounted USB-C and touch controller.
+    back_screw_xs = params.back_screw_centers_x_mm
+    back_screw_boss_half = params.back_screw_boss_width_mm / 2
+    back_screw_boss_half_z = params.back_screw_boss_reach_mm / 2
+    back_screw_zs = (
+        wall + back_screw_boss_half_z,
+        height - wall - back_screw_boss_half_z,
     )
-    back_vertical_snaps = _centered_intervals(
-        wall, height - wall, params.back_vertical_snap_count, params.back_snap_width_mm,
-    )
-    snap_y0, snap_y1 = depth - 2.1, depth - 0.9
-    snap_socket_depth = 0.25
+    back_screw_pilot_half = params.back_screw_pilot_mm / 2
+    back_screw_boss_y0 = depth - params.back_screw_boss_depth_mm
+    back_screw_pilot_y0 = depth - params.back_screw_pilot_depth_mm
 
     # The flat side-wall segment before this rib is an uninterrupted 8.5 mm
     # path for an 8 mm COB strip. The rib then grows inward at 45 degrees in
@@ -373,14 +377,22 @@ def build_housing_body(params) -> Mesh:
     flex_xs = [pocket_x0 - flex - relief, pocket_x0 - flex, pocket_x1 + flex, pocket_x1 + flex + relief]
     flex_zs = [pocket_z0 - flex - relief, pocket_z0 - flex, pocket_z1 + flex, pocket_z1 + flex + relief]
 
-    snap_xs = [value for interval in back_horizontal_snaps for value in interval]
-    snap_zs = [value for interval in back_vertical_snaps for value in interval]
+    back_screw_body_xs = [
+        center + offset
+        for center in back_screw_xs
+        for offset in (-back_screw_boss_half, -back_screw_pilot_half, back_screw_pilot_half, back_screw_boss_half)
+    ]
+    back_screw_body_zs = [
+        center + offset
+        for center in back_screw_zs
+        for offset in (-back_screw_boss_half_z, -back_screw_pilot_half, back_screw_pilot_half, back_screw_boss_half_z)
+    ]
     stiffener_xs = [wall + reach for reach in stiffener_reaches] + [width - wall - reach for reach in stiffener_reaches]
     stiffener_zs = [wall + reach for reach in stiffener_reaches] + [height - wall - reach for reach in stiffener_reaches]
-    xs = [0, wall - snap_socket_depth, wall, pocket_x0, panel_x0, opening_x0, opening_x1, panel_x1, pocket_x1, width - wall, width - wall + snap_socket_depth, width, *stiffener_xs, *clip_xs, *reach_xs, *flex_xs, *snap_xs, *usb_xs, *dimmer_xs]
+    xs = [0, wall, pocket_x0, panel_x0, opening_x0, opening_x1, panel_x1, pocket_x1, width - wall, width, *stiffener_xs, *clip_xs, *reach_xs, *flex_xs, *back_screw_body_xs, *usb_xs, *dimmer_xs]
     clip_release_y1 = clip_ys[-1] + params.panel_clip_end_relief_mm
-    ys = [0, bezel_front, pocket_y1, clip_release_y1, params.led_channel_y0_mm, stiffener_y0, stiffener_y1, depth, snap_y0, snap_y1, *stiffener_ys, *clip_ys, *usb_ys, *dimmer_ys, *icon_ys]
-    zs = [0, wall - snap_socket_depth, wall, pocket_z0, panel_z0, opening_z0, opening_z1, panel_z1, pocket_z1, height - wall, height - wall + snap_socket_depth, height, *stiffener_zs, *clip_zs, *reach_zs, *flex_zs, *snap_zs, *usb_zs, *dimmer_zs, *icon_zs]
+    ys = [0, bezel_front, pocket_y1, clip_release_y1, params.led_channel_y0_mm, stiffener_y0, stiffener_y1, back_screw_boss_y0, back_screw_pilot_y0, depth, *stiffener_ys, *clip_ys, *usb_ys, *dimmer_ys, *icon_ys]
+    zs = [0, wall, pocket_z0, panel_z0, opening_z0, opening_z1, panel_z1, pocket_z1, height - wall, height, *stiffener_zs, *clip_zs, *reach_zs, *flex_zs, *back_screw_body_zs, *usb_zs, *dimmer_zs, *icon_zs]
 
     lock_xs_centers = params.panel_horizontal_lock_centers_mm
     lock_zs_centers = params.panel_vertical_lock_centers_mm
@@ -481,15 +493,21 @@ def build_housing_body(params) -> Mesh:
             )
             if side_end_relief or top_bottom_end_relief:
                 material = False
-        if snap_y0 < y < snap_y1:
-            rear_snap_socket = (
-                in_intervals(x, back_horizontal_snaps)
-                and (wall - snap_socket_depth < z < wall or height - wall < z < height - wall + snap_socket_depth)
-                or in_intervals(z, back_vertical_snaps)
-                and (wall - snap_socket_depth < x < wall or width - wall < x < width - wall + snap_socket_depth)
-            )
-            if rear_snap_socket:
-                material = False
+        for screw_x in back_screw_xs:
+            for screw_z in back_screw_zs:
+                in_screw_boss = (
+                    abs(x - screw_x) < back_screw_boss_half
+                    and abs(z - screw_z) < back_screw_boss_half_z
+                    and back_screw_boss_y0 < y < depth
+                )
+                material = material or in_screw_boss
+                if (
+                    in_screw_boss
+                    and abs(x - screw_x) < back_screw_pilot_half
+                    and abs(z - screw_z) < back_screw_pilot_half
+                    and back_screw_pilot_y0 < y < depth
+                ):
+                    material = False
 
         outer_d = x if electronics_min_x else width - x
         inner_d = x - wall if electronics_min_x else width - wall - x
@@ -591,37 +609,70 @@ def build_housing_back(params) -> Mesh:
     lip_depth, lip = params.back_lip_depth_mm, params.back_lip_mm
     inset = params.wall_mm + params.back_clearance_mm
     x0, x1, z0, z1 = inset, width - inset, inset, height - inset
-    horizontal_snaps = _centered_intervals(
-        x0, x1, params.back_horizontal_snap_count, params.back_snap_width_mm,
+    screw_xs = params.back_screw_centers_x_mm
+    screw_zs = (
+        params.wall_mm + params.back_screw_boss_reach_mm / 2,
+        height - params.wall_mm - params.back_screw_boss_reach_mm / 2,
     )
-    vertical_snaps = _centered_intervals(
-        z0, z1, params.back_vertical_snap_count, params.back_snap_width_mm,
-    )
-    snap_y0, snap_y1 = thickness + 1.0, thickness + 2.0
+    screw_hole_half = params.back_screw_clearance_mm / 2
+    screw_relief_half_x = params.back_screw_boss_width_mm / 2 + params.back_clearance_mm
+    screw_relief_half_z = params.back_screw_boss_reach_mm / 2 + params.back_clearance_mm
 
-    snap_xs = [value for interval in horizontal_snaps for value in interval]
-    snap_zs = [value for interval in vertical_snaps for value in interval]
-    xs = [0, x0 - params.back_snap_reach_mm, x0, x0 + lip, x1 - lip, x1, x1 + params.back_snap_reach_mm, width, *snap_xs]
-    ys = [0, thickness, thickness + lip_depth, snap_y0, snap_y1]
-    zs = [0, z0 - params.back_snap_reach_mm, z0, z0 + lip, z1 - lip, z1, z1 + params.back_snap_reach_mm, height, *snap_zs]
+    rib_margin = params.back_rib_margin_mm
+    rib_x0, rib_x1 = rib_margin, width - rib_margin
+    rib_z0, rib_z1 = rib_margin, height - rib_margin
+    rib_half = params.back_rib_width_mm / 2
+
+    def rib_centers(start: float, end: float) -> list[float]:
+        span = end - start
+        if span <= 2 * params.back_rib_width_mm:
+            return []
+        sections = max(1, int(np.ceil(span / params.back_rib_max_spacing_mm)))
+        return [start + span * index / sections for index in range(1, sections)]
+
+    vertical_ribs = rib_centers(rib_x0, rib_x1)
+    horizontal_ribs = rib_centers(rib_z0, rib_z1)
+    screw_grid_xs = [
+        center + offset
+        for center in screw_xs
+        for offset in (-screw_relief_half_x, -screw_hole_half, screw_hole_half, screw_relief_half_x)
+    ]
+    screw_grid_zs = [
+        center + offset
+        for center in screw_zs
+        for offset in (-screw_relief_half_z, -screw_hole_half, screw_hole_half, screw_relief_half_z)
+    ]
+    rib_grid_xs = [value for center in vertical_ribs for value in (center - rib_half, center + rib_half)]
+    rib_grid_zs = [value for center in horizontal_ribs for value in (center - rib_half, center + rib_half)]
+    xs = [0, x0, x0 + lip, x1 - lip, x1, width, rib_x0, rib_x1, *screw_grid_xs, *rib_grid_xs]
+    ys = [0, thickness, thickness + params.back_rib_height_mm, thickness + lip_depth]
+    zs = [0, z0, z0 + lip, z1 - lip, z1, height, rib_z0, rib_z1, *screw_grid_zs, *rib_grid_zs]
 
     def solid(x: float, y: float, z: float) -> bool:
-        plate = y < thickness
+        screw_hole = any(
+            abs(x - screw_x) < screw_hole_half and abs(z - screw_z) < screw_hole_half
+            for screw_x in screw_xs for screw_z in screw_zs
+        )
+        screw_relief = any(
+            abs(x - screw_x) < screw_relief_half_x and abs(z - screw_z) < screw_relief_half_z
+            for screw_x in screw_xs for screw_z in screw_zs
+        )
+        plate = y < thickness and not screw_hole
         ring = (
             thickness < y < thickness + lip_depth
             and x0 < x < x1 and z0 < z < z1
             and (x < x0 + lip or x > x1 - lip or z < z0 + lip or z > z1 - lip)
+            and not screw_relief
         )
-        snap = (
-            snap_y0 < y < snap_y1
+        rib = (
+            thickness < y < thickness + params.back_rib_height_mm
+            and rib_x0 < x < rib_x1 and rib_z0 < z < rib_z1
             and (
-                any(start < x < end for start, end in horizontal_snaps)
-                and (x0 - params.back_snap_reach_mm < z < z0 + lip or z1 - lip < z < z1 + params.back_snap_reach_mm)
-                or any(start < z < end for start, end in vertical_snaps)
-                and (x0 - params.back_snap_reach_mm < x < x0 + lip or x1 - lip < x < x1 + params.back_snap_reach_mm)
+                any(abs(x - center) < rib_half for center in vertical_ribs)
+                or any(abs(z - center) < rib_half for center in horizontal_ribs)
             )
         )
-        return plate or ring or snap
+        return plate or ring or rib
 
     return _cell_mesh(xs, ys, zs, solid)
 

@@ -532,7 +532,8 @@ async def generate_housing(settings: HousingParams):
                 )
                 + "Na zewnatrz scianki sa wglebione ikony: USB przy gniezdzie oraz wlacznik 21,9 mm od gniazda - tam dotykasz, aby sterowac swiatlem.\n"
                 + f"Przyklej tasme COB do nieprzerwanego pasa o szerokosci {settings.led_channel_width_mm:g} mm dookola wnetrza. Pas konczy sie przed obwodowym zebrem usztywniajacym; rozpocznij i zakoncz tasme przy sterowniku.\n"
-                + "Uloz przewody, a nastepnie docisnij tylna pokrywe do zatrzaskow.\n"
+                + f"Uloz przewody, przyloz tylna pokrywe rantem do korpusu i przykrec ja {settings.back_screw_count} latwo dostepnymi wkretami samogwintujacymi {settings.back_screw_size}. Wkrecaj recznie tylko do pewnego oparcia lba; slepe otwory prowadza wkrety bez insertow.\n"
+                + f"Wewnetrzna kratownica pokrywy ma zebra {settings.back_rib_width_mm:g} x {settings.back_rib_height_mm:g} mm, odsuniete od elektroniki i plytsze od rantu pokrywy.\n"
                 "Przed drukiem produkcyjnym wykonaj krotka probe pasowania kieszeni dla swojego filamentu.\n"
             ).encode("utf-8"),
         )
@@ -550,7 +551,9 @@ async def generate_housing(settings: HousingParams):
             "X-Panel-Pocket-Depth-Mm": f"{settings.panel_pocket_depth_mm:g}",
             "X-Panel-Clip-Count": str(settings.panel_clip_count),
             "X-Panel-Lock-Count": str(settings.panel_lock_count),
-            "X-Back-Snap-Count": str(settings.back_snap_count),
+            "X-Back-Snap-Count": "0",
+            "X-Back-Screw-Count": str(settings.back_screw_count),
+            "X-Back-Screw-Size": settings.back_screw_size,
             "X-Connection-Type": "usb_c",
             "X-USB-Side": settings.usb_side,
             "X-Electronics-Position": settings.electronics_position,

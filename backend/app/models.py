@@ -328,27 +328,67 @@ class HousingParams(BaseModel):
         return 0.15
 
     @property
-    def back_snap_reach_mm(self) -> float:
-        return 0.35
+    def back_screw_size(self) -> str:
+        return "ST2.9x9.5 DIN 7981 / ISO 7049"
 
     @property
-    def back_snap_width_mm(self) -> float:
-        return 12.0
+    def back_screw_count_per_edge(self) -> int:
+        # Two screws on each horizontal edge are enough for compact covers;
+        # wide covers receive a centre screw as well.
+        return 3 if self.outer_width_mm >= 175 else 2
 
     @property
-    def back_snap_count(self) -> int:
-        return 2 * (
-            self.edge_clip_count(self.outer_width_mm)
-            + self.edge_clip_count(self.outer_height_mm)
-        )
+    def back_screw_count(self) -> int:
+        return 2 * self.back_screw_count_per_edge
 
     @property
-    def back_horizontal_snap_count(self) -> int:
-        return self.edge_clip_count(self.outer_width_mm)
+    def back_screw_centers_x_mm(self) -> list[float]:
+        return [
+            self.outer_width_mm * index / (self.back_screw_count_per_edge + 1)
+            for index in range(1, self.back_screw_count_per_edge + 1)
+        ]
 
     @property
-    def back_vertical_snap_count(self) -> int:
-        return self.edge_clip_count(self.outer_height_mm)
+    def back_screw_boss_width_mm(self) -> float:
+        return 8.0
+
+    @property
+    def back_screw_boss_reach_mm(self) -> float:
+        return 8.5
+
+    @property
+    def back_screw_boss_depth_mm(self) -> float:
+        return 8.0
+
+    @property
+    def back_screw_pilot_mm(self) -> float:
+        # Blind printed pilot for a commonly available ST2.9 screw.
+        return 2.4
+
+    @property
+    def back_screw_pilot_depth_mm(self) -> float:
+        return 7.3
+
+    @property
+    def back_screw_clearance_mm(self) -> float:
+        return 3.3
+
+    @property
+    def back_rib_width_mm(self) -> float:
+        return 1.6
+
+    @property
+    def back_rib_height_mm(self) -> float:
+        return 2.0
+
+    @property
+    def back_rib_margin_mm(self) -> float:
+        # Keeps the grid away from the side-mounted electronics and screws.
+        return 20.0
+
+    @property
+    def back_rib_max_spacing_mm(self) -> float:
+        return 45.0
 
     @property
     def body_depth_mm(self) -> float:

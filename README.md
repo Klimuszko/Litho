@@ -61,8 +61,10 @@ dokładnym wymiarem panelu Litho; aplikacja automatycznie dodaje ściany, kiesze
 montażową 2,0 mm, luz, obramowanie i tylną pokrywę. Wynikiem jest ZIP zawierający
 osobny STL korpusu i pokrywy oraz instrukcję montażu. Panel wkłada się od otwartego
 tyłu, opiera kołnierzem o wewnętrzny rant i dociska pod 4 lub 6 sprężystych
-zatrzasków. Montaż nie wymaga kleju ani dodatkowych części. Oba modele są
-eksportowane płaską stroną do stołu i nie wymagają podpór.
+zatrzasków. Tylna pokrywa ma wewnętrzną kratownicę usztywniającą i jest
+przykręcana 4 lub 6 popularnymi wkrętami samogwintującymi ST2.9 × 9.5 mm
+bez insertów termicznych. Oba modele są eksportowane płaską stroną do stołu
+i nie wymagają podpór.
 
 ```text
 POST /api/housing/generate
@@ -70,7 +72,7 @@ Content-Type: application/json
 ```
 
 Oba warianty są przeznaczone dla litofanii wygenerowanej z opcją
-`Kołnierz montażowy Litho Mount V1`.
+`Kołnierz montażowy Litho Mount V2`.
 
 ## Testy backendu
 

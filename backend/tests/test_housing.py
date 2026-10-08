@@ -81,22 +81,59 @@ def test_largest_preset_has_four_clips_per_long_edge_and_three_per_short_edge():
     assert params.panel_clip_count == 14
 
 
-def test_every_edge_has_at_least_two_panel_and_back_fasteners():
+def test_panel_and_rear_cover_have_enough_fasteners():
     params = HousingParams(panel_width_mm=60, panel_height_mm=60)
     assert params.panel_horizontal_clip_count == 2
     assert params.panel_vertical_clip_count == 2
-    assert params.back_horizontal_snap_count >= 2
-    assert params.back_vertical_snap_count >= 2
+    assert params.back_screw_count_per_edge == 2
+    assert params.back_screw_count == 4
+    wide = HousingParams(kind="frame", panel_width_mm=200, panel_height_mm=150)
+    assert wide.back_screw_count_per_edge == 3
+    assert wide.back_screw_count == 6
 
 
-def test_rear_snap_has_positive_engagement_with_clearance_and_blind_socket():
+def test_common_rear_screw_has_clearance_and_blind_plastic_pilot():
     params = HousingParams()
-    insertion_gap = params.back_clearance_mm
-    engagement = params.back_snap_reach_mm - insertion_gap
-    socket_depth = 0.25
-    assert engagement == pytest.approx(0.2)
-    assert socket_depth - engagement == pytest.approx(0.05)
-    assert params.wall_mm - socket_depth >= 2.0
+    assert params.back_screw_size == "ST2.9x9.5 DIN 7981 / ISO 7049"
+    assert params.back_screw_clearance_mm == pytest.approx(3.3)
+    assert params.back_screw_pilot_mm == pytest.approx(2.4)
+    screw_engagement = 9.5 - params.back_thickness_mm
+    assert screw_engagement < params.back_screw_pilot_depth_mm
+    assert params.back_screw_pilot_depth_mm < params.back_screw_boss_depth_mm
+    assert params.back_screw_boss_width_mm >= 8.0
+
+
+def test_rear_cover_grid_is_shallow_and_clear_of_side_electronics():
+    params = HousingParams(kind="frame", panel_width_mm=200, panel_height_mm=150)
+    assert params.back_rib_height_mm < params.back_lip_depth_mm
+    assert params.back_rib_margin_mm >= 20
+    back = build_housing_back(params)
+    assert back.vertices[:, 1].max() == pytest.approx(params.back_thickness_mm + params.back_lip_depth_mm)
+    assert any(y == pytest.approx(params.back_thickness_mm + params.back_rib_height_mm) for _, y, _ in back.vertices)
+    assert validate_mesh(back)["watertight"]
+    assert component_count(back) == 1
+
+
+def test_rear_cover_clearance_holes_align_with_blind_body_pilots():
+    params = HousingParams(kind="frame")
+    body = build_housing_body(params)
+    back = build_housing_back(params)
+    screw_x = params.back_screw_centers_x_mm[0]
+    screw_z = params.wall_mm + params.back_screw_boss_reach_mm / 2
+    pilot_half = params.back_screw_pilot_mm / 2
+    clearance_half = params.back_screw_clearance_mm / 2
+    assert any(
+        x == pytest.approx(screw_x - pilot_half)
+        and y == pytest.approx(params.body_depth_mm - params.back_screw_pilot_depth_mm)
+        and z == pytest.approx(screw_z - pilot_half)
+        for x, y, z in body.vertices
+    )
+    assert any(
+        x == pytest.approx(screw_x - clearance_half)
+        and y == pytest.approx(params.back_thickness_mm)
+        and z == pytest.approx(screw_z - clearance_half)
+        for x, y, z in back.vertices
+    )
 
 
 def test_clip_hook_reaches_over_panel_edge_at_controlled_clearance():
@@ -345,7 +382,9 @@ def test_housing_api_returns_body_and_back_as_separate_stls():
     assert response.headers["x-panel-pocket-depth-mm"] == "2"
     assert response.headers["x-panel-clip-count"] == "12"
     assert response.headers["x-panel-lock-count"] == "12"
-    assert response.headers["x-back-snap-count"] == "14"
+    assert response.headers["x-back-snap-count"] == "0"
+    assert response.headers["x-back-screw-count"] == "6"
+    assert response.headers["x-back-screw-size"] == "ST2.9x9.5 DIN 7981 / ISO 7049"
     assert response.headers["x-print-orientation"] == "front-face-down"
     with ZipFile(BytesIO(response.content)) as archive:
         assert sorted(archive.namelist()) == [
@@ -364,6 +403,8 @@ def test_housing_api_returns_body_and_back_as_separate_stls():
         assert "bez kleju" in instructions
         assert "ukrytym kolnierzem" in instructions
         assert "tasme COB" in instructions
+        assert "ST2.9x9.5" in instructions
+        assert "kratownica" in instructions
 
 
 def test_housing_api_describes_usb_c_and_touch_dimmer_mounts():
