@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { automaticCrop, effectiveBorderHeight, effectiveGrid, imageArea, imageAreaForParams, initial, inscribedSize, modelSize, panCrop, Params, resolvedBorders, rotatedSize, validateParams, zoomCrop, zoomCropAt } from "./App";
-import { housingBackScrewCount, housingClipCount, housingOuterSize, housingPreviewSize, initialHousing, validateHousing } from "./HousingGenerator";
+import { housingBackPressRibCount, housingClipCount, housingOuterSize, housingPreviewSize, initialHousing, validateHousing } from "./HousingGenerator";
 
 const valid: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .8, max_thickness_mm: 3, gamma: 1, brightness: 1, contrast: 1, nozzle_diameter_mm: .4, quality_profile: "optimal", orientation: "landscape", border_width_mm: 0, border_widths_mm: null, border_height_mm: 3, mounting_flange: false, invert: false, mirror: false, rotation_degrees: 0, crop: {x: 0, y: 0, width: 1, height: 1}};
 
@@ -120,9 +120,10 @@ describe("housing generator", () => {
     expect(housingClipCount({...initialHousing, panel_width_mm: 180, panel_height_mm: 130})).toBe(14);
     expect(housingClipCount({...initialHousing, panel_width_mm: 200, panel_height_mm: 150})).toBe(14);
   });
-  it("uses four or six common self-tapping screws for the rear cover", () => {
-    expect(housingBackScrewCount(initialHousing)).toBe(4);
-    expect(housingBackScrewCount({...initialHousing, panel_width_mm: 200, panel_height_mm: 150})).toBe(6);
+  it("places local press ribs on all four rear-cover edges", () => {
+    expect(housingBackPressRibCount(initialHousing)).toBe(6);
+    expect(housingBackPressRibCount({...initialHousing, panel_width_mm: 200, panel_height_mm: 150})).toBe(8);
+    expect(housingBackPressRibCount({...initialHousing, kind: "frame", panel_width_mm: 200, panel_height_mm: 150})).toBe(10);
   });
   it("rotates the housing preview together with the selected panel orientation", () => {
     const landscape = housingPreviewSize(initialHousing);

@@ -61,11 +61,12 @@ dokładnym wymiarem panelu Litho; aplikacja automatycznie dodaje ściany, kiesze
 montażową 2,0 mm, luz, obramowanie i tylną pokrywę. Wynikiem jest ZIP zawierający
 osobny STL korpusu i pokrywy oraz instrukcję montażu. Panel wkłada się od otwartego
 tyłu, opiera kołnierzem o wewnętrzny rant i dociska pod 4 lub 6 sprężystych
-zatrzasków. Tylna pokrywa ma wewnętrzną kratownicę usztywniającą i jest
-przykręcana 4 lub 6 popularnymi wkrętami uniwersalnymi 3 × 12 mm z łbem
-stożkowym PZ1, bez insertów termicznych. Łby chowają się w gniazdach i są
-zakrywane drukowanymi zaślepkami w kolorze pokrywy. Oba modele są eksportowane
-płaską stroną do stołu i nie wymagają podpór.
+zatrzasków. Tylna pokrywa ma wewnętrzną kratownicę usztywniającą, ciągły rant
+pozycjonujący oraz lokalne żebra dociskowe na wszystkich czterech bokach.
+Po próbie montażu na sucho pokrywę zamyka się na stałe klejem CA. Rozwiązanie
+nie wymaga śrub ani innych części metalowych, nie pozostawia widocznych otworów
+i utrudnia klientowi otwarcie obudowy bez jej uszkodzenia. Oba modele są
+eksportowane płaską stroną do stołu i nie wymagają podpór.
 
 ```text
 POST /api/housing/generate

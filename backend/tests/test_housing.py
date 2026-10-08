@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from app.housing import (
-    build_housing_back, build_housing_back_plugs, build_housing_body,
+    build_housing_back, build_housing_body,
     build_housing_panel_wedges, build_housing_wedges, orient_front_on_bed,
 )
 from app.main import app
@@ -82,36 +82,25 @@ def test_largest_preset_has_four_clips_per_long_edge_and_three_per_short_edge():
     assert params.panel_clip_count == 14
 
 
-def test_panel_and_rear_cover_have_enough_fasteners():
+def test_panel_clips_and_rear_cover_press_points_scale_on_every_edge():
     params = HousingParams(panel_width_mm=60, panel_height_mm=60)
     assert params.panel_horizontal_clip_count == 2
     assert params.panel_vertical_clip_count == 2
-    assert params.back_screw_count_per_edge == 2
-    assert params.back_screw_count == 4
+    assert params.back_horizontal_press_count == 2
+    assert params.back_vertical_press_count == 1
+    assert params.back_press_rib_count == 6
     wide = HousingParams(kind="frame", panel_width_mm=200, panel_height_mm=150)
-    assert wide.back_screw_count_per_edge == 3
-    assert wide.back_screw_count == 6
+    assert wide.back_horizontal_press_count == 3
+    assert wide.back_vertical_press_count == 2
+    assert wide.back_press_rib_count == 10
 
 
-def test_common_rear_screw_has_clearance_and_blind_plastic_pilot():
+def test_rear_cover_uses_local_interference_instead_of_hardware():
     params = HousingParams()
-    assert params.back_screw_size == "wkret uniwersalny 3x12 mm, leb stozkowy PZ1"
-    assert params.back_screw_clearance_mm == pytest.approx(3.4)
-    assert params.back_screw_pilot_mm == pytest.approx(2.3)
-    screw_engagement = 12 - params.back_thickness_mm
-    assert screw_engagement < params.back_screw_pilot_depth_mm
-    assert params.back_screw_pilot_depth_mm < params.back_screw_boss_depth_mm
-    assert params.back_screw_boss_width_mm >= 8.0
-    assert params.back_screw_cap_size_mm < params.back_screw_cap_recess_mm
-    assert params.back_screw_cap_thickness_mm < params.back_screw_cap_recess_depth_mm
-
-
-def test_rear_screw_caps_print_as_separate_flush_spares():
-    params = HousingParams(kind="frame")
-    plugs = build_housing_back_plugs(params)
-    assert validate_mesh(plugs)["watertight"]
-    assert component_count(plugs) == params.back_screw_cap_count == params.back_screw_count + 1
-    assert plugs.vertices[:, 2].max() == pytest.approx(params.back_screw_cap_thickness_mm)
+    assert params.back_press_rib_reach_mm - params.back_clearance_mm == pytest.approx(0.10)
+    assert params.back_press_rib_height_mm == pytest.approx(1.2)
+    assert params.back_press_rib_step_mm == pytest.approx(0.4)
+    assert params.back_press_rib_width_mm == pytest.approx(10.0)
 
 
 def test_rear_cover_grid_is_shallow_and_clear_of_side_electronics():
@@ -125,26 +114,18 @@ def test_rear_cover_grid_is_shallow_and_clear_of_side_electronics():
     assert component_count(back) == 1
 
 
-def test_rear_cover_clearance_holes_align_with_blind_body_pilots():
+def test_rear_cover_has_tapered_press_ribs_on_all_four_sides():
     params = HousingParams(kind="frame")
-    body = build_housing_body(params)
     back = build_housing_back(params)
-    screw_x = params.back_screw_centers_x_mm[0]
-    screw_z = params.wall_mm + params.back_screw_boss_reach_mm / 2
-    pilot_half = params.back_screw_pilot_mm / 2
-    clearance_half = params.back_screw_clearance_mm / 2
-    assert any(
-        x == pytest.approx(screw_x - pilot_half)
-        and y == pytest.approx(params.body_depth_mm - params.back_screw_pilot_depth_mm)
-        and z == pytest.approx(screw_z - pilot_half)
-        for x, y, z in body.vertices
-    )
-    assert any(
-        x == pytest.approx(screw_x - clearance_half)
-        and y == pytest.approx(params.back_thickness_mm)
-        and z == pytest.approx(screw_z - clearance_half)
-        for x, y, z in back.vertices
-    )
+    inset = params.wall_mm + params.back_clearance_mm
+    top = params.back_thickness_mm + params.back_press_rib_height_mm
+    reach = params.back_press_rib_reach_mm
+    assert any(x == pytest.approx(inset - reach) and y == pytest.approx(top) for x, y, _ in back.vertices)
+    assert any(x == pytest.approx(params.outer_width_mm - inset + reach) and y == pytest.approx(top) for x, y, _ in back.vertices)
+    assert any(z == pytest.approx(inset - reach) and y == pytest.approx(top) for _, y, z in back.vertices)
+    assert any(z == pytest.approx(params.outer_height_mm - inset + reach) and y == pytest.approx(top) for _, y, z in back.vertices)
+    assert validate_mesh(back)["watertight"]
+    assert component_count(back) == 1
 
 
 def test_clip_hook_reaches_over_panel_edge_at_controlled_clearance():
@@ -394,14 +375,13 @@ def test_housing_api_returns_body_and_back_as_separate_stls():
     assert response.headers["x-panel-clip-count"] == "12"
     assert response.headers["x-panel-lock-count"] == "12"
     assert response.headers["x-back-snap-count"] == "0"
-    assert response.headers["x-back-screw-count"] == "6"
-    assert response.headers["x-back-screw-size"] == "wkret uniwersalny 3x12 mm, leb stozkowy PZ1"
-    assert response.headers["x-back-screw-cap-count"] == "7"
+    assert response.headers["x-back-closure"] == "press-fit-ca-glue"
+    assert response.headers["x-back-press-rib-count"] == "8"
+    assert response.headers["x-back-hardware-count"] == "0"
     assert response.headers["x-print-orientation"] == "front-face-down"
     with ZipFile(BytesIO(response.content)) as archive:
         assert sorted(archive.namelist()) == [
             "README-PL.txt",
-            "litho-frame-150x100-back-plugs.stl",
             "litho-frame-150x100-back.stl",
             "litho-frame-150x100-body.stl",
             "litho-frame-150x100-panel-wedges.stl",
@@ -416,9 +396,10 @@ def test_housing_api_returns_body_and_back_as_separate_stls():
         assert "bez kleju" in instructions
         assert "ukrytym kolnierzem" in instructions
         assert "tasme COB" in instructions
-        assert "3x12 mm" in instructions
+        assert "klej CA" in instructions
+        assert "wszystkich czterech bokach" in instructions
         assert "kratownica" in instructions
-        assert "zaslepek" in instructions
+        assert "zamkniecie stale" in instructions
 
 
 def test_housing_api_describes_usb_c_and_touch_dimmer_mounts():

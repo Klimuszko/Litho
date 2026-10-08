@@ -50,8 +50,11 @@ export function housingClipCount(params: HousingParams) {
   );
 }
 
-export function housingBackScrewCount(params: HousingParams) {
-  return housingOuterSize(params).width >= 175 ? 6 : 4;
+export function housingBackPressRibCount(params: HousingParams) {
+  const outer = housingOuterSize(params);
+  const horizontal = outer.width >= 175 ? 3 : 2;
+  const vertical = outer.height >= 175 ? 2 : 1;
+  return 2 * (horizontal + vertical);
 }
 
 export function housingPreviewSize(params: HousingParams, maxWidth = 520, maxHeight = 390) {
@@ -82,7 +85,7 @@ export default function HousingGenerator({active, onOpenLithophane}: {active: bo
   const outer = housingOuterSize(params);
   const previewSize = housingPreviewSize(params);
   const clipCount = housingClipCount(params);
-  const backScrewCount = housingBackScrewCount(params);
+  const backPressRibCount = housingBackPressRibCount(params);
   const landscape = params.panel_width_mm >= params.panel_height_mm;
   const set = <K extends keyof HousingParams>(key: K, value: HousingParams[K]) => setParams(current => ({...current, [key]: value}));
   const chooseFormat = (short: number, long: number) => {
@@ -164,11 +167,11 @@ export default function HousingGenerator({active, onOpenLithophane}: {active: bo
           <span><small>PRZYŁĄCZE</small><b>{`USB-C · ${params.usb_side === "left" ? "lewy" : "prawy"} ${params.electronics_position === "bottom" ? "dół" : "góra"}`}</b></span>
         </div>
       </div>
-      <div className="sidebar-foot">Wkręty uniwersalne 3 × 12 · ukryte pod zaślepkami</div>
+      <div className="sidebar-foot">Pokrywa wciskana + klej CA · bez metalowych części</div>
     </aside>
     <section className="workbench housing-workbench">
       <article className="preview housing-preview">
-        <div className="preview-head"><div><p className="eyebrow">PODGLĄD KONSTRUKCJI</p><h2>{params.kind === "box" ? "Podświetlany Box" : "Podświetlana ramka"}</h2></div><span className="housing-badge">{clipCount} klipsów panelu · {backScrewCount} wkrętów pokrywy</span></div>
+        <div className="preview-head"><div><p className="eyebrow">PODGLĄD KONSTRUKCJI</p><h2>{params.kind === "box" ? "Podświetlany Box" : "Podświetlana ramka"}</h2></div><span className="housing-badge">{clipCount} klipsów panelu · {backPressRibCount} punktów docisku pokrywy</span></div>
         <div className="housing-stage">
           <div className={`housing-model ${params.kind}`} style={{width: `${previewSize.width}px`, height: `${previewSize.height}px`, padding: `${visualBorder}px`}}>
             <div className="housing-panel"><span>LITHO</span><small>obraz {params.panel_width_mm} × {params.panel_height_mm} mm</small></div>

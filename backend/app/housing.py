@@ -218,19 +218,6 @@ def build_housing_body(params) -> Mesh:
         (center - horizontal_clip_half, center + horizontal_clip_half) for center in params.panel_horizontal_clip_centers_mm
     ]
 
-    # Rear cover screws enter blind bosses on the top and bottom walls. This
-    # keeps every fixing away from the side-mounted USB-C and touch controller.
-    back_screw_xs = params.back_screw_centers_x_mm
-    back_screw_boss_half = params.back_screw_boss_width_mm / 2
-    back_screw_boss_half_z = params.back_screw_boss_reach_mm / 2
-    back_screw_zs = (
-        wall + back_screw_boss_half_z,
-        height - wall - back_screw_boss_half_z,
-    )
-    back_screw_pilot_half = params.back_screw_pilot_mm / 2
-    back_screw_boss_y0 = depth - params.back_screw_boss_depth_mm
-    back_screw_pilot_y0 = depth - params.back_screw_pilot_depth_mm
-
     # The flat side-wall segment before this rib is an uninterrupted 8.5 mm
     # path for an 8 mm COB strip. The rib then grows inward at 45 degrees in
     # 0.4 mm steps. With the front face on the print bed every new step is
@@ -377,22 +364,12 @@ def build_housing_body(params) -> Mesh:
     flex_xs = [pocket_x0 - flex - relief, pocket_x0 - flex, pocket_x1 + flex, pocket_x1 + flex + relief]
     flex_zs = [pocket_z0 - flex - relief, pocket_z0 - flex, pocket_z1 + flex, pocket_z1 + flex + relief]
 
-    back_screw_body_xs = [
-        center + offset
-        for center in back_screw_xs
-        for offset in (-back_screw_boss_half, -back_screw_pilot_half, back_screw_pilot_half, back_screw_boss_half)
-    ]
-    back_screw_body_zs = [
-        center + offset
-        for center in back_screw_zs
-        for offset in (-back_screw_boss_half_z, -back_screw_pilot_half, back_screw_pilot_half, back_screw_boss_half_z)
-    ]
     stiffener_xs = [wall + reach for reach in stiffener_reaches] + [width - wall - reach for reach in stiffener_reaches]
     stiffener_zs = [wall + reach for reach in stiffener_reaches] + [height - wall - reach for reach in stiffener_reaches]
-    xs = [0, wall, pocket_x0, panel_x0, opening_x0, opening_x1, panel_x1, pocket_x1, width - wall, width, *stiffener_xs, *clip_xs, *reach_xs, *flex_xs, *back_screw_body_xs, *usb_xs, *dimmer_xs]
+    xs = [0, wall, pocket_x0, panel_x0, opening_x0, opening_x1, panel_x1, pocket_x1, width - wall, width, *stiffener_xs, *clip_xs, *reach_xs, *flex_xs, *usb_xs, *dimmer_xs]
     clip_release_y1 = clip_ys[-1] + params.panel_clip_end_relief_mm
-    ys = [0, bezel_front, pocket_y1, clip_release_y1, params.led_channel_y0_mm, stiffener_y0, stiffener_y1, back_screw_boss_y0, back_screw_pilot_y0, depth, *stiffener_ys, *clip_ys, *usb_ys, *dimmer_ys, *icon_ys]
-    zs = [0, wall, pocket_z0, panel_z0, opening_z0, opening_z1, panel_z1, pocket_z1, height - wall, height, *stiffener_zs, *clip_zs, *reach_zs, *flex_zs, *back_screw_body_zs, *usb_zs, *dimmer_zs, *icon_zs]
+    ys = [0, bezel_front, pocket_y1, clip_release_y1, params.led_channel_y0_mm, stiffener_y0, stiffener_y1, depth, *stiffener_ys, *clip_ys, *usb_ys, *dimmer_ys, *icon_ys]
+    zs = [0, wall, pocket_z0, panel_z0, opening_z0, opening_z1, panel_z1, pocket_z1, height - wall, height, *stiffener_zs, *clip_zs, *reach_zs, *flex_zs, *usb_zs, *dimmer_zs, *icon_zs]
 
     lock_xs_centers = params.panel_horizontal_lock_centers_mm
     lock_zs_centers = params.panel_vertical_lock_centers_mm
@@ -493,22 +470,6 @@ def build_housing_body(params) -> Mesh:
             )
             if side_end_relief or top_bottom_end_relief:
                 material = False
-        for screw_x in back_screw_xs:
-            for screw_z in back_screw_zs:
-                in_screw_boss = (
-                    abs(x - screw_x) < back_screw_boss_half
-                    and abs(z - screw_z) < back_screw_boss_half_z
-                    and back_screw_boss_y0 < y < depth
-                )
-                material = material or in_screw_boss
-                if (
-                    in_screw_boss
-                    and abs(x - screw_x) < back_screw_pilot_half
-                    and abs(z - screw_z) < back_screw_pilot_half
-                    and back_screw_pilot_y0 < y < depth
-                ):
-                    material = False
-
         outer_d = x if electronics_min_x else width - x
         inner_d = x - wall if electronics_min_x else width - wall - x
         usb_z = abs(z - usb_center_z)
@@ -609,26 +570,21 @@ def build_housing_back(params) -> Mesh:
     lip_depth, lip = params.back_lip_depth_mm, params.back_lip_mm
     inset = params.wall_mm + params.back_clearance_mm
     x0, x1, z0, z1 = inset, width - inset, inset, height - inset
-    screw_xs = params.back_screw_centers_x_mm
-    screw_zs = (
-        params.wall_mm + params.back_screw_boss_reach_mm / 2,
-        height - params.wall_mm - params.back_screw_boss_reach_mm / 2,
+
+    # Local crush ribs give a light temporary press fit while CA glue cures.
+    # The complete locating lip keeps its assembly clearance, so dimensional
+    # variation never has to be overcome around the full perimeter at once.
+    press_width = params.back_press_rib_width_mm
+    horizontal_press = _centered_intervals(
+        x0 + lip, x1 - lip, params.back_horizontal_press_count, press_width,
     )
-    screw_clearance_half = params.back_screw_clearance_mm / 2
-    screw_head_half = params.back_screw_head_diameter_mm / 2
-    screw_cap_half = params.back_screw_cap_recess_mm / 2
-    countersink_step = 0.4
-    countersink_steps = int(np.ceil(params.back_screw_countersink_depth_mm / countersink_step))
-    countersink_ys = [
-        params.back_screw_cap_recess_depth_mm + index * params.back_screw_countersink_depth_mm / countersink_steps
-        for index in range(countersink_steps + 1)
-    ]
-    countersink_halves = [
-        screw_head_half - (screw_head_half - screw_clearance_half) * index / countersink_steps
-        for index in range(countersink_steps + 1)
-    ]
-    screw_relief_half_x = params.back_screw_boss_width_mm / 2 + params.back_clearance_mm
-    screw_relief_half_z = params.back_screw_boss_reach_mm / 2 + params.back_clearance_mm
+    vertical_press = _centered_intervals(
+        z0 + lip, z1 - lip, params.back_vertical_press_count, press_width,
+    )
+    press_step = params.back_press_rib_step_mm
+    press_steps = int(np.ceil(params.back_press_rib_height_mm / press_step))
+    press_ys = [thickness + index * params.back_press_rib_height_mm / press_steps for index in range(press_steps + 1)]
+    press_reaches = [params.back_press_rib_reach_mm * index / press_steps for index in range(1, press_steps + 1)]
 
     rib_margin = params.back_rib_margin_mm
     rib_x0, rib_x1 = rib_margin, width - rib_margin
@@ -644,60 +600,37 @@ def build_housing_back(params) -> Mesh:
 
     vertical_ribs = rib_centers(rib_x0, rib_x1)
     horizontal_ribs = rib_centers(rib_z0, rib_z1)
-    screw_grid_xs = [
-        center + offset
-        for center in screw_xs
-        for offset in (
-            -screw_relief_half_x, -screw_cap_half,
-            *(-half for half in countersink_halves),
-            *(half for half in reversed(countersink_halves)),
-            screw_cap_half, screw_relief_half_x,
-        )
-    ]
-    screw_grid_zs = [
-        center + offset
-        for center in screw_zs
-        for offset in (
-            -screw_relief_half_z, -screw_cap_half,
-            *(-half for half in countersink_halves),
-            *(half for half in reversed(countersink_halves)),
-            screw_cap_half, screw_relief_half_z,
-        )
-    ]
     rib_grid_xs = [value for center in vertical_ribs for value in (center - rib_half, center + rib_half)]
     rib_grid_zs = [value for center in horizontal_ribs for value in (center - rib_half, center + rib_half)]
-    xs = [0, x0, x0 + lip, x1 - lip, x1, width, rib_x0, rib_x1, *screw_grid_xs, *rib_grid_xs]
-    ys = [
-        0, params.back_screw_cap_recess_depth_mm, *countersink_ys,
-        thickness, thickness + params.back_rib_height_mm, thickness + lip_depth,
+    press_grid_xs = [value for interval in horizontal_press for value in interval]
+    press_grid_zs = [value for interval in vertical_press for value in interval]
+    xs = [
+        0, x0, x0 + lip, x1 - lip, x1, width, rib_x0, rib_x1,
+        *(x0 - reach for reach in press_reaches), *(x1 + reach for reach in press_reaches),
+        *press_grid_xs, *rib_grid_xs,
     ]
-    zs = [0, z0, z0 + lip, z1 - lip, z1, height, rib_z0, rib_z1, *screw_grid_zs, *rib_grid_zs]
+    ys = [0, thickness, thickness + params.back_rib_height_mm, thickness + lip_depth, *press_ys]
+    zs = [
+        0, z0, z0 + lip, z1 - lip, z1, height, rib_z0, rib_z1,
+        *(z0 - reach for reach in press_reaches), *(z1 + reach for reach in press_reaches),
+        *press_grid_zs, *rib_grid_zs,
+    ]
+
+    def in_intervals(value: float, intervals: list[tuple[float, float]]) -> bool:
+        return any(start < value < end for start, end in intervals)
+
+    def press_reach_at(y: float) -> float:
+        if not thickness < y < thickness + params.back_press_rib_height_mm:
+            return 0.0
+        step = min(int((y - thickness) / (params.back_press_rib_height_mm / press_steps)) + 1, press_steps)
+        return params.back_press_rib_reach_mm * step / press_steps
 
     def solid(x: float, y: float, z: float) -> bool:
-        if y < params.back_screw_cap_recess_depth_mm:
-            screw_hole_half = screw_cap_half
-        elif y < countersink_ys[-1]:
-            step = min(
-                int((y - params.back_screw_cap_recess_depth_mm) / (params.back_screw_countersink_depth_mm / countersink_steps)),
-                countersink_steps - 1,
-            )
-            screw_hole_half = countersink_halves[step]
-        else:
-            screw_hole_half = screw_clearance_half
-        screw_hole = any(
-            abs(x - screw_x) < screw_hole_half and abs(z - screw_z) < screw_hole_half
-            for screw_x in screw_xs for screw_z in screw_zs
-        )
-        screw_relief = any(
-            abs(x - screw_x) < screw_relief_half_x and abs(z - screw_z) < screw_relief_half_z
-            for screw_x in screw_xs for screw_z in screw_zs
-        )
-        plate = y < thickness and not screw_hole
+        plate = y < thickness
         ring = (
             thickness < y < thickness + lip_depth
             and x0 < x < x1 and z0 < z < z1
             and (x < x0 + lip or x > x1 - lip or z < z0 + lip or z > z1 - lip)
-            and not screw_relief
         )
         rib = (
             thickness < y < thickness + params.back_rib_height_mm
@@ -707,20 +640,20 @@ def build_housing_back(params) -> Mesh:
                 or any(abs(z - center) < rib_half for center in horizontal_ribs)
             )
         )
-        return plate or ring or rib
+        reach = press_reach_at(y)
+        press = reach > 0 and (
+            (
+                in_intervals(x, horizontal_press)
+                and (z0 - reach < z < z0 + lip or z1 - lip < z < z1 + reach)
+            )
+            or (
+                in_intervals(z, vertical_press)
+                and (x0 - reach < x < x0 + lip or x1 - lip < x < x1 + reach)
+            )
+        )
+        return plate or ring or rib or press
 
     return _cell_mesh(xs, ys, zs, solid)
-
-
-def build_housing_back_plugs(params) -> Mesh:
-    """Flush colour-matched covers for the recessed rear screw heads."""
-    return _wedge_row(
-        params.back_screw_cap_size_mm,
-        params.back_screw_cap_size_mm,
-        params.back_screw_cap_thickness_mm,
-        params.back_screw_cap_thickness_mm,
-        params.back_screw_cap_count,
-    )
 
 
 def build_housing_wedges(params) -> Mesh:

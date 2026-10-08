@@ -22,7 +22,7 @@ from .auth import (
 )
 from .exporter import binary_stl
 from .heightmap import grid_resolution, luminance_to_thickness
-from .housing import build_housing_back, build_housing_back_plugs, build_housing_body, build_housing_panel_wedges, build_housing_wedges, orient_front_on_bed
+from .housing import build_housing_back, build_housing_body, build_housing_panel_wedges, build_housing_wedges, orient_front_on_bed
 from .image_processing import InvalidImage, decode_image, prepare_image, preview_png, resample_luminance
 from .mesh import apply_border, build_plate, validate_mesh
 from .models import HousingParams, LithophaneParams
@@ -491,11 +491,10 @@ async def generate(image: UploadFile = File(...), params: str = Form(...)):
 async def generate_housing(settings: HousingParams):
     body = orient_front_on_bed(build_housing_body(settings))
     back = orient_front_on_bed(build_housing_back(settings))
-    back_plugs = build_housing_back_plugs(settings)
     wedges = build_housing_wedges(settings)
     validations = {
         "body": validate_mesh(body), "back": validate_mesh(back),
-        "back_plugs": validate_mesh(back_plugs), "wedges": validate_mesh(wedges),
+        "wedges": validate_mesh(wedges),
     }
     panel_wedges = build_housing_panel_wedges(settings) if settings.panel_wedge_count else None
     if panel_wedges is not None:
@@ -512,7 +511,6 @@ async def generate_housing(settings: HousingParams):
     with ZipFile(output, "w", compression=ZIP_DEFLATED) as archive:
         archive.writestr(f"{prefix}-body.stl", binary_stl(body))
         archive.writestr(f"{prefix}-back.stl", binary_stl(back))
-        archive.writestr(f"{prefix}-back-plugs.stl", binary_stl(back_plugs))
         archive.writestr(f"{prefix}-wedges.stl", binary_stl(wedges))
         if panel_wedges is not None:
             archive.writestr(f"{prefix}-panel-wedges.stl", binary_stl(panel_wedges))
@@ -537,8 +535,8 @@ async def generate_housing(settings: HousingParams):
                 )
                 + "Na zewnatrz scianki sa wglebione ikony: USB przy gniezdzie oraz wlacznik 21,9 mm od gniazda - tam dotykasz, aby sterowac swiatlem.\n"
                 + f"Przyklej tasme COB do nieprzerwanego pasa o szerokosci {settings.led_channel_width_mm:g} mm dookola wnetrza. Pas konczy sie przed obwodowym zebrem usztywniajacym; rozpocznij i zakoncz tasme przy sterowniku.\n"
-                + f"Uloz przewody, przyloz tylna pokrywe rantem do korpusu i przykrec ja {settings.back_screw_count} latwo dostepnymi wkretami: {settings.back_screw_size}. Wkrecaj recznie tylko do schowania stozkowego lba w gniezdzie; slepe otwory prowadza wkrety bez insertow.\n"
-                + f"Wydrukuj plik back-plugs w kolorze pokrywy i po kontroli dzialania wcisnij {settings.back_screw_count} zaslepek nad lbami wkretow; w pliku jest jedna zapasowa. Zaslepki licuja sie z zewnetrzna powierzchnia i calkowicie ukrywaja metalowe lby.\n"
+                + f"Przed klejeniem wykonaj probe na sucho: ustaw tylna pokrywe rantem w korpusie i docisnij rownomiernie. {settings.back_press_rib_count} lokalnych zeberek dociskowych na wszystkich czterech bokach utrzymuje pokrywe w prawidlowej pozycji.\n"
+                + "Po kontroli dzialania nanies oszczednie sredni klej CA (super glue) na wewnetrzne powierzchnie styku rantu, z dala od elektroniki i tasmy COB. Docisnij pokrywe do pelnego zlicowania i przytrzymaj do zwiazania. Jest to zamkniecie stale i odporne na manipulacje; ponowne otwarcie wymaga uszkodzenia pokrywy lub rantu.\n"
                 + f"Wewnetrzna kratownica pokrywy ma zebra {settings.back_rib_width_mm:g} x {settings.back_rib_height_mm:g} mm, odsuniete od elektroniki i plytsze od rantu pokrywy.\n"
                 "Przed drukiem produkcyjnym wykonaj krotka probe pasowania kieszeni dla swojego filamentu.\n"
             ).encode("utf-8"),
@@ -558,9 +556,9 @@ async def generate_housing(settings: HousingParams):
             "X-Panel-Clip-Count": str(settings.panel_clip_count),
             "X-Panel-Lock-Count": str(settings.panel_lock_count),
             "X-Back-Snap-Count": "0",
-            "X-Back-Screw-Count": str(settings.back_screw_count),
-            "X-Back-Screw-Size": settings.back_screw_size,
-            "X-Back-Screw-Cap-Count": str(settings.back_screw_cap_count),
+            "X-Back-Closure": "press-fit-ca-glue",
+            "X-Back-Press-Rib-Count": str(settings.back_press_rib_count),
+            "X-Back-Hardware-Count": "0",
             "X-Connection-Type": "usb_c",
             "X-USB-Side": settings.usb_side,
             "X-Electronics-Position": settings.electronics_position,

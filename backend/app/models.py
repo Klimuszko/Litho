@@ -328,78 +328,39 @@ class HousingParams(BaseModel):
         return 0.15
 
     @property
-    def back_screw_size(self) -> str:
-        return "wkret uniwersalny 3x12 mm, leb stozkowy PZ1"
-
-    @property
-    def back_screw_count_per_edge(self) -> int:
-        # Two screws on each horizontal edge are enough for compact covers;
-        # wide covers receive a centre screw as well.
+    def back_horizontal_press_count(self) -> int:
+        # Each long edge gets two locating points; large covers get a centre
+        # point as well so the glue joint stays closed while it cures.
         return 3 if self.outer_width_mm >= 175 else 2
 
     @property
-    def back_screw_count(self) -> int:
-        return 2 * self.back_screw_count_per_edge
+    def back_vertical_press_count(self) -> int:
+        # Every short edge always has at least one positive press point.
+        return 2 if self.outer_height_mm >= 175 else 1
 
     @property
-    def back_screw_centers_x_mm(self) -> list[float]:
-        return [
-            self.outer_width_mm * index / (self.back_screw_count_per_edge + 1)
-            for index in range(1, self.back_screw_count_per_edge + 1)
-        ]
+    def back_press_rib_count(self) -> int:
+        return 2 * (self.back_horizontal_press_count + self.back_vertical_press_count)
 
     @property
-    def back_screw_boss_width_mm(self) -> float:
-        return 8.0
+    def back_press_rib_width_mm(self) -> float:
+        return 10.0
 
     @property
-    def back_screw_boss_reach_mm(self) -> float:
-        return 8.5
+    def back_press_rib_reach_mm(self) -> float:
+        # The lip already has 0.15 mm clearance per side. A 0.25 mm rib gives
+        # 0.10 mm local interference without making the complete lip too tight.
+        return 0.25
 
     @property
-    def back_screw_boss_depth_mm(self) -> float:
-        return 9.8
+    def back_press_rib_height_mm(self) -> float:
+        return 1.2
 
     @property
-    def back_screw_pilot_mm(self) -> float:
-        # Blind printed pilot for a common 3 mm universal wood screw.
-        return 2.3
-
-    @property
-    def back_screw_pilot_depth_mm(self) -> float:
-        return 9.2
-
-    @property
-    def back_screw_clearance_mm(self) -> float:
-        return 3.4
-
-    @property
-    def back_screw_head_diameter_mm(self) -> float:
-        return 6.2
-
-    @property
-    def back_screw_countersink_depth_mm(self) -> float:
-        return 1.6
-
-    @property
-    def back_screw_cap_recess_mm(self) -> float:
-        return 7.4
-
-    @property
-    def back_screw_cap_recess_depth_mm(self) -> float:
-        return 0.8
-
-    @property
-    def back_screw_cap_size_mm(self) -> float:
-        return 7.1
-
-    @property
-    def back_screw_cap_thickness_mm(self) -> float:
-        return 0.75
-
-    @property
-    def back_screw_cap_count(self) -> int:
-        return self.back_screw_count + 1
+    def back_press_rib_step_mm(self) -> float:
+        # Printed plate-down, three shallow steps grow into the interference
+        # without creating an unsupported horizontal ledge.
+        return 0.4
 
     @property
     def back_rib_width_mm(self) -> float:
@@ -411,7 +372,7 @@ class HousingParams(BaseModel):
 
     @property
     def back_rib_margin_mm(self) -> float:
-        # Keeps the grid away from the side-mounted electronics and screws.
+        # Keeps the grid away from the side-mounted electronics and cover lip.
         return 20.0
 
     @property
