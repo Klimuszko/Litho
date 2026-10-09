@@ -614,7 +614,11 @@ class HousingParams(BaseModel):
 
     @property
     def wedge_length_mm(self) -> float:
-        return 11.0
+        # The old 11 mm wedge jammed only after 6.6 mm, so its tail projected
+        # well beyond both electronics holders. This compact profile locks
+        # inside the shorter dimmer guide and leaves only a small finger-safe
+        # tail below the surrounding rim.
+        return 5.8
 
     @property
     def wedge_tip_thickness_mm(self) -> float:
@@ -622,7 +626,17 @@ class HousingParams(BaseModel):
 
     @property
     def wedge_head_thickness_mm(self) -> float:
-        return 2.4
+        return 2.2
+
+    @property
+    def wedge_jam_distance_mm(self) -> float:
+        """Distance from the thin tip at which the wedge reaches slot height."""
+        taper = self.wedge_head_thickness_mm - self.wedge_tip_thickness_mm
+        return self.wedge_length_mm * (self.wedge_slot_height_mm - self.wedge_tip_thickness_mm) / taper
+
+    @property
+    def wedge_exposed_tail_mm(self) -> float:
+        return self.wedge_length_mm - self.wedge_jam_distance_mm
 
     # Frame only: wedge sockets on the shelf beside the panel pocket. Each
     # wedge is pushed towards the wall until it stops, leaving its tail over

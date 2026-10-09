@@ -338,6 +338,12 @@ def test_locking_wedges_print_flat_and_jam_inside_their_slots():
     assert params.wedge_width_mm < params.wedge_slot_width_mm
     assert params.wedge_slot_width_mm - params.wedge_width_mm == pytest.approx(0.3)
     assert params.usb_wedge_slot_width_mm - params.wedge_width_mm == pytest.approx(0.7)
+    # The compact wedge now locks inside the shortest (dimmer) guide instead
+    # of leaving most of its old 11 mm length outside the holder.
+    assert params.wedge_jam_distance_mm == pytest.approx(4.35)
+    assert params.wedge_jam_distance_mm < params.wedge_slot_width_mm
+    assert params.wedge_exposed_tail_mm == pytest.approx(1.45)
+    assert params.wedge_exposed_tail_mm < params.wall_mm
     # Wedge slots end below the rear-cover lip.
     slot_top = params.usb_mount_center_y_mm + (params.usb_shell_width_mm + 2 * params.usb_fit_clearance_mm) / 2 + 3.5
     assert slot_top < params.body_depth_mm - params.back_lip_depth_mm
