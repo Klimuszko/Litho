@@ -180,8 +180,6 @@ class HousingParams(BaseModel):
         minimum_depth = self.electronics_minimum_depth_mm
         if self.depth_mm < minimum_depth:
             raise ValueError(f"USB-C side mount requires at least {minimum_depth} mm housing depth")
-        if self.stiffener_y1_mm + 0.2 > self.body_depth_mm - self.back_lip_depth_mm:
-            raise ValueError("Housing depth leaves no clearance behind the support-free COB stiffener")
         if self.usb_mount_bottom_mm <= self.wall_mm or self.usb_mount_top_mm >= self.outer_height_mm - self.wall_mm:
             raise ValueError("Housing is too short for the USB-C side mount")
         if (
@@ -368,12 +366,12 @@ class HousingParams(BaseModel):
 
     @property
     def back_rib_height_mm(self) -> float:
-        return 2.0
+        # Low ribs stay between the LED lanes and below the COB emitters.
+        return 1.2
 
     @property
     def back_rib_margin_mm(self) -> float:
-        # Keeps the grid away from the side-mounted electronics and cover lip.
-        return 20.0
+        return self.back_led_side_margin_mm
 
     @property
     def back_rib_max_spacing_mm(self) -> float:
@@ -389,44 +387,62 @@ class HousingParams(BaseModel):
         return 8.0
 
     @property
-    def led_channel_width_mm(self) -> float:
-        # Half a millimetre of assembly tolerance around the 8 mm COB strip.
+    def back_led_lane_width_mm(self) -> float:
+        # Half a millimetre of placement tolerance around an 8 mm COB strip.
         return 8.5
 
     @property
-    def led_channel_y0_mm(self) -> float:
-        clip_end = (
-            self.front_thickness_mm + self.panel_thickness_mm + self.panel_clip_clearance_mm
-            + self.panel_clip_ramp_height_mm + self.panel_clip_end_relief_mm
+    def back_led_strip_count(self) -> int:
+        # Five lanes illuminate every standard format. Very short custom
+        # housings fall back to four so 8 mm strips still have separation.
+        return 5 if self.outer_height_mm >= 90 else 4
+
+    @property
+    def back_led_side_margin_mm(self) -> float:
+        # The electronics project about 15 mm from one side wall. Keeping both
+        # strip ends 16 mm inboard makes standard covers work left- or
+        # right-handed; tiny custom covers retain at least a 12 mm light run.
+        return min(16.0, max(4.0, (self.outer_width_mm - 12.0) / 2))
+
+    @property
+    def back_led_vertical_margin_mm(self) -> float:
+        return 12.0
+
+    @property
+    def back_led_strip_centers_z_mm(self) -> list[float]:
+        count = self.back_led_strip_count
+        half = self.back_led_lane_width_mm / 2
+        first = self.back_led_vertical_margin_mm + half
+        last = self.outer_height_mm - self.back_led_vertical_margin_mm - half
+        if count == 1:
+            return [self.outer_height_mm / 2]
+        return [first + (last - first) * index / (count - 1) for index in range(count)]
+
+    @property
+    def back_led_strip_length_mm(self) -> float:
+        return self.outer_width_mm - 2 * self.back_led_side_margin_mm
+
+    @property
+    def back_led_total_length_mm(self) -> float:
+        return self.back_led_strip_count * self.back_led_strip_length_mm
+
+    @property
+    def back_led_bus_width_mm(self) -> float:
+        return 10.0
+
+    @property
+    def back_led_bus_center_x_mm(self) -> float:
+        # Use rear-assembly coordinates, matching the electronics pocket.
+        return (
+            self.back_led_side_margin_mm
+            if self.electronics_on_min_x_wall
+            else self.outer_width_mm - self.back_led_side_margin_mm
         )
-        if not self.panel_lock_count:
-            return clip_end
-        lock_floor = self.front_thickness_mm + self.panel_thickness_mm + self.panel_lock_gap_mm
-        return max(clip_end, lock_floor + self.wedge_slot_height_mm + 1.6)
 
     @property
-    def led_channel_y1_mm(self) -> float:
-        return self.led_channel_y0_mm + self.led_channel_width_mm
-
-    @property
-    def stiffener_depth_mm(self) -> float:
-        # A 1:1 rise lets the rib grow towards the interior without a
-        # horizontal ceiling when the housing is printed front-face-down.
-        return self.stiffener_reach_mm
-
-    @property
-    def stiffener_reach_mm(self) -> float:
-        return 6.0
-
-    @property
-    def stiffener_step_mm(self) -> float:
-        # Two typical 0.2 mm layers per step: small enough to print cleanly,
-        # coarse enough to keep the generated mesh reasonably compact.
-        return 0.4
-
-    @property
-    def stiffener_y1_mm(self) -> float:
-        return self.led_channel_y1_mm + self.stiffener_depth_mm
+    def back_led_bus_length_mm(self) -> float:
+        centers = self.back_led_strip_centers_z_mm
+        return centers[-1] - centers[0] + self.back_led_lane_width_mm
 
     # Measured USB-C breakout used by Litho. The opening is deliberately
     # smaller than the metal shell, so the thin bezel carries unplugging load.
@@ -648,7 +664,7 @@ class HousingParams(BaseModel):
 
     @property
     def panel_lock_depth_mm(self) -> float:
-        return min(self.panel_lock_shelf_mm, 7.0)
+        return min(self.panel_lock_shelf_mm, 4.5)
 
     @property
     def panel_lock_pier_mm(self) -> float:
@@ -672,7 +688,7 @@ class HousingParams(BaseModel):
         """
         count = self.edge_clip_count(length)
         default_clips = [length * index / (count + 1) for index in range(1, count + 1)]
-        if self.kind != "frame" or self.panel_lock_shelf_mm < 4.0:
+        if self.kind != "frame" or self.panel_lock_shelf_mm < 4.5:
             return [], default_clips
         # Half the socket spacing must fit half a clip, half a socket and 1 mm.
         needed = self.panel_clip_width_mm / 2 + self.wedge_slot_width_mm / 2 + self.panel_lock_pier_mm + 1.0
@@ -703,30 +719,30 @@ class HousingParams(BaseModel):
 
     @property
     def panel_wedge_length_mm(self) -> float:
-        # Seated against the socket end, the tail covers 1.4 mm of the flange.
-        return self.panel_lock_depth_mm + 1.6
-
-    @property
-    def panel_wedge_taper(self) -> float:
-        return 0.15
+        return self.wedge_length_mm
 
     @property
     def panel_wedge_tip_thickness_mm(self) -> float:
-        # Jams in the 2 mm socket about 0.5 mm before reaching its end.
-        return self.wedge_slot_height_mm - self.panel_wedge_taper * (self.panel_lock_depth_mm - 0.5)
+        return self.wedge_tip_thickness_mm
 
     @property
     def panel_wedge_head_thickness_mm(self) -> float:
-        return self.panel_wedge_tip_thickness_mm + self.panel_wedge_taper * self.panel_wedge_length_mm
+        return self.wedge_head_thickness_mm
 
     @property
     def panel_wedge_count(self) -> int:
-        return self.panel_lock_count + 2 if self.panel_lock_count else 0
+        # Compatibility alias: panel wedges are now included in wedges.stl.
+        return self.panel_lock_count
+
+    @property
+    def required_wedge_count(self) -> int:
+        # USB-C, both ends of the touch controller, and every panel socket.
+        return 3 + self.panel_lock_count
 
     @property
     def wedge_count(self) -> int:
-        # USB-C pocket, both dimmer channels, and one spare.
-        return 4
+        # All mounts use the same wedge; the generated row includes two spares.
+        return self.required_wedge_count + 2
 
     @property
     def dimmer_end_wall_mm(self) -> float:

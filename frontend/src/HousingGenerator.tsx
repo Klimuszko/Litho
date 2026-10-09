@@ -42,7 +42,7 @@ export function housingOuterSize(params: HousingParams) {
 
 export function housingClipCount(params: HousingParams) {
   // Frames with wedge sockets carry three clips per edge, halfway between the sockets.
-  const wedgeSockets = params.kind === "frame" && params.frame_border_mm - params.clearance_mm / 2 - params.wall_mm >= 4;
+  const wedgeSockets = params.kind === "frame" && params.frame_border_mm - params.clearance_mm / 2 - params.wall_mm >= 4.5;
   const edgeCount = (length: number) => wedgeSockets && length / 6 >= 10.51 ? 3 : length >= 175 ? 4 : length >= 125 ? 3 : 2;
   return 2 * (
     edgeCount(params.panel_width_mm + 2 * LITHO_MOUNT_FLANGE_MM)
@@ -55,6 +55,10 @@ export function housingBackPressRibCount(params: HousingParams) {
   const horizontal = outer.width >= 175 ? 3 : 2;
   const vertical = outer.height >= 175 ? 2 : 1;
   return 2 * (horizontal + vertical);
+}
+
+export function housingBackLedStripCount(params: HousingParams) {
+  return housingOuterSize(params).height >= 90 ? 5 : 4;
 }
 
 export function housingPreviewSize(params: HousingParams, maxWidth = 520, maxHeight = 390) {
@@ -86,6 +90,7 @@ export default function HousingGenerator({active, onOpenLithophane}: {active: bo
   const previewSize = housingPreviewSize(params);
   const clipCount = housingClipCount(params);
   const backPressRibCount = housingBackPressRibCount(params);
+  const ledStripCount = housingBackLedStripCount(params);
   const landscape = params.panel_width_mm >= params.panel_height_mm;
   const set = <K extends keyof HousingParams>(key: K, value: HousingParams[K]) => setParams(current => ({...current, [key]: value}));
   const chooseFormat = (short: number, long: number) => {
@@ -160,7 +165,7 @@ export default function HousingGenerator({active, onOpenLithophane}: {active: bo
           <button className={params.usb_side === "left" && params.electronics_position === "bottom" ? "active" : ""} onClick={() => setElectronicsPlacement("left", "bottom")}>Lewy dolny bok</button>
           <button className={params.usb_side === "right" && params.electronics_position === "bottom" ? "active" : ""} onClick={() => setElectronicsPlacement("right", "bottom")}>Prawy dolny bok</button>
         </div>
-        <p className="quality-note housing-note">USB-C: 8,85 × 3,12 mm, płytka 14,02 mm. Oba elementy wsuwa się od tyłu w masywne kieszenie drukowane bez podpór i blokuje drukowanymi klinami. Wewnątrz pozostaje ciągły pas 8,5 mm na taśmę COB 8 mm, zakończony obwodowym żebrem usztywniającym.</p>
+        <p className="quality-note housing-note">USB-C: 8,85 × 3,12 mm, płytka 14,02 mm. Elementy i panel blokują identyczne drukowane kliny. Na tylnej pokrywie przygotowano {ledStripCount} poziomych pasów pod COB 8 mm oraz pionową magistralę po stronie sterownika.</p>
         <div className="housing-spec">
           <span><small>KIESZEŃ PANELU</small><b>{(params.panel_thickness_mm + params.clearance_mm).toFixed(1)} mm</b></span>
           <span><small>KLIPSY PANELU</small><b>{clipCount} × 0.4 mm</b></span>
@@ -179,7 +184,7 @@ export default function HousingGenerator({active, onOpenLithophane}: {active: bo
           </div>
           <div className="depth-preview"><div style={{width: `${Math.max(70, params.depth_mm * 2)}px`}}/><span>{params.depth_mm} mm</span></div>
         </div>
-        <div className="stats"><span><small>PANEL / OBRAZ</small><b>{params.panel_width_mm + 2 * LITHO_MOUNT_FLANGE_MM} × {params.panel_height_mm + 2 * LITHO_MOUNT_FLANGE_MM} / {params.panel_width_mm} × {params.panel_height_mm} mm</b></span><span><small>OBUDOWA</small><b>{outer.width.toFixed(1)} × {outer.height.toFixed(1)} × {params.depth_mm} mm</b></span><span><small>COB / ŻEBRO</small><b>8,5 mm / obwodowe</b></span></div>
+        <div className="stats"><span><small>PANEL / OBRAZ</small><b>{params.panel_width_mm + 2 * LITHO_MOUNT_FLANGE_MM} × {params.panel_height_mm + 2 * LITHO_MOUNT_FLANGE_MM} / {params.panel_width_mm} × {params.panel_height_mm} mm</b></span><span><small>OBUDOWA</small><b>{outer.width.toFixed(1)} × {outer.height.toFixed(1)} × {params.depth_mm} mm</b></span><span><small>OŚWIETLENIE</small><b>{ledStripCount} × COB 8 mm + magistrala</b></span></div>
         {(error || validateHousing(params)) && <p className="error">{error || validateHousing(params)}</p>}
         <button className="generate" disabled={busy || Boolean(validateHousing(params))} onClick={generate}>{busy ? "Generowanie zestawu…" : "Generuj korpus i pokrywę ZIP"}<span>→</span></button>
       </article>

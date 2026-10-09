@@ -7,7 +7,7 @@ from pydantic import ValidationError
 
 from app.housing import (
     build_housing_back, build_housing_body,
-    build_housing_panel_wedges, build_housing_wedges, orient_front_on_bed,
+    build_housing_wedges, orient_front_on_bed,
 )
 from app.main import app
 from app.mesh import validate_mesh
@@ -106,7 +106,7 @@ def test_rear_cover_uses_local_interference_instead_of_hardware():
 def test_rear_cover_grid_is_shallow_and_clear_of_side_electronics():
     params = HousingParams(kind="frame", panel_width_mm=200, panel_height_mm=150)
     assert params.back_rib_height_mm < params.back_lip_depth_mm
-    assert params.back_rib_margin_mm >= 20
+    assert params.back_rib_margin_mm >= params.back_led_side_margin_mm
     back = build_housing_back(params)
     assert back.vertices[:, 1].max() == pytest.approx(params.back_thickness_mm + params.back_lip_depth_mm)
     assert any(y == pytest.approx(params.back_thickness_mm + params.back_rib_height_mm) for _, y, _ in back.vertices)
@@ -238,28 +238,31 @@ def test_touch_dimmer_channels_preload_the_antenna_spring_against_the_wall():
 
 
 @pytest.mark.parametrize("kind", ["box", "frame"])
-def test_cob_path_ends_at_support_free_45_degree_stiffener(kind):
+def test_rear_cover_has_five_flat_cob_lanes_and_a_vertical_bus(kind):
     params = HousingParams(kind=kind, panel_width_mm=200, panel_height_mm=150)
     assert params.led_strip_width_mm == pytest.approx(8.0)
-    assert params.led_channel_width_mm == pytest.approx(8.5)
-    assert params.led_channel_y1_mm - params.led_channel_y0_mm == pytest.approx(8.5)
-    assert params.stiffener_reach_mm == pytest.approx(6.0)
-    assert params.stiffener_depth_mm == pytest.approx(params.stiffener_reach_mm)
-    assert params.stiffener_step_mm == pytest.approx(0.4)
-    assert params.stiffener_y1_mm - params.led_channel_y1_mm == pytest.approx(6.0)
-    assert params.stiffener_y1_mm + 0.2 <= params.body_depth_mm - params.back_lip_depth_mm
-    mesh = build_housing_body(params)
-    assert validate_mesh(mesh)["watertight"]
-    assert component_count(mesh) == 1
-    # Each 0.4 mm of print height adds no more than 0.4 mm of inward reach.
-    # Check the uninterrupted bottom rib, away from the electronics cutout.
-    for reach in (0.4, 2.0, 4.0, 6.0):
-        expected_y = params.led_channel_y1_mm + reach
-        expected_z = params.wall_mm + reach
-        assert any(
-            vy == pytest.approx(expected_y) and vz == pytest.approx(expected_z)
-            for _, vy, vz in mesh.vertices
-        )
+    assert params.back_led_lane_width_mm == pytest.approx(8.5)
+    assert params.back_led_strip_count == 5
+    assert len(params.back_led_strip_centers_z_mm) == 5
+    assert params.back_led_bus_width_mm == pytest.approx(10.0)
+    assert params.back_led_total_length_mm == pytest.approx(5 * params.back_led_strip_length_mm)
+    back = build_housing_back(params)
+    assert validate_mesh(back)["watertight"]
+    assert component_count(back) == 1
+    # Centre points are included in the mesh grid. At every COB centre and
+    # along the vertical bus the inner surface stays completely flat.
+    sample_x = params.outer_width_mm / 2
+    for center_z in params.back_led_strip_centers_z_mm:
+        assert max(
+            y for x, y, z in back.vertices
+            if x == pytest.approx(sample_x) and z == pytest.approx(center_z)
+        ) == pytest.approx(params.back_thickness_mm)
+    bus_x = params.back_led_bus_center_x_mm
+    sample_z = (params.back_led_strip_centers_z_mm[0] + params.back_led_strip_centers_z_mm[1]) / 2
+    assert max(
+        y for x, y, z in back.vertices
+        if x == pytest.approx(bus_x) and z == pytest.approx(sample_z)
+    ) == pytest.approx(params.back_thickness_mm)
 
 
 @pytest.mark.parametrize("side", ["left", "right"])
@@ -310,14 +313,16 @@ def test_frame_panel_is_locked_by_evenly_spaced_wedge_sockets():
         for x, y, _ in body.vertices
     )
 
-    wedges = build_housing_panel_wedges(params)
-    assert validate_mesh(wedges)["watertight"] and validate_mesh(wedges)["winding_errors"] == 0
-    assert component_count(wedges) == params.panel_wedge_count == 14
-    # A seated wedge covers the panel flange without reaching past its 2 mm.
+    # The universal wedge covers the hidden flange without reaching the image.
     overlap = params.panel_wedge_length_mm - params.panel_lock_depth_mm - params.clearance_mm / 2
     assert 1.0 < overlap < 2.0
     assert overlap < params.panel_mask_mm
-    assert params.panel_wedge_tip_thickness_mm < params.wedge_slot_height_mm < params.panel_wedge_head_thickness_mm
+    assert params.panel_wedge_length_mm == params.wedge_length_mm
+    assert params.panel_wedge_tip_thickness_mm == params.wedge_tip_thickness_mm
+    assert params.panel_wedge_head_thickness_mm == params.wedge_head_thickness_mm
+    wedges = build_housing_wedges(params)
+    assert params.required_wedge_count == params.panel_lock_count + 3
+    assert component_count(wedges) == params.wedge_count == params.required_wedge_count + 2
 
 
 def test_box_and_narrow_frames_keep_clips_only():
@@ -331,7 +336,7 @@ def test_locking_wedges_print_flat_and_jam_inside_their_slots():
     wedges = build_housing_wedges(params)
     validation = validate_mesh(wedges)
     assert validation["watertight"] and validation["winding_errors"] == 0 and validation["positive_volume"]
-    assert component_count(wedges) == params.wedge_count == 4
+    assert component_count(wedges) == params.wedge_count == 5
     assert wedges.vertices[:, 2].min() == pytest.approx(0)
     # The taper crosses the slot height, so the wedge enters freely and jams.
     assert params.wedge_tip_thickness_mm < params.wedge_slot_height_mm < params.wedge_head_thickness_mm
@@ -361,7 +366,9 @@ def test_every_preset_orientation_fits_and_stays_manifold(kind, width, height):
     params = HousingParams(kind=kind, panel_width_mm=width, panel_height_mm=height)
     assert params.outer_width_mm <= 256
     assert params.outer_height_mm <= 256
+    assert params.back_led_strip_count == 5
     assert validate_mesh(build_housing_body(params))["watertight"]
+    assert validate_mesh(build_housing_back(params))["watertight"]
 
 
 def test_housing_api_returns_body_and_back_as_separate_stls():
@@ -376,7 +383,11 @@ def test_housing_api_returns_body_and_back_as_separate_stls():
     assert response.headers["x-panel-size-mm"] == "156x106"
     assert response.headers["x-visible-image-size-mm"] == "150x100"
     assert response.headers["x-housing-outer-size-mm"] == "180x130x40"
-    assert response.headers["x-led-channel-width-mm"] == "8.5"
+    assert response.headers["x-led-strip-count"] == "5"
+    assert response.headers["x-led-strip-width-mm"] == "8"
+    assert response.headers["x-led-strip-length-mm"] == "148"
+    assert response.headers["x-led-bus-width-mm"] == "10"
+    assert response.headers["x-led-bus-side"] == "right"
     assert response.headers["x-panel-pocket-depth-mm"] == "2"
     assert response.headers["x-panel-clip-count"] == "12"
     assert response.headers["x-panel-lock-count"] == "12"
@@ -390,7 +401,6 @@ def test_housing_api_returns_body_and_back_as_separate_stls():
             "README-PL.txt",
             "litho-frame-150x100-back.stl",
             "litho-frame-150x100-body.stl",
-            "litho-frame-150x100-panel-wedges.stl",
             "litho-frame-150x100-wedges.stl",
         ]
         for name in (entry for entry in archive.namelist() if entry.endswith(".stl")):
@@ -401,10 +411,12 @@ def test_housing_api_returns_body_and_back_as_separate_stls():
         assert "sprezystymi zatrzaskami" in instructions
         assert "bez kleju" in instructions
         assert "ukrytym kolnierzem" in instructions
-        assert "tasme COB" in instructions
+        assert "5 poziomych paskow COB" in instructions
+        assert "pionowa plaska magistrale" in instructions
+        assert "jednakowych klinow" in instructions
         assert "klej CA" in instructions
         assert "wszystkich czterech bokach" in instructions
-        assert "kratownica" in instructions
+        assert "Niskie zebra pokrywy" in instructions
         assert "zamkniecie stale" in instructions
 
 

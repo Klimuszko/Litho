@@ -218,18 +218,6 @@ def build_housing_body(params) -> Mesh:
         (center - horizontal_clip_half, center + horizontal_clip_half) for center in params.panel_horizontal_clip_centers_mm
     ]
 
-    # The flat side-wall segment before this rib is an uninterrupted 8.5 mm
-    # path for an 8 mm COB strip. The rib then grows inward at 45 degrees in
-    # 0.4 mm steps. With the front face on the print bed every new step is
-    # supported by the previous one, unlike the old horizontal collar.
-    stiffener_y0 = params.led_channel_y1_mm
-    stiffener_y1 = params.stiffener_y1_mm
-    stiffener_reach = params.stiffener_reach_mm
-    stiffener_step = params.stiffener_step_mm
-    stiffener_steps = int(np.ceil(stiffener_reach / stiffener_step))
-    stiffener_reaches = [min(stiffener_reach, index * stiffener_step) for index in range(1, stiffener_steps + 1)]
-    stiffener_ys = [stiffener_y0 + reach for reach in stiffener_reaches]
-
     # The UI names the side as seen from the finished display front. This
     # mesh is assembled from the open rear, so its horizontal axis is mirrored.
     electronics_min_x = params.electronics_on_min_x_wall
@@ -277,18 +265,6 @@ def build_housing_body(params) -> Mesh:
     dimmer_cable_d0 = dimmer_cable_center_d - params.dimmer_cable_notch_width_mm / 2
     dimmer_cable_d1 = dimmer_cable_center_d + params.dimmer_cable_notch_width_mm / 2
     dimmer_cable_y0 = dimmer_top_y - params.dimmer_cable_notch_depth_mm
-
-    # The side rib is interrupted only where the electronics occupy the
-    # wall. The top, bottom and opposite-side ribs remain continuous, while
-    # the USB and dimmer mounts themselves stiffen this short open section.
-    electronics_rib_gap_z0 = min(
-        usb_center_z - usb_half_z - usb_wall,
-        dimmer_z0 - dimmer_end_wall,
-    ) - 1.0
-    electronics_rib_gap_z1 = max(
-        usb_center_z + usb_half_z + usb_wall,
-        dimmer_z1 + dimmer_end_wall,
-    ) + 1.0
 
     # Wedge slots sit just above each part; the drop lets the taper bear on
     # the part itself instead of leaving it loose in the pocket.
@@ -364,12 +340,10 @@ def build_housing_body(params) -> Mesh:
     flex_xs = [pocket_x0 - flex - relief, pocket_x0 - flex, pocket_x1 + flex, pocket_x1 + flex + relief]
     flex_zs = [pocket_z0 - flex - relief, pocket_z0 - flex, pocket_z1 + flex, pocket_z1 + flex + relief]
 
-    stiffener_xs = [wall + reach for reach in stiffener_reaches] + [width - wall - reach for reach in stiffener_reaches]
-    stiffener_zs = [wall + reach for reach in stiffener_reaches] + [height - wall - reach for reach in stiffener_reaches]
-    xs = [0, wall, pocket_x0, panel_x0, opening_x0, opening_x1, panel_x1, pocket_x1, width - wall, width, *stiffener_xs, *clip_xs, *reach_xs, *flex_xs, *usb_xs, *dimmer_xs]
+    xs = [0, wall, pocket_x0, panel_x0, opening_x0, opening_x1, panel_x1, pocket_x1, width - wall, width, *clip_xs, *reach_xs, *flex_xs, *usb_xs, *dimmer_xs]
     clip_release_y1 = clip_ys[-1] + params.panel_clip_end_relief_mm
-    ys = [0, bezel_front, pocket_y1, clip_release_y1, params.led_channel_y0_mm, stiffener_y0, stiffener_y1, depth, *stiffener_ys, *clip_ys, *usb_ys, *dimmer_ys, *icon_ys]
-    zs = [0, wall, pocket_z0, panel_z0, opening_z0, opening_z1, panel_z1, pocket_z1, height - wall, height, *stiffener_zs, *clip_zs, *reach_zs, *flex_zs, *usb_zs, *dimmer_zs, *icon_zs]
+    ys = [0, bezel_front, pocket_y1, clip_release_y1, depth, *clip_ys, *usb_ys, *dimmer_ys, *icon_ys]
+    zs = [0, wall, pocket_z0, panel_z0, opening_z0, opening_z1, panel_z1, pocket_z1, height - wall, height, *clip_zs, *reach_zs, *flex_zs, *usb_zs, *dimmer_zs, *icon_zs]
 
     lock_xs_centers = params.panel_horizontal_lock_centers_mm
     lock_zs_centers = params.panel_vertical_lock_centers_mm
@@ -403,23 +377,6 @@ def build_housing_body(params) -> Mesh:
 
     def solid(x: float, y: float, z: float) -> bool:
         material = x < wall or x > width - wall or z < wall or z > height - wall
-        if stiffener_y0 < y < stiffener_y1:
-            step = min(int((y - stiffener_y0) / stiffener_step) + 1, stiffener_steps)
-            rib_reach = min(stiffener_reach, step * stiffener_step)
-            left_rib = x < wall + rib_reach
-            right_rib = x > width - wall - rib_reach
-            top_bottom_rib = z < wall + rib_reach or z > height - wall - rib_reach
-            if electronics_rib_gap_z0 < z < electronics_rib_gap_z1:
-                if electronics_min_x:
-                    left_rib = False
-                    if x < wall + stiffener_reach:
-                        top_bottom_rib = False
-                else:
-                    right_rib = False
-                    if x > width - wall - stiffener_reach:
-                        top_bottom_rib = False
-            perimeter_rib = left_rib or right_rib or top_bottom_rib
-            material = material or perimeter_rib
         if y < bezel_front:
             opening = opening_x0 < x < opening_x1 and opening_z0 < z < opening_z1
             material = material or not opening
@@ -586,10 +543,31 @@ def build_housing_back(params) -> Mesh:
     press_ys = [thickness + index * params.back_press_rib_height_mm / press_steps for index in range(press_steps + 1)]
     press_reaches = [params.back_press_rib_reach_mm * index / press_steps for index in range(1, press_steps + 1)]
 
+    # Five horizontal COB strips (four on unusually short custom covers) are
+    # glued directly to the flat inner plate. A vertical flat bus lane joins
+    # them beside the USB-C/controller side. Low stiffeners occupy only the
+    # gaps, so neither LEDs nor wiring have to bridge a rib.
     rib_margin = params.back_rib_margin_mm
     rib_x0, rib_x1 = rib_margin, width - rib_margin
-    rib_z0, rib_z1 = rib_margin, height - rib_margin
+    rib_z0 = params.back_led_vertical_margin_mm
+    rib_z1 = height - params.back_led_vertical_margin_mm
     rib_half = params.back_rib_width_mm / 2
+    led_half = params.back_led_lane_width_mm / 2
+    led_centers = params.back_led_strip_centers_z_mm
+    led_intervals = [(center - led_half, center + led_half) for center in led_centers]
+    bus_half = params.back_led_bus_width_mm / 2
+    bus_x0 = params.back_led_bus_center_x_mm - bus_half
+    bus_x1 = params.back_led_bus_center_x_mm + bus_half
+
+    led_gaps = [
+        (start, end)
+        for start, end in (
+            [(rib_z0, led_intervals[0][0])]
+            + [(left[1], right[0]) for left, right in zip(led_intervals, led_intervals[1:])]
+            + [(led_intervals[-1][1], rib_z1)]
+        )
+        if end - start > 2 * params.back_rib_width_mm
+    ]
 
     def rib_centers(start: float, end: float) -> list[float]:
         span = end - start
@@ -598,22 +576,28 @@ def build_housing_back(params) -> Mesh:
         sections = max(1, int(np.ceil(span / params.back_rib_max_spacing_mm)))
         return [start + span * index / sections for index in range(1, sections)]
 
-    vertical_ribs = rib_centers(rib_x0, rib_x1)
-    horizontal_ribs = rib_centers(rib_z0, rib_z1)
+    vertical_ribs = [
+        center for center in rib_centers(rib_x0, rib_x1)
+        if not bus_x0 - rib_half < center < bus_x1 + rib_half
+    ]
+    horizontal_ribs = [(start + end) / 2 for start, end in led_gaps]
     rib_grid_xs = [value for center in vertical_ribs for value in (center - rib_half, center + rib_half)]
     rib_grid_zs = [value for center in horizontal_ribs for value in (center - rib_half, center + rib_half)]
     press_grid_xs = [value for interval in horizontal_press for value in interval]
     press_grid_zs = [value for interval in vertical_press for value in interval]
     xs = [
-        0, x0, x0 + lip, x1 - lip, x1, width, rib_x0, rib_x1,
+        0, x0, x0 + lip, x1 - lip, x1, width / 2, width, rib_x0, rib_x1,
         *(x0 - reach for reach in press_reaches), *(x1 + reach for reach in press_reaches),
+        bus_x0, params.back_led_bus_center_x_mm, bus_x1,
         *press_grid_xs, *rib_grid_xs,
     ]
     ys = [0, thickness, thickness + params.back_rib_height_mm, thickness + lip_depth, *press_ys]
     zs = [
         0, z0, z0 + lip, z1 - lip, z1, height, rib_z0, rib_z1,
         *(z0 - reach for reach in press_reaches), *(z1 + reach for reach in press_reaches),
-        *press_grid_zs, *rib_grid_zs,
+        *(value for interval in led_intervals for value in interval), *led_centers,
+        *(value for interval in led_gaps for value in interval),
+        *press_grid_zs, *horizontal_ribs, *rib_grid_zs,
     ]
 
     def in_intervals(value: float, intervals: list[tuple[float, float]]) -> bool:
@@ -635,8 +619,13 @@ def build_housing_back(params) -> Mesh:
         rib = (
             thickness < y < thickness + params.back_rib_height_mm
             and rib_x0 < x < rib_x1 and rib_z0 < z < rib_z1
+            and not bus_x0 < x < bus_x1
+            and not in_intervals(z, led_intervals)
             and (
-                any(abs(x - center) < rib_half for center in vertical_ribs)
+                (
+                    in_intervals(z, led_gaps)
+                    and any(abs(x - center) < rib_half for center in vertical_ribs)
+                )
                 or any(abs(z - center) < rib_half for center in horizontal_ribs)
             )
         )
@@ -661,14 +650,6 @@ def build_housing_wedges(params) -> Mesh:
     return _wedge_row(
         params.wedge_length_mm, params.wedge_width_mm,
         params.wedge_tip_thickness_mm, params.wedge_head_thickness_mm, params.wedge_count,
-    )
-
-
-def build_housing_panel_wedges(params) -> Mesh:
-    """Shorter wedges that lock the Litho panel into the frame sockets."""
-    return _wedge_row(
-        params.panel_wedge_length_mm, params.wedge_width_mm,
-        params.panel_wedge_tip_thickness_mm, params.panel_wedge_head_thickness_mm, params.panel_wedge_count,
     )
 
 

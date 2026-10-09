@@ -68,6 +68,13 @@ nie wymaga śrub ani innych części metalowych, nie pozostawia widocznych otwor
 i utrudnia klientowi otwarcie obudowy bez jej uszkodzenia. Oba modele są
 eksportowane płaską stroną do stołu i nie wymagają podpór.
 
+Oświetlenie tworzy pięć poziomych pasków COB 8 mm przyklejanych do płaskich
+pasów na wewnętrznej stronie tylnej pokrywy. Przy sterowniku znajduje się
+pionowa strefa wspólnej magistrali; wszystkie paski łączy się z nią równolegle.
+Niskie żebra usztywniające leżą wyłącznie pomiędzy paskami i poza magistralą.
+USB-C, sterownik oraz blokady panelu korzystają z jednego identycznego typu
+drukowanego klina, dostarczanego w jednym pliku STL.
+
 ```text
 POST /api/housing/generate
 Content-Type: application/json

@@ -22,7 +22,7 @@ from .auth import (
 )
 from .exporter import binary_stl
 from .heightmap import grid_resolution, luminance_to_thickness
-from .housing import build_housing_back, build_housing_body, build_housing_panel_wedges, build_housing_wedges, orient_front_on_bed
+from .housing import build_housing_back, build_housing_body, build_housing_wedges, orient_front_on_bed
 from .image_processing import InvalidImage, decode_image, prepare_image, preview_png, resample_luminance
 from .mesh import apply_border, build_plate, validate_mesh
 from .models import HousingParams, LithophaneParams
@@ -496,9 +496,6 @@ async def generate_housing(settings: HousingParams):
         "body": validate_mesh(body), "back": validate_mesh(back),
         "wedges": validate_mesh(wedges),
     }
-    panel_wedges = build_housing_panel_wedges(settings) if settings.panel_wedge_count else None
-    if panel_wedges is not None:
-        validations["panel_wedges"] = validate_mesh(panel_wedges)
     for name, validation in validations.items():
         if (not validation["watertight"] or validation["degenerate_faces"]
                 or validation["winding_errors"] or not validation["positive_volume"]):
@@ -512,8 +509,6 @@ async def generate_housing(settings: HousingParams):
         archive.writestr(f"{prefix}-body.stl", binary_stl(body))
         archive.writestr(f"{prefix}-back.stl", binary_stl(back))
         archive.writestr(f"{prefix}-wedges.stl", binary_stl(wedges))
-        if panel_wedges is not None:
-            archive.writestr(f"{prefix}-panel-wedges.stl", binary_stl(panel_wedges))
         archive.writestr(
             "README-PL.txt",
             (
@@ -528,16 +523,17 @@ async def generate_housing(settings: HousingParams):
                 f"Panel przejdzie pod {settings.panel_clip_count} sprezystymi zatrzaskami i zablokuje sie bez kleju.\n"
                 + f"Wsun modul USB-C od tylu w kieszen w {('lewej' if settings.usb_side == 'left' else 'prawej')} scianie (patrzac od pokazowego frontu), przy {('dolnej' if settings.electronics_position == 'bottom' else 'gornej')} krawedzi, polami lutowniczymi w strone otwartego boku: metalowa oslona opiera sie o kolnierz w sciance, a plytka o niski tylny ogranicznik, nad ktorym wychodza przewody.\n"
                 + "Wsun plytke sterownika od tylu w dwa kanaly, sprezyna w strone scianki; sprezyna anteny ma tylko lekko dotykac bocznej scianki.\n"
-                + f"Zablokuj elementy klinami z pliku wedges ({settings.wedge_count} szt., jeden zapasowy): cienszym koncem wsun klin od srodka obudowy w strone scianki - jeden nad oslona USB-C i po jednym w tunel na kazdym koncu plytki sterownika - az sie zakleszczy.\n"
+                + f"W pliku wedges znajduje sie {settings.wedge_count} jednakowych klinow: {settings.required_wedge_count} do montazu i dwa zapasowe. Cienszym koncem wsun po jednym klinie nad oslona USB-C oraz w tunel na kazdym koncu plytki sterownika, az sie zakleszczy.\n"
                 + (
-                    f"Zablokuj panel klinami z pliku panel-wedges ({settings.panel_wedge_count} szt., dwa zapasowe): po wcisnieciu panelu pod zatrzaski wsun cienszym koncem po jednym klinie w kazde z {settings.panel_lock_count} gniazd obok panelu, w strone scianki, az do oporu - grubszy koniec zostaje nad brzegiem panelu i nie pozwala mu wypasc.\n"
+                    f"Tymi samymi klinami z pliku wedges zablokuj panel: po wcisnieciu panelu pod zatrzaski wsun po jednym klinie w kazde z {settings.panel_lock_count} gniazd obok panelu, w strone scianki, az sie zakleszczy.\n"
                     if settings.panel_lock_count else ""
                 )
                 + "Na zewnatrz scianki sa wglebione ikony: USB przy gniezdzie oraz wlacznik 21,9 mm od gniazda - tam dotykasz, aby sterowac swiatlem.\n"
-                + f"Przyklej tasme COB do nieprzerwanego pasa o szerokosci {settings.led_channel_width_mm:g} mm dookola wnetrza. Pas konczy sie przed obwodowym zebrem usztywniajacym; rozpocznij i zakoncz tasme przy sterowniku.\n"
+                + f"Na plaskiej wewnetrznej stronie tylnej pokrywy przyklej {settings.back_led_strip_count} poziomych paskow COB o szerokosci {settings.led_strip_width_mm:g} mm i dlugosci okolo {settings.back_led_strip_length_mm:g} mm kazdy. Prowadz je w przygotowanych pasach pomiedzy niskimi zebrami.\n"
+                + f"Po stronie sterownika wykorzystaj pionowa plaska magistrale o szerokosci {settings.back_led_bus_width_mm:g} mm. Polacz wszystkie paski rownolegle ze wspolna magistrala zasilania, zachowujac biegunowosc i dobierajac zasilacz do lacznego pradu tasmy.\n"
                 + f"Przed klejeniem wykonaj probe na sucho: ustaw tylna pokrywe rantem w korpusie i docisnij rownomiernie. {settings.back_press_rib_count} lokalnych zeberek dociskowych na wszystkich czterech bokach utrzymuje pokrywe w prawidlowej pozycji.\n"
                 + "Po kontroli dzialania nanies oszczednie sredni klej CA (super glue) na wewnetrzne powierzchnie styku rantu, z dala od elektroniki i tasmy COB. Docisnij pokrywe do pelnego zlicowania i przytrzymaj do zwiazania. Jest to zamkniecie stale i odporne na manipulacje; ponowne otwarcie wymaga uszkodzenia pokrywy lub rantu.\n"
-                + f"Wewnetrzna kratownica pokrywy ma zebra {settings.back_rib_width_mm:g} x {settings.back_rib_height_mm:g} mm, odsuniete od elektroniki i plytsze od rantu pokrywy.\n"
+                + f"Niskie zebra pokrywy maja {settings.back_rib_width_mm:g} x {settings.back_rib_height_mm:g} mm i leza wylacznie pomiedzy pasami LED oraz poza pionowa magistrala.\n"
                 "Przed drukiem produkcyjnym wykonaj krotka probe pasowania kieszeni dla swojego filamentu.\n"
             ).encode("utf-8"),
         )
@@ -550,7 +546,11 @@ async def generate_housing(settings: HousingParams):
             "X-Housing-Kind": settings.kind,
             "X-Panel-Size-Mm": f"{settings.panel_outer_width_mm:g}x{settings.panel_outer_height_mm:g}",
             "X-Visible-Image-Size-Mm": f"{settings.panel_width_mm:g}x{settings.panel_height_mm:g}",
-            "X-LED-Channel-Width-Mm": f"{settings.led_channel_width_mm:g}",
+            "X-LED-Strip-Count": str(settings.back_led_strip_count),
+            "X-LED-Strip-Width-Mm": f"{settings.led_strip_width_mm:g}",
+            "X-LED-Strip-Length-Mm": f"{settings.back_led_strip_length_mm:g}",
+            "X-LED-Bus-Width-Mm": f"{settings.back_led_bus_width_mm:g}",
+            "X-LED-Bus-Side": settings.usb_side,
             "X-Housing-Outer-Size-Mm": f"{settings.outer_width_mm:g}x{settings.outer_height_mm:g}x{settings.depth_mm:g}",
             "X-Panel-Pocket-Depth-Mm": f"{settings.panel_pocket_depth_mm:g}",
             "X-Panel-Clip-Count": str(settings.panel_clip_count),
