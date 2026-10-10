@@ -56,11 +56,21 @@ def test_box_and_frame_derive_outer_size_from_exact_panel_size():
     frame = HousingParams(kind="frame", panel_width_mm=150, panel_height_mm=100)
     assert (box.panel_outer_width_mm, box.panel_outer_height_mm) == pytest.approx((156, 106))
     assert (box.outer_width_mm, box.outer_height_mm) == pytest.approx((161.6, 111.6))
-    assert (frame.outer_width_mm, frame.outer_height_mm) == pytest.approx((180, 130))
+    assert (frame.outer_width_mm, frame.outer_height_mm) == pytest.approx((190, 140))
     assert box.panel_pocket_depth_mm == pytest.approx(2.0)
     assert frame.panel_pocket_depth_mm == pytest.approx(2.0)
     assert (box.rear_opening_width_mm, box.rear_opening_height_mm) == pytest.approx((156.8, 106.8))
     assert build_housing_body(box).vertices[:, 1].max() == pytest.approx(37.0)
+
+
+def test_default_frame_keeps_electronics_outside_the_illuminated_image():
+    params = HousingParams(kind="frame")
+    usb_front_d = params.usb_bezel_mm - params.wall_mm
+    mount_reach = usb_front_d + params.usb_total_length_mm + 2.3
+    mount_extent = params.wall_mm + mount_reach
+    visible_edge = params.panel_x0_mm + params.panel_mask_mm
+    assert params.frame_border_mm == pytest.approx(17)
+    assert visible_edge - mount_extent == pytest.approx(2.88)
 
 
 @pytest.mark.parametrize("width,height,expected", [
@@ -288,13 +298,13 @@ def test_usb_and_touch_icons_are_engraved_on_the_outer_side_wall(side, position)
 def test_frame_panel_is_locked_by_evenly_spaced_wedge_sockets():
     params = HousingParams(kind="frame", panel_width_mm=150, panel_height_mm=100)
     # Long edge: both corners plus two evenly spaced between them.
-    assert params.panel_horizontal_lock_centers_mm == pytest.approx([12 + 10, 12 + 10 + 136 / 3, 12 + 10 + 272 / 3, 12 + 146])
+    assert params.panel_horizontal_lock_centers_mm == pytest.approx([17 + 10, 17 + 10 + 136 / 3, 17 + 10 + 272 / 3, 17 + 146])
     # Short edge: two sockets set in from the corners.
-    assert params.panel_vertical_lock_centers_mm == pytest.approx([12 + 106 / 3, 12 + 212 / 3])
+    assert params.panel_vertical_lock_centers_mm == pytest.approx([17 + 106 / 3, 17 + 212 / 3])
     assert params.panel_lock_count == 12
     # Clips sit halfway between neighbouring sockets.
-    assert params.panel_horizontal_clip_centers_mm == pytest.approx([12 + 10 + 136 / 6, 12 + 78, 12 + 146 - 136 / 6])
-    assert params.panel_vertical_clip_centers_mm == pytest.approx([12 + 106 / 6, 12 + 53, 12 + 530 / 6])
+    assert params.panel_horizontal_clip_centers_mm == pytest.approx([17 + 10 + 136 / 6, 17 + 78, 17 + 146 - 136 / 6])
+    assert params.panel_vertical_clip_centers_mm == pytest.approx([17 + 106 / 6, 17 + 53, 17 + 530 / 6])
     portrait = HousingParams(kind="frame", panel_width_mm=100, panel_height_mm=150)
     assert len(portrait.panel_vertical_lock_centers_mm) == 4
     assert len(portrait.panel_horizontal_lock_centers_mm) == 2
@@ -382,10 +392,10 @@ def test_housing_api_returns_body_and_back_as_separate_stls():
     assert response.headers["x-housing-kind"] == "frame"
     assert response.headers["x-panel-size-mm"] == "156x106"
     assert response.headers["x-visible-image-size-mm"] == "150x100"
-    assert response.headers["x-housing-outer-size-mm"] == "180x130x40"
+    assert response.headers["x-housing-outer-size-mm"] == "190x140x40"
     assert response.headers["x-led-strip-count"] == "5"
     assert response.headers["x-led-strip-width-mm"] == "8"
-    assert response.headers["x-led-strip-length-mm"] == "148"
+    assert response.headers["x-led-strip-length-mm"] == "158"
     assert response.headers["x-led-bus-width-mm"] == "10"
     assert response.headers["x-led-bus-side"] == "right"
     assert response.headers["x-panel-pocket-depth-mm"] == "2"

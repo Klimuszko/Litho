@@ -109,7 +109,7 @@ describe("frame dimensions", () => {
 describe("housing generator", () => {
   it("treats preset dimensions as visible image size and adds the hidden flange", () => {
     expect(housingOuterSize(initialHousing)).toEqual({width: 161.6, height: 111.6});
-    expect(housingOuterSize({...initialHousing, kind: "frame"})).toEqual({width: 180, height: 130});
+    expect(housingOuterSize({...initialHousing, kind: "frame"})).toEqual({width: 190, height: 140});
   });
   it("rejects a frame that exceeds the 256 mm bed", () => {
     expect(validateHousing({...initialHousing, kind: "frame", panel_width_mm: 240})).toContain("256");

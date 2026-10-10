@@ -151,7 +151,7 @@ class HousingParams(BaseModel):
     clearance_mm: float = Field(0.4, ge=0.2, le=0.8)
     depth_mm: float = Field(40, ge=40, le=80)
     wall_mm: float = Field(2.4, ge=2.4, le=5.0)
-    frame_border_mm: float = Field(12, ge=5, le=25)
+    frame_border_mm: float = Field(17, ge=5, le=25)
     bezel_overlap_mm: float = Field(1.2, ge=0.6, le=1.8)
     back_thickness_mm: float = Field(3.0, ge=3.0, le=5.0)
     usb_side: Literal["left", "right"] = "right"

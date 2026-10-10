@@ -28,7 +28,7 @@ export const HOUSING_FORMATS = [
 export const initialHousing: HousingParams = {
   kind: "box", panel_width_mm: 150, panel_height_mm: 100,
   panel_thickness_mm: 1.6, clearance_mm: .4, depth_mm: 40,
-  wall_mm: 2.4, frame_border_mm: 12, bezel_overlap_mm: 1.2,
+  wall_mm: 2.4, frame_border_mm: 17, bezel_overlap_mm: 1.2,
   back_thickness_mm: 3.0, usb_side: "right", electronics_position: "bottom",
 };
 
