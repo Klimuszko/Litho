@@ -20,11 +20,12 @@ def binary_stl(mesh: Mesh) -> bytes:
     return header + struct.pack("<I", len(record)) + record.tobytes()
 
 
-def multi_material_3mf(parts: list[tuple[str, Mesh, str]], title: str) -> bytes:
-    """Create one assembled 3MF model with a material assigned to each part.
+def multi_object_3mf(parts: list[tuple[str, Mesh]], title: str) -> bytes:
+    """Create a geometry-only 3MF containing aligned independent objects.
 
-    Parts retain their shared coordinate system, so a slicer imports the rear
-    cover as one aligned assembly instead of placing the colours separately.
+    There is deliberately no printer, process or filament configuration. A
+    slicer may assign one filament to both objects or a different filament to
+    each without this file overriding the user's own setup.
     """
     model_lines = [
         '<?xml version="1.0" encoding="UTF-8"?>',
@@ -32,18 +33,14 @@ def multi_material_3mf(parts: list[tuple[str, Mesh, str]], title: str) -> bytes:
         'xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">',
         f'  <metadata name="Title">{escape(title)}</metadata>',
         '  <resources>',
-        '    <basematerials id="1">',
     ]
-    for name, _, colour in parts:
-        model_lines.append(f'      <base name="{escape(name)}" displaycolor="{colour}"/>')
-    model_lines.append('    </basematerials>')
 
     object_ids: list[int] = []
-    for material_index, (name, mesh, _) in enumerate(parts):
-        object_id = material_index + 2
+    for object_index, (name, mesh) in enumerate(parts):
+        object_id = object_index + 1
         object_ids.append(object_id)
         model_lines.extend((
-            f'    <object id="{object_id}" type="model" name="{escape(name)}" pid="1" pindex="{material_index}">',
+            f'    <object id="{object_id}" type="model" name="{escape(name)}">',
             '      <mesh>',
             '        <vertices>',
         ))
@@ -58,16 +55,10 @@ def multi_material_3mf(parts: list[tuple[str, Mesh, str]], title: str) -> bytes:
         )
         model_lines.extend(('        </triangles>', '      </mesh>', '    </object>'))
 
-    assembly_id = len(parts) + 2
     model_lines.extend((
-        f'    <object id="{assembly_id}" type="model" name="{escape(title)}">',
-        '      <components>',
-        *(f'        <component objectid="{object_id}"/>' for object_id in object_ids),
-        '      </components>',
-        '    </object>',
         '  </resources>',
         '  <build>',
-        f'    <item objectid="{assembly_id}"/>',
+        *(f'    <item objectid="{object_id}"/>' for object_id in object_ids),
         '  </build>',
         '</model>',
     ))

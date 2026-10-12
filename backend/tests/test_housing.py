@@ -372,7 +372,7 @@ def test_every_preset_orientation_fits_and_stays_manifold(kind, width, height):
     assert validate_mesh(build_housing_back_white(params))["watertight"]
 
 
-def test_housing_api_returns_a_two_colour_3mf_and_fallback_stls():
+def test_housing_api_returns_one_back_3mf_with_two_aligned_objects():
     response = client.post("/api/housing/generate", json={
         "kind": "frame",
         "panel_width_mm": 150,
@@ -400,10 +400,7 @@ def test_housing_api_returns_a_two_colour_3mf_and_fallback_stls():
     with ZipFile(BytesIO(response.content)) as archive:
         assert sorted(archive.namelist()) == [
             "README-PL.txt",
-            "litho-frame-150x100-back-black.stl",
-            "litho-frame-150x100-back-one-colour.stl",
-            "litho-frame-150x100-back-two-colour.3mf",
-            "litho-frame-150x100-back-white.stl",
+            "litho-frame-150x100-back.3mf",
             "litho-frame-150x100-body.stl",
             "litho-frame-150x100-wedges.stl",
         ]
@@ -411,14 +408,15 @@ def test_housing_api_returns_a_two_colour_3mf_and_fallback_stls():
             payload = archive.read(name)
             assert len(payload) > 84
             assert payload.startswith(b"Lithophane Generator V1")
-        with ZipFile(BytesIO(archive.read("litho-frame-150x100-back-two-colour.3mf"))) as model:
+        with ZipFile(BytesIO(archive.read("litho-frame-150x100-back.3mf"))) as model:
             assert sorted(model.namelist()) == ["3D/3dmodel.model", "[Content_Types].xml", "_rels/.rels"]
             xml = model.read("3D/3dmodel.model").decode("utf-8")
-            assert 'name="Zewnetrzna - czarna"' in xml
-            assert 'displaycolor="#111111FF"' in xml
-            assert 'name="Wewnetrzna - biala"' in xml
-            assert 'displaycolor="#FFFFFFFF"' in xml
-            assert "<components>" in xml
+            assert 'name="01_zewnetrzna_plyta"' in xml
+            assert 'name="02_wewnetrzny_odblysnik"' in xml
+            assert "basematerials" not in xml
+            assert "displaycolor" not in xml
+            assert "<components>" not in xml
+            assert xml.count("<item objectid=") == 2
         instructions = archive.read("README-PL.txt").decode("utf-8")
         assert "sprezystymi zatrzaskami" in instructions
         assert "bez kleju" in instructions
@@ -426,7 +424,9 @@ def test_housing_api_returns_a_two_colour_3mf_and_fallback_stls():
         assert "15 pelnych warstw czarnych" in instructions
         assert "od warstwy 16" in instructions
         assert "Zmiana wystepuje tylko raz" in instructions
-        assert "back-two-colour.3mf" in instructions
+        assert "jednym plikiem back.3mf z dwoma idealnie wyrownanymi obiektami" in instructions
+        assert "nie zawiera konfiguracji drukarki ani narzuconych filamentow" in instructions
+        assert "ten sam filament do obu obiektow" in instructions
         assert "jednakowych klinow" in instructions
         assert "klej CA" in instructions
         assert "wszystkich czterech bokach" in instructions

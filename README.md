@@ -59,7 +59,7 @@ Widok `Obudowa` generuje podświetlany `Box` albo `Ramkę` dla paneli
 100 × 150, 130 × 180, 150 × 200 mm oraz wymiarów własnych. Podany wymiar jest
 dokładnym wymiarem panelu Litho; aplikacja automatycznie dodaje ściany, kieszeń
 montażową 2,0 mm, luz, obramowanie i tylną pokrywę. Wynikiem jest ZIP zawierający
-STL korpusu, dwukolorową pokrywę 3MF, rozdzielone części STL i instrukcję montażu. Panel wkłada się od otwartego
+STL korpusu, pokrywę 3MF z dwoma wyrównanymi obiektami i instrukcję montażu. Panel wkłada się od otwartego
 tyłu, opiera kołnierzem o wewnętrzny rant i dociska pod 4 lub 6 sprężystych
 zatrzasków. Tylna pokrywa ma wewnętrzną kratownicę usztywniającą, ciągły rant
 pozycjonujący oraz lokalne żebra dociskowe na wszystkich czterech bokach.
@@ -70,7 +70,9 @@ eksportowane płaską stroną do stołu i nie wymagają podpór.
 
 Tylna pokrywa nie ma prowadnic ani mocowań LED. Jej pełna zewnętrzna płyta jest
 czarna, natomiast wewnętrzny odbłyśnik o grubości 1 mm, rant, kratownica i punkty
-docisku są białe. Gotowy 3MF zachowuje wspólne położenie obu materiałów. Przy
+docisku są białe. Gotowy 3MF zachowuje wspólne położenie obu obiektów, ale nie
+zawiera konfiguracji drukarki ani przypisania filamentów. Można więc przypisać
+ten sam materiał do obu obiektów albo osobno czarny i biały. Przy
 warstwie 0,20 mm pierwszych 15 warstw jest czarnych, a biały materiał zaczyna się
 od warstwy 16, więc cały wydruk wymaga tylko jednej zmiany koloru i nigdy dwóch
 kolorów na tej samej warstwie.

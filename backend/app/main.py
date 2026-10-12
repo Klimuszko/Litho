@@ -20,10 +20,10 @@ from .auth import (
     LoginRequest, PasswordChange, PasswordReset, UserCreate, UserUpdate,
     auth_store, login_limiter, password_limiter,
 )
-from .exporter import binary_stl, multi_material_3mf
+from .exporter import binary_stl, multi_object_3mf
 from .heightmap import grid_resolution, luminance_to_thickness
 from .housing import (
-    build_housing_back, build_housing_back_black, build_housing_back_white,
+    build_housing_back_black, build_housing_back_white,
     build_housing_body, build_housing_wedges, orient_front_on_bed,
 )
 from .image_processing import InvalidImage, decode_image, prepare_image, preview_png, resample_luminance
@@ -493,13 +493,12 @@ async def generate(image: UploadFile = File(...), params: str = Form(...)):
 @app.post("/api/housing/generate")
 async def generate_housing(settings: HousingParams):
     body = orient_front_on_bed(build_housing_body(settings))
-    back = orient_front_on_bed(build_housing_back(settings))
     back_black = orient_front_on_bed(build_housing_back_black(settings))
     back_white = orient_front_on_bed(build_housing_back_white(settings))
     wedges = build_housing_wedges(settings)
     validations = {
-        "body": validate_mesh(body), "back": validate_mesh(back),
-        "back_black": validate_mesh(back_black), "back_white": validate_mesh(back_white),
+        "body": validate_mesh(body), "back_outer": validate_mesh(back_black),
+        "back_inner": validate_mesh(back_white),
         "wedges": validate_mesh(wedges),
     }
     for name, validation in validations.items():
@@ -511,19 +510,16 @@ async def generate_housing(settings: HousingParams):
             )
     output = BytesIO()
     prefix = f"litho-{settings.kind}-{settings.panel_width_mm:g}x{settings.panel_height_mm:g}"
-    back_3mf = multi_material_3mf(
+    back_3mf = multi_object_3mf(
         [
-            ("Zewnetrzna - czarna", back_black, "#111111FF"),
-            ("Wewnetrzna - biala", back_white, "#FFFFFFFF"),
+            ("01_zewnetrzna_plyta", back_black),
+            ("02_wewnetrzny_odblysnik", back_white),
         ],
-        "Tylna pokrywa dwukolorowa",
+        "Tylna pokrywa - dwa wyrownane obiekty",
     )
     with ZipFile(output, "w", compression=ZIP_DEFLATED) as archive:
         archive.writestr(f"{prefix}-body.stl", binary_stl(body))
-        archive.writestr(f"{prefix}-back-two-colour.3mf", back_3mf)
-        archive.writestr(f"{prefix}-back-black.stl", binary_stl(back_black))
-        archive.writestr(f"{prefix}-back-white.stl", binary_stl(back_white))
-        archive.writestr(f"{prefix}-back-one-colour.stl", binary_stl(back))
+        archive.writestr(f"{prefix}-back.3mf", back_3mf)
         archive.writestr(f"{prefix}-wedges.stl", binary_stl(wedges))
         archive.writestr(
             "README-PL.txt",
@@ -535,9 +531,9 @@ async def generate_housing(settings: HousingParams):
                 f"Obudowa: {settings.outer_width_mm:g} x {settings.outer_height_mm:g} x {settings.depth_mm:g} mm\n"
                 f"Kieszen panelu: {settings.panel_pocket_depth_mm:g} mm (panel {settings.panel_thickness_mm:g} mm + luz {settings.clearance_mm:g} mm)\n\n"
                 "Wszystkie pliki sa juz obrocone plaska strona do stolu i nie wymagaja podpor.\n"
-                + f"Klapka jest przygotowana jako dwukolorowy plik 3MF. Zewnetrzna plyta ma {settings.back_thickness_mm:g} mm i jest czarna, a wewnetrzny odblysnik ma {settings.back_inner_white_thickness_mm:g} mm i jest bialy; rant, zebra i punkty docisku rowniez sa biale.\n"
+                + f"Klapka jest jednym plikiem back.3mf z dwoma idealnie wyrownanymi obiektami. Zewnetrzna plyta ma {settings.back_thickness_mm:g} mm, a wewnetrzny odblysnik ma {settings.back_inner_white_thickness_mm:g} mm i zawiera tez rant, zebra oraz punkty docisku.\n"
                 + f"Przy warstwie 0,20 mm wydrukuj {settings.back_colour_change_layer_02mm - 1} pelnych warstw czarnych, a od warstwy {settings.back_colour_change_layer_02mm} drukuj na bialo. Zmiana wystepuje tylko raz, na Z={settings.back_colour_change_z_mm:g} mm; na zadnej warstwie nie sa potrzebne dwa kolory.\n"
-                + "Najprosciej otworz plik back-two-colour.3mf - zawiera dwie wyrownane czesci z przypisanymi kolorami. Pliki back-black.stl i back-white.stl sa awaryjnym rozdzielonym wariantem, a back-one-colour.stl wariantem jednokolorowym.\n"
+                + "Plik back.3mf nie zawiera konfiguracji drukarki ani narzuconych filamentow. Aby drukowac jednym kolorem, przypisz ten sam filament do obu obiektow. Aby drukowac dwoma kolorami, przypisz czarny do obiektu 01_zewnetrzna_plyta i bialy do 02_wewnetrzny_odblysnik. Nie rozdzielaj ani nie ukladaj automatycznie obiektow - ich wspolne wspolrzedne zapewniaja prawidlowe scalenie.\n"
                 "Wloz panel od otwartego tylu, krawedzia od strony USB-C jako pierwsza (ukosnie pod kieszeniami elektroniki), i rownomiernie docisnij jego kolnierz do frontu.\n"
                 f"Panel przejdzie pod {settings.panel_clip_count} sprezystymi zatrzaskami i zablokuje sie bez kleju.\n"
                 + f"Wsun modul USB-C od tylu w kieszen w {('lewej' if settings.usb_side == 'left' else 'prawej')} scianie (patrzac od pokazowego frontu), przy {('dolnej' if settings.electronics_position == 'bottom' else 'gornej')} krawedzi, polami lutowniczymi w strone otwartego boku: metalowa oslona opiera sie o kolnierz w sciance, a plytka o niski tylny ogranicznik, nad ktorym wychodza przewody.\n"
@@ -582,7 +578,7 @@ async def generate_housing(settings: HousingParams):
             "X-Touch-Dimmer": "true",
             "X-Print-Orientation": "front-face-down",
             "X-Body-Triangle-Count": str(len(body.faces)),
-            "X-Back-Triangle-Count": str(len(back.faces)),
+            "X-Back-Triangle-Count": str(len(back_black.faces) + len(back_white.faces)),
         },
     )
 
