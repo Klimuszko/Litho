@@ -160,7 +160,7 @@ export default function HousingGenerator({active, onOpenLithophane}: {active: bo
           <button className={params.usb_side === "left" && params.electronics_position === "bottom" ? "active" : ""} onClick={() => setElectronicsPlacement("left", "bottom")}>Lewy dolny bok</button>
           <button className={params.usb_side === "right" && params.electronics_position === "bottom" ? "active" : ""} onClick={() => setElectronicsPlacement("right", "bottom")}>Prawy dolny bok</button>
         </div>
-        <p className="quality-note housing-note">USB-C: 8,85 × 3,12 mm, płytka 14,02 mm. Elementy i panel blokują identyczne drukowane kliny. Klapka 3MF zawiera dwa idealnie wyrównane obiekty bez narzuconych filamentów. Możesz przypisać obu ten sam kolor albo czarny na zewnątrz i biały od warstwy 16.</p>
+        <p className="quality-note housing-note">USB-C: 8,85 × 3,12 mm, płytka 14,02 mm. Elementy i panel blokują identyczne drukowane kliny. Klapka STL zawiera dwie idealnie wyrównane bryły. Jednokolorowo drukujesz ją bez zmian; dla dwóch kolorów w Bambu Studio wybierz „Podziel → na części” i przypisz filamenty.</p>
         <div className="housing-spec">
           <span><small>KIESZEŃ PANELU</small><b>{(params.panel_thickness_mm + params.clearance_mm).toFixed(1)} mm</b></span>
           <span><small>KLIPSY PANELU</small><b>{clipCount} × 0.4 mm</b></span>
@@ -179,7 +179,7 @@ export default function HousingGenerator({active, onOpenLithophane}: {active: bo
           </div>
           <div className="depth-preview"><div style={{width: `${Math.max(70, params.depth_mm * 2)}px`}}/><span>{params.depth_mm} mm</span></div>
         </div>
-        <div className="stats"><span><small>PANEL / OBRAZ</small><b>{params.panel_width_mm + 2 * LITHO_MOUNT_FLANGE_MM} × {params.panel_height_mm + 2 * LITHO_MOUNT_FLANGE_MM} / {params.panel_width_mm} × {params.panel_height_mm} mm</b></span><span><small>OBUDOWA</small><b>{outer.width.toFixed(1)} × {outer.height.toFixed(1)} × {params.depth_mm} mm</b></span><span><small>KLAPKA</small><b>1 plik 3MF · 2 obiekty</b></span></div>
+        <div className="stats"><span><small>PANEL / OBRAZ</small><b>{params.panel_width_mm + 2 * LITHO_MOUNT_FLANGE_MM} × {params.panel_height_mm + 2 * LITHO_MOUNT_FLANGE_MM} / {params.panel_width_mm} × {params.panel_height_mm} mm</b></span><span><small>OBUDOWA</small><b>{outer.width.toFixed(1)} × {outer.height.toFixed(1)} × {params.depth_mm} mm</b></span><span><small>KLAPKA</small><b>1 plik STL · 2 bryły</b></span></div>
         {(error || validateHousing(params)) && <p className="error">{error || validateHousing(params)}</p>}
         <button className="generate" disabled={busy || Boolean(validateHousing(params))} onClick={generate}>{busy ? "Generowanie zestawu…" : "Generuj korpus i pokrywę ZIP"}<span>→</span></button>
       </article>

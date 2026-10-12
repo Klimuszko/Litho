@@ -8,6 +8,23 @@ class Mesh:
     faces: np.ndarray
 
 
+def combine_meshes(*meshes: Mesh) -> Mesh:
+    """Join closed meshes into one file without welding their separate shells."""
+    if not meshes:
+        raise ValueError("At least one mesh is required")
+    vertices: list[np.ndarray] = []
+    faces: list[np.ndarray] = []
+    vertex_offset = 0
+    for mesh in meshes:
+        vertices.append(mesh.vertices)
+        faces.append(mesh.faces + vertex_offset)
+        vertex_offset += len(mesh.vertices)
+    return Mesh(
+        np.vstack(vertices).astype(np.float32),
+        np.vstack(faces).astype(np.int32),
+    )
+
+
 def build_plate(heightmap: np.ndarray, width_mm: float, height_mm: float) -> Mesh:
     rows, cols = heightmap.shape
     if rows < 2 or cols < 2:

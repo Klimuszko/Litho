@@ -20,14 +20,14 @@ from .auth import (
     LoginRequest, PasswordChange, PasswordReset, UserCreate, UserUpdate,
     auth_store, login_limiter, password_limiter,
 )
-from .exporter import binary_stl, multi_object_3mf
+from .exporter import binary_stl
 from .heightmap import grid_resolution, luminance_to_thickness
 from .housing import (
     build_housing_back_black, build_housing_back_white,
     build_housing_body, build_housing_wedges, orient_front_on_bed,
 )
 from .image_processing import InvalidImage, decode_image, prepare_image, preview_png, resample_luminance
-from .mesh import apply_border, build_plate, validate_mesh
+from .mesh import apply_border, build_plate, combine_meshes, validate_mesh
 from .models import HousingParams, LithophaneParams
 from .projects import CustomerProjectConfig, OrderReference, ProjectAlreadyAttached, project_store
 from .scad.router import router as scad_router
@@ -495,10 +495,12 @@ async def generate_housing(settings: HousingParams):
     body = orient_front_on_bed(build_housing_body(settings))
     back_black = orient_front_on_bed(build_housing_back_black(settings))
     back_white = orient_front_on_bed(build_housing_back_white(settings))
+    back = combine_meshes(back_black, back_white)
     wedges = build_housing_wedges(settings)
     validations = {
         "body": validate_mesh(body), "back_outer": validate_mesh(back_black),
         "back_inner": validate_mesh(back_white),
+        "back": validate_mesh(back),
         "wedges": validate_mesh(wedges),
     }
     for name, validation in validations.items():
@@ -510,16 +512,9 @@ async def generate_housing(settings: HousingParams):
             )
     output = BytesIO()
     prefix = f"litho-{settings.kind}-{settings.panel_width_mm:g}x{settings.panel_height_mm:g}"
-    back_3mf = multi_object_3mf(
-        [
-            ("01_zewnetrzna_plyta", back_black),
-            ("02_wewnetrzny_odblysnik", back_white),
-        ],
-        "Tylna pokrywa - dwa wyrownane obiekty",
-    )
     with ZipFile(output, "w", compression=ZIP_DEFLATED) as archive:
         archive.writestr(f"{prefix}-body.stl", binary_stl(body))
-        archive.writestr(f"{prefix}-back.3mf", back_3mf)
+        archive.writestr(f"{prefix}-back.stl", binary_stl(back))
         archive.writestr(f"{prefix}-wedges.stl", binary_stl(wedges))
         archive.writestr(
             "README-PL.txt",
@@ -531,9 +526,9 @@ async def generate_housing(settings: HousingParams):
                 f"Obudowa: {settings.outer_width_mm:g} x {settings.outer_height_mm:g} x {settings.depth_mm:g} mm\n"
                 f"Kieszen panelu: {settings.panel_pocket_depth_mm:g} mm (panel {settings.panel_thickness_mm:g} mm + luz {settings.clearance_mm:g} mm)\n\n"
                 "Wszystkie pliki sa juz obrocone plaska strona do stolu i nie wymagaja podpor.\n"
-                + f"Klapka jest jednym plikiem back.3mf z dwoma idealnie wyrownanymi obiektami. Zewnetrzna plyta ma {settings.back_thickness_mm:g} mm, a wewnetrzny odblysnik ma {settings.back_inner_white_thickness_mm:g} mm i zawiera tez rant, zebra oraz punkty docisku.\n"
+                + f"Klapka jest jednym plikiem back.stl z dwiema idealnie wyrownanymi, zamknietymi brylami. Zewnetrzna plyta ma {settings.back_thickness_mm:g} mm, a wewnetrzny odblysnik ma {settings.back_inner_white_thickness_mm:g} mm i zawiera tez rant, zebra oraz punkty docisku.\n"
                 + f"Przy warstwie 0,20 mm wydrukuj {settings.back_colour_change_layer_02mm - 1} pelnych warstw czarnych, a od warstwy {settings.back_colour_change_layer_02mm} drukuj na bialo. Zmiana wystepuje tylko raz, na Z={settings.back_colour_change_z_mm:g} mm; na zadnej warstwie nie sa potrzebne dwa kolory.\n"
-                + "Plik back.3mf nie zawiera konfiguracji drukarki ani narzuconych filamentow. Aby drukowac jednym kolorem, przypisz ten sam filament do obu obiektow. Aby drukowac dwoma kolorami, przypisz czarny do obiektu 01_zewnetrzna_plyta i bialy do 02_wewnetrzny_odblysnik. Nie rozdzielaj ani nie ukladaj automatycznie obiektow - ich wspolne wspolrzedne zapewniaja prawidlowe scalenie.\n"
+                + "Aby drukowac jednym kolorem, wczytaj back.stl i drukuj bez zmian. Aby drukowac dwoma kolorami w Bambu Studio, kliknij model prawym przyciskiem, wybierz Podziel -> Na czesci i przypisz czarny filament do zewnetrznej plyty, a bialy do wewnetrznego odblysnika. Nie przesuwaj czesci i nie uzywaj automatycznego ukladania - wspolne wspolrzedne zapewniaja prawidlowe scalenie. STL nie zapisuje nazw ani kolorow; zawiera tylko geometrie dwoch bryl.\n"
                 "Wloz panel od otwartego tylu, krawedzia od strony USB-C jako pierwsza (ukosnie pod kieszeniami elektroniki), i rownomiernie docisnij jego kolnierz do frontu.\n"
                 f"Panel przejdzie pod {settings.panel_clip_count} sprezystymi zatrzaskami i zablokuje sie bez kleju.\n"
                 + f"Wsun modul USB-C od tylu w kieszen w {('lewej' if settings.usb_side == 'left' else 'prawej')} scianie (patrzac od pokazowego frontu), przy {('dolnej' if settings.electronics_position == 'bottom' else 'gornej')} krawedzi, polami lutowniczymi w strone otwartego boku: metalowa oslona opiera sie o kolnierz w sciance, a plytka o niski tylny ogranicznik, nad ktorym wychodza przewody.\n"
@@ -563,6 +558,8 @@ async def generate_housing(settings: HousingParams):
             "X-Back-Colour-Change-Layer-02mm": str(settings.back_colour_change_layer_02mm),
             "X-Back-Outer-Colour": "black",
             "X-Back-Inner-Colour": "white",
+            "X-Back-Format": "stl-two-shells",
+            "X-Back-Shell-Count": "2",
             "X-Back-Inner-White-Thickness-Mm": f"{settings.back_inner_white_thickness_mm:g}",
             "X-Housing-Outer-Size-Mm": f"{settings.outer_width_mm:g}x{settings.outer_height_mm:g}x{settings.depth_mm:g}",
             "X-Panel-Pocket-Depth-Mm": f"{settings.panel_pocket_depth_mm:g}",

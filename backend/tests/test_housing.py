@@ -10,7 +10,7 @@ from app.housing import (
     build_housing_wedges, orient_front_on_bed,
 )
 from app.main import app
-from app.mesh import validate_mesh
+from app.mesh import combine_meshes, validate_mesh
 from app.models import HousingParams
 
 
@@ -359,6 +359,19 @@ def test_back_cover_is_closed_without_legacy_cable_pass_through():
     assert component_count(back) == 1
 
 
+def test_two_colour_back_combines_as_two_closed_stl_shells():
+    params = HousingParams()
+    black = orient_front_on_bed(build_housing_back_black(params))
+    white = orient_front_on_bed(build_housing_back_white(params))
+    back = combine_meshes(black, white)
+    validation = validate_mesh(back)
+    assert validation["watertight"]
+    assert validation["degenerate_faces"] == 0
+    assert validation["winding_errors"] == 0
+    assert validation["positive_volume"]
+    assert component_count(back) == 2
+
+
 @pytest.mark.parametrize("width,height", [(150, 100), (180, 130), (200, 150), (100, 150), (130, 180), (150, 200)])
 @pytest.mark.parametrize("kind", ["box", "frame"])
 def test_every_preset_orientation_fits_and_stays_manifold(kind, width, height):
@@ -372,7 +385,7 @@ def test_every_preset_orientation_fits_and_stays_manifold(kind, width, height):
     assert validate_mesh(build_housing_back_white(params))["watertight"]
 
 
-def test_housing_api_returns_one_back_3mf_with_two_aligned_objects():
+def test_housing_api_returns_one_back_stl_with_two_aligned_shells():
     response = client.post("/api/housing/generate", json={
         "kind": "frame",
         "panel_width_mm": 150,
@@ -388,6 +401,8 @@ def test_housing_api_returns_one_back_3mf_with_two_aligned_objects():
     assert response.headers["x-back-colour-change-layer-02mm"] == "16"
     assert response.headers["x-back-outer-colour"] == "black"
     assert response.headers["x-back-inner-colour"] == "white"
+    assert response.headers["x-back-format"] == "stl-two-shells"
+    assert response.headers["x-back-shell-count"] == "2"
     assert response.headers["x-back-inner-white-thickness-mm"] == "1"
     assert response.headers["x-panel-pocket-depth-mm"] == "2"
     assert response.headers["x-panel-clip-count"] == "12"
@@ -400,7 +415,7 @@ def test_housing_api_returns_one_back_3mf_with_two_aligned_objects():
     with ZipFile(BytesIO(response.content)) as archive:
         assert sorted(archive.namelist()) == [
             "README-PL.txt",
-            "litho-frame-150x100-back.3mf",
+            "litho-frame-150x100-back.stl",
             "litho-frame-150x100-body.stl",
             "litho-frame-150x100-wedges.stl",
         ]
@@ -408,15 +423,6 @@ def test_housing_api_returns_one_back_3mf_with_two_aligned_objects():
             payload = archive.read(name)
             assert len(payload) > 84
             assert payload.startswith(b"Lithophane Generator V1")
-        with ZipFile(BytesIO(archive.read("litho-frame-150x100-back.3mf"))) as model:
-            assert sorted(model.namelist()) == ["3D/3dmodel.model", "[Content_Types].xml", "_rels/.rels"]
-            xml = model.read("3D/3dmodel.model").decode("utf-8")
-            assert 'name="01_zewnetrzna_plyta"' in xml
-            assert 'name="02_wewnetrzny_odblysnik"' in xml
-            assert "basematerials" not in xml
-            assert "displaycolor" not in xml
-            assert "<components>" not in xml
-            assert xml.count("<item objectid=") == 2
         instructions = archive.read("README-PL.txt").decode("utf-8")
         assert "sprezystymi zatrzaskami" in instructions
         assert "bez kleju" in instructions
@@ -424,9 +430,10 @@ def test_housing_api_returns_one_back_3mf_with_two_aligned_objects():
         assert "15 pelnych warstw czarnych" in instructions
         assert "od warstwy 16" in instructions
         assert "Zmiana wystepuje tylko raz" in instructions
-        assert "jednym plikiem back.3mf z dwoma idealnie wyrownanymi obiektami" in instructions
-        assert "nie zawiera konfiguracji drukarki ani narzuconych filamentow" in instructions
-        assert "ten sam filament do obu obiektow" in instructions
+        assert "jednym plikiem back.stl z dwiema idealnie wyrownanymi" in instructions
+        assert "Podziel -> Na czesci" in instructions
+        assert "Nie przesuwaj czesci" in instructions
+        assert "STL nie zapisuje nazw ani kolorow" in instructions
         assert "jednakowych klinow" in instructions
         assert "klej CA" in instructions
         assert "wszystkich czterech bokach" in instructions
