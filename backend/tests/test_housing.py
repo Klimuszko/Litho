@@ -96,21 +96,24 @@ def test_panel_clips_and_rear_cover_press_points_scale_on_every_edge():
     params = HousingParams(panel_width_mm=60, panel_height_mm=60)
     assert params.panel_horizontal_clip_count == 2
     assert params.panel_vertical_clip_count == 2
-    assert params.back_horizontal_press_count == 2
-    assert params.back_vertical_press_count == 1
-    assert params.back_press_rib_count == 6
+    assert params.back_horizontal_press_count == 3
+    assert params.back_vertical_press_count == 2
+    assert params.back_press_rib_count == 10
     wide = HousingParams(kind="frame", panel_width_mm=200, panel_height_mm=150)
-    assert wide.back_horizontal_press_count == 3
-    assert wide.back_vertical_press_count == 2
-    assert wide.back_press_rib_count == 10
+    assert wide.back_horizontal_press_count == 4
+    assert wide.back_vertical_press_count == 3
+    assert wide.back_press_rib_count == 14
 
 
 def test_rear_cover_uses_local_interference_instead_of_hardware():
     params = HousingParams()
-    assert params.back_press_rib_reach_mm - params.back_clearance_mm == pytest.approx(0.10)
-    assert params.back_press_rib_height_mm == pytest.approx(1.2)
+    assert params.back_lip_mm == pytest.approx(1.4)
+    assert params.back_lip_depth_mm == pytest.approx(4.0)
+    assert params.back_clearance_mm == pytest.approx(0.10)
+    assert params.back_press_rib_reach_mm - params.back_clearance_mm == pytest.approx(0.25)
+    assert params.back_press_rib_height_mm == pytest.approx(2.4)
     assert params.back_press_rib_step_mm == pytest.approx(0.4)
-    assert params.back_press_rib_width_mm == pytest.approx(10.0)
+    assert params.back_press_rib_width_mm == pytest.approx(12.0)
 
 
 def test_rear_cover_grid_is_shallow_and_clear_of_side_electronics():
@@ -409,7 +412,7 @@ def test_housing_api_returns_one_back_stl_with_two_aligned_shells():
     assert response.headers["x-panel-lock-count"] == "12"
     assert response.headers["x-back-snap-count"] == "0"
     assert response.headers["x-back-closure"] == "press-fit-ca-glue"
-    assert response.headers["x-back-press-rib-count"] == "8"
+    assert response.headers["x-back-press-rib-count"] == "12"
     assert response.headers["x-back-hardware-count"] == "0"
     assert response.headers["x-print-orientation"] == "front-face-down"
     with ZipFile(BytesIO(response.content)) as archive:

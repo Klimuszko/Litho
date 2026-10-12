@@ -52,8 +52,8 @@ export function housingClipCount(params: HousingParams) {
 
 export function housingBackPressRibCount(params: HousingParams) {
   const outer = housingOuterSize(params);
-  const horizontal = outer.width >= 175 ? 3 : 2;
-  const vertical = outer.height >= 175 ? 2 : 1;
+  const horizontal = outer.width >= 175 ? 4 : 3;
+  const vertical = outer.height >= 175 ? 3 : 2;
   return 2 * (horizontal + vertical);
 }
 
@@ -167,7 +167,7 @@ export default function HousingGenerator({active, onOpenLithophane}: {active: bo
           <span><small>PRZYŁĄCZE</small><b>{`USB-C · ${params.usb_side === "left" ? "lewy" : "prawy"} ${params.electronics_position === "bottom" ? "dół" : "góra"}`}</b></span>
         </div>
       </div>
-      <div className="sidebar-foot">Pokrywa wciskana + klej CA · bez metalowych części</div>
+      <div className="sidebar-foot">Mocny wcisk obwodowy + klej CA · bez metalowych części</div>
     </aside>
     <section className="workbench housing-workbench">
       <article className="preview housing-preview">

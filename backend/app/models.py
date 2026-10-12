@@ -315,26 +315,33 @@ class HousingParams(BaseModel):
 
     @property
     def back_lip_mm(self) -> float:
-        return 1.2
+        # A thicker continuous tongue resists bowing while the stronger
+        # local press ribs are pushed into the rear opening.
+        return 1.4
 
     @property
     def back_lip_depth_mm(self) -> float:
+        # Four millimetres provides a generous hidden bonding surface while
+        # retaining safe clearance above the proven USB-C wedge guides.
         return 4.0
 
     @property
     def back_clearance_mm(self) -> float:
-        return 0.15
+        # Close running fit on the plain sections of the tongue. Positive
+        # retention is added only at the tapered press ribs below.
+        return 0.10
 
     @property
     def back_horizontal_press_count(self) -> int:
-        # Each long edge gets two locating points; large covers get a centre
-        # point as well so the glue joint stays closed while it cures.
-        return 3 if self.outer_width_mm >= 175 else 2
+        # Dense, distributed pressure closes the visible seam without making
+        # the complete perimeter an impractical interference fit.
+        return 4 if self.outer_width_mm >= 175 else 3
 
     @property
     def back_vertical_press_count(self) -> int:
-        # Every short edge always has at least one positive press point.
-        return 2 if self.outer_height_mm >= 175 else 1
+        # Every short edge gets at least two positive press points, preventing
+        # its centre from lifting while the CA glue cures.
+        return 3 if self.outer_height_mm >= 175 else 2
 
     @property
     def back_press_rib_count(self) -> int:
@@ -342,22 +349,22 @@ class HousingParams(BaseModel):
 
     @property
     def back_press_rib_width_mm(self) -> float:
-        return 10.0
+        return 12.0
 
     @property
     def back_press_rib_reach_mm(self) -> float:
-        # The lip already has 0.15 mm clearance per side. A 0.25 mm rib gives
-        # 0.10 mm local interference without making the complete lip too tight.
-        return 0.25
+        # With 0.10 mm tongue clearance, 0.35 mm reach creates 0.25 mm local
+        # interference: a deliberately firm press lock at discrete locations.
+        return 0.35
 
     @property
     def back_press_rib_height_mm(self) -> float:
-        return 1.2
+        return 2.4
 
     @property
     def back_press_rib_step_mm(self) -> float:
-        # Printed plate-down, three shallow steps grow into the interference
-        # without creating an unsupported horizontal ledge.
+        # Printed plate-down, six shallow steps grow into the interference
+        # without creating an unsupported horizontal ledge or needing support.
         return 0.4
 
     @property

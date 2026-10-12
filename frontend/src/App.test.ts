@@ -121,9 +121,9 @@ describe("housing generator", () => {
     expect(housingClipCount({...initialHousing, panel_width_mm: 200, panel_height_mm: 150})).toBe(14);
   });
   it("places local press ribs on all four rear-cover edges", () => {
-    expect(housingBackPressRibCount(initialHousing)).toBe(6);
-    expect(housingBackPressRibCount({...initialHousing, panel_width_mm: 200, panel_height_mm: 150})).toBe(8);
-    expect(housingBackPressRibCount({...initialHousing, kind: "frame", panel_width_mm: 200, panel_height_mm: 150})).toBe(10);
+    expect(housingBackPressRibCount(initialHousing)).toBe(10);
+    expect(housingBackPressRibCount({...initialHousing, panel_width_mm: 200, panel_height_mm: 150})).toBe(12);
+    expect(housingBackPressRibCount({...initialHousing, kind: "frame", panel_width_mm: 200, panel_height_mm: 150})).toBe(14);
   });
   it("uses a three millimetre outer plate for the two-colour rear cover", () => {
     expect(initialHousing.back_thickness_mm).toBe(3);

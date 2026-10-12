@@ -62,7 +62,9 @@ montażową 2,0 mm, luz, obramowanie i tylną pokrywę. Wynikiem jest ZIP zawier
 STL korpusu, pokrywę STL z dwiema wyrównanymi bryłami i instrukcję montażu. Panel wkłada się od otwartego
 tyłu, opiera kołnierzem o wewnętrzny rant i dociska pod 4 lub 6 sprężystych
 zatrzasków. Tylna pokrywa ma wewnętrzną kratownicę usztywniającą, ciągły rant
-pozycjonujący oraz lokalne żebra dociskowe na wszystkich czterech bokach.
+pozycjonujący o głębokości 4 mm oraz gęsto rozmieszczone, stopniowane żebra
+dociskowe na wszystkich czterech bokach. Żebra tworzą mocny lokalny wcisk,
+który utrzymuje klapkę całkowicie dosuniętą i ogranicza widoczną linię łączenia.
 Po próbie montażu na sucho pokrywę zamyka się na stałe klejem CA. Rozwiązanie
 nie wymaga śrub ani innych części metalowych, nie pozostawia widocznych otworów
 i utrudnia klientowi otwarcie obudowy bez jej uszkodzenia. Modele są

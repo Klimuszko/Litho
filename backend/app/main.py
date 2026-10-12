@@ -539,8 +539,8 @@ async def generate_housing(settings: HousingParams):
                     if settings.panel_lock_count else ""
                 )
                 + "Na zewnatrz scianki sa wglebione ikony: USB przy gniezdzie oraz wlacznik 21,9 mm od gniazda - tam dotykasz, aby sterowac swiatlem.\n"
-                + f"Przed klejeniem wykonaj probe na sucho: ustaw tylna pokrywe rantem w korpusie i docisnij rownomiernie. {settings.back_press_rib_count} lokalnych zeberek dociskowych na wszystkich czterech bokach utrzymuje pokrywe w prawidlowej pozycji.\n"
-                + "Po kontroli dzialania nanies oszczednie sredni klej CA (super glue) na wewnetrzne powierzchnie styku rantu, z dala od elektroniki. Docisnij pokrywe do pelnego zlicowania i przytrzymaj do zwiazania. Jest to zamkniecie stale i odporne na manipulacje; ponowne otwarcie wymaga uszkodzenia pokrywy lub rantu.\n"
+                + f"Przed klejeniem wykonaj probe na sucho: ustaw tylna pokrywe rantem prosto w korpusie i dociskaj rownomiernie po przeciwnych bokach. Rant o glebokosci {settings.back_lip_depth_mm:g} mm oraz {settings.back_press_rib_count} stopniowanych zeberek z lokalnym wciskiem {settings.back_press_rib_reach_mm - settings.back_clearance_mm:g} mm na wszystkich czterech bokach tworza mocna blokade i utrzymuja pokrywe calkowicie zlicowana.\n"
+                + "Po kontroli dzialania wyjmij pokrywe, nanies oszczednie sredni klej CA (super glue) na ukryte powierzchnie styku rantu, z dala od elektroniki, a nastepnie wcisnij ja ponownie do pelnego zlicowania. Docisnij cala krawedz do zwiazania. Jest to zamkniecie stale i odporne na manipulacje; ponowne otwarcie wymaga uszkodzenia pokrywy lub rantu.\n"
                 + f"Biale zebra pokrywy maja {settings.back_rib_width_mm:g} x {settings.back_rib_height_mm:g} mm i tworza neutralna kratownice usztywniajaca. Pokrywa nie zawiera prowadnic ani mocowan paskow LED.\n"
                 "Przed drukiem produkcyjnym wykonaj krotka probe pasowania kieszeni dla swojego filamentu.\n"
             ).encode("utf-8"),
