@@ -366,12 +366,12 @@ class HousingParams(BaseModel):
 
     @property
     def back_rib_height_mm(self) -> float:
-        # Low ribs stay between the LED lanes and below the COB emitters.
+        # Low white ribs stiffen the cover without consuming useful depth.
         return 1.2
 
     @property
     def back_rib_margin_mm(self) -> float:
-        return self.back_led_side_margin_mm
+        return 14.0
 
     @property
     def back_rib_max_spacing_mm(self) -> float:
@@ -383,66 +383,25 @@ class HousingParams(BaseModel):
         return self.depth_mm - self.back_thickness_mm
 
     @property
-    def led_strip_width_mm(self) -> float:
-        return 8.0
+    def back_inner_white_thickness_mm(self) -> float:
+        # Five full 0.20 mm layers make an opaque reflecting surface instead
+        # of a cosmetic single-layer colour change.
+        return 1.0
 
     @property
-    def back_led_lane_width_mm(self) -> float:
-        # Half a millimetre of placement tolerance around an 8 mm COB strip.
-        return 8.5
+    def back_inner_surface_y_mm(self) -> float:
+        return self.back_thickness_mm + self.back_inner_white_thickness_mm
 
     @property
-    def back_led_strip_count(self) -> int:
-        # Five lanes illuminate every standard format. Very short custom
-        # housings fall back to four so 8 mm strips still have separation.
-        return 5 if self.outer_height_mm >= 90 else 4
+    def back_colour_change_z_mm(self) -> float:
+        # After print orientation, assembly Y becomes slicer Z.
+        return self.back_thickness_mm
 
     @property
-    def back_led_side_margin_mm(self) -> float:
-        # The electronics project about 15 mm from one side wall. Keeping both
-        # strip ends 16 mm inboard makes standard covers work left- or
-        # right-handed; tiny custom covers retain at least a 12 mm light run.
-        return min(16.0, max(4.0, (self.outer_width_mm - 12.0) / 2))
-
-    @property
-    def back_led_vertical_margin_mm(self) -> float:
-        return 12.0
-
-    @property
-    def back_led_strip_centers_z_mm(self) -> list[float]:
-        count = self.back_led_strip_count
-        half = self.back_led_lane_width_mm / 2
-        first = self.back_led_vertical_margin_mm + half
-        last = self.outer_height_mm - self.back_led_vertical_margin_mm - half
-        if count == 1:
-            return [self.outer_height_mm / 2]
-        return [first + (last - first) * index / (count - 1) for index in range(count)]
-
-    @property
-    def back_led_strip_length_mm(self) -> float:
-        return self.outer_width_mm - 2 * self.back_led_side_margin_mm
-
-    @property
-    def back_led_total_length_mm(self) -> float:
-        return self.back_led_strip_count * self.back_led_strip_length_mm
-
-    @property
-    def back_led_bus_width_mm(self) -> float:
-        return 10.0
-
-    @property
-    def back_led_bus_center_x_mm(self) -> float:
-        # Use rear-assembly coordinates, matching the electronics pocket.
-        return (
-            self.back_led_side_margin_mm
-            if self.electronics_on_min_x_wall
-            else self.outer_width_mm - self.back_led_side_margin_mm
-        )
-
-    @property
-    def back_led_bus_length_mm(self) -> float:
-        centers = self.back_led_strip_centers_z_mm
-        return centers[-1] - centers[0] + self.back_led_lane_width_mm
+    def back_colour_change_layer_02mm(self) -> int:
+        # Layer numbers shown to users are one-based: 15 black layers mean
+        # the first white layer is layer 16.
+        return int(round(self.back_colour_change_z_mm / 0.2)) + 1
 
     # Measured USB-C breakout used by Litho. The opening is deliberately
     # smaller than the metal shell, so the thin bezel carries unplugging load.

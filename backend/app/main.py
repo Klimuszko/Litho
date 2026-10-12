@@ -20,9 +20,12 @@ from .auth import (
     LoginRequest, PasswordChange, PasswordReset, UserCreate, UserUpdate,
     auth_store, login_limiter, password_limiter,
 )
-from .exporter import binary_stl
+from .exporter import binary_stl, multi_material_3mf
 from .heightmap import grid_resolution, luminance_to_thickness
-from .housing import build_housing_back, build_housing_body, build_housing_wedges, orient_front_on_bed
+from .housing import (
+    build_housing_back, build_housing_back_black, build_housing_back_white,
+    build_housing_body, build_housing_wedges, orient_front_on_bed,
+)
 from .image_processing import InvalidImage, decode_image, prepare_image, preview_png, resample_luminance
 from .mesh import apply_border, build_plate, validate_mesh
 from .models import HousingParams, LithophaneParams
@@ -491,9 +494,12 @@ async def generate(image: UploadFile = File(...), params: str = Form(...)):
 async def generate_housing(settings: HousingParams):
     body = orient_front_on_bed(build_housing_body(settings))
     back = orient_front_on_bed(build_housing_back(settings))
+    back_black = orient_front_on_bed(build_housing_back_black(settings))
+    back_white = orient_front_on_bed(build_housing_back_white(settings))
     wedges = build_housing_wedges(settings)
     validations = {
         "body": validate_mesh(body), "back": validate_mesh(back),
+        "back_black": validate_mesh(back_black), "back_white": validate_mesh(back_white),
         "wedges": validate_mesh(wedges),
     }
     for name, validation in validations.items():
@@ -505,9 +511,19 @@ async def generate_housing(settings: HousingParams):
             )
     output = BytesIO()
     prefix = f"litho-{settings.kind}-{settings.panel_width_mm:g}x{settings.panel_height_mm:g}"
+    back_3mf = multi_material_3mf(
+        [
+            ("Zewnetrzna - czarna", back_black, "#111111FF"),
+            ("Wewnetrzna - biala", back_white, "#FFFFFFFF"),
+        ],
+        "Tylna pokrywa dwukolorowa",
+    )
     with ZipFile(output, "w", compression=ZIP_DEFLATED) as archive:
         archive.writestr(f"{prefix}-body.stl", binary_stl(body))
-        archive.writestr(f"{prefix}-back.stl", binary_stl(back))
+        archive.writestr(f"{prefix}-back-two-colour.3mf", back_3mf)
+        archive.writestr(f"{prefix}-back-black.stl", binary_stl(back_black))
+        archive.writestr(f"{prefix}-back-white.stl", binary_stl(back_white))
+        archive.writestr(f"{prefix}-back-one-colour.stl", binary_stl(back))
         archive.writestr(f"{prefix}-wedges.stl", binary_stl(wedges))
         archive.writestr(
             "README-PL.txt",
@@ -518,7 +534,10 @@ async def generate_housing(settings: HousingParams):
                 f"Panel Litho z ukrytym kolnierzem: {settings.panel_outer_width_mm:g} x {settings.panel_outer_height_mm:g} mm\n"
                 f"Obudowa: {settings.outer_width_mm:g} x {settings.outer_height_mm:g} x {settings.depth_mm:g} mm\n"
                 f"Kieszen panelu: {settings.panel_pocket_depth_mm:g} mm (panel {settings.panel_thickness_mm:g} mm + luz {settings.clearance_mm:g} mm)\n\n"
-                "Wszystkie pliki STL sa juz obrocone plaska strona do stolu i nie wymagaja podpor.\n"
+                "Wszystkie pliki sa juz obrocone plaska strona do stolu i nie wymagaja podpor.\n"
+                + f"Klapka jest przygotowana jako dwukolorowy plik 3MF. Zewnetrzna plyta ma {settings.back_thickness_mm:g} mm i jest czarna, a wewnetrzny odblysnik ma {settings.back_inner_white_thickness_mm:g} mm i jest bialy; rant, zebra i punkty docisku rowniez sa biale.\n"
+                + f"Przy warstwie 0,20 mm wydrukuj {settings.back_colour_change_layer_02mm - 1} pelnych warstw czarnych, a od warstwy {settings.back_colour_change_layer_02mm} drukuj na bialo. Zmiana wystepuje tylko raz, na Z={settings.back_colour_change_z_mm:g} mm; na zadnej warstwie nie sa potrzebne dwa kolory.\n"
+                + "Najprosciej otworz plik back-two-colour.3mf - zawiera dwie wyrownane czesci z przypisanymi kolorami. Pliki back-black.stl i back-white.stl sa awaryjnym rozdzielonym wariantem, a back-one-colour.stl wariantem jednokolorowym.\n"
                 "Wloz panel od otwartego tylu, krawedzia od strony USB-C jako pierwsza (ukosnie pod kieszeniami elektroniki), i rownomiernie docisnij jego kolnierz do frontu.\n"
                 f"Panel przejdzie pod {settings.panel_clip_count} sprezystymi zatrzaskami i zablokuje sie bez kleju.\n"
                 + f"Wsun modul USB-C od tylu w kieszen w {('lewej' if settings.usb_side == 'left' else 'prawej')} scianie (patrzac od pokazowego frontu), przy {('dolnej' if settings.electronics_position == 'bottom' else 'gornej')} krawedzi, polami lutowniczymi w strone otwartego boku: metalowa oslona opiera sie o kolnierz w sciance, a plytka o niski tylny ogranicznik, nad ktorym wychodza przewody.\n"
@@ -529,11 +548,9 @@ async def generate_housing(settings: HousingParams):
                     if settings.panel_lock_count else ""
                 )
                 + "Na zewnatrz scianki sa wglebione ikony: USB przy gniezdzie oraz wlacznik 21,9 mm od gniazda - tam dotykasz, aby sterowac swiatlem.\n"
-                + f"Na plaskiej wewnetrznej stronie tylnej pokrywy przyklej {settings.back_led_strip_count} poziomych paskow COB o szerokosci {settings.led_strip_width_mm:g} mm i dlugosci okolo {settings.back_led_strip_length_mm:g} mm kazdy. Prowadz je w przygotowanych pasach pomiedzy niskimi zebrami.\n"
-                + f"Po stronie sterownika wykorzystaj pionowa plaska magistrale o szerokosci {settings.back_led_bus_width_mm:g} mm. Polacz wszystkie paski rownolegle ze wspolna magistrala zasilania, zachowujac biegunowosc i dobierajac zasilacz do lacznego pradu tasmy.\n"
                 + f"Przed klejeniem wykonaj probe na sucho: ustaw tylna pokrywe rantem w korpusie i docisnij rownomiernie. {settings.back_press_rib_count} lokalnych zeberek dociskowych na wszystkich czterech bokach utrzymuje pokrywe w prawidlowej pozycji.\n"
-                + "Po kontroli dzialania nanies oszczednie sredni klej CA (super glue) na wewnetrzne powierzchnie styku rantu, z dala od elektroniki i tasmy COB. Docisnij pokrywe do pelnego zlicowania i przytrzymaj do zwiazania. Jest to zamkniecie stale i odporne na manipulacje; ponowne otwarcie wymaga uszkodzenia pokrywy lub rantu.\n"
-                + f"Niskie zebra pokrywy maja {settings.back_rib_width_mm:g} x {settings.back_rib_height_mm:g} mm i leza wylacznie pomiedzy pasami LED oraz poza pionowa magistrala.\n"
+                + "Po kontroli dzialania nanies oszczednie sredni klej CA (super glue) na wewnetrzne powierzchnie styku rantu, z dala od elektroniki. Docisnij pokrywe do pelnego zlicowania i przytrzymaj do zwiazania. Jest to zamkniecie stale i odporne na manipulacje; ponowne otwarcie wymaga uszkodzenia pokrywy lub rantu.\n"
+                + f"Biale zebra pokrywy maja {settings.back_rib_width_mm:g} x {settings.back_rib_height_mm:g} mm i tworza neutralna kratownice usztywniajaca. Pokrywa nie zawiera prowadnic ani mocowan paskow LED.\n"
                 "Przed drukiem produkcyjnym wykonaj krotka probe pasowania kieszeni dla swojego filamentu.\n"
             ).encode("utf-8"),
         )
@@ -546,11 +563,11 @@ async def generate_housing(settings: HousingParams):
             "X-Housing-Kind": settings.kind,
             "X-Panel-Size-Mm": f"{settings.panel_outer_width_mm:g}x{settings.panel_outer_height_mm:g}",
             "X-Visible-Image-Size-Mm": f"{settings.panel_width_mm:g}x{settings.panel_height_mm:g}",
-            "X-LED-Strip-Count": str(settings.back_led_strip_count),
-            "X-LED-Strip-Width-Mm": f"{settings.led_strip_width_mm:g}",
-            "X-LED-Strip-Length-Mm": f"{settings.back_led_strip_length_mm:g}",
-            "X-LED-Bus-Width-Mm": f"{settings.back_led_bus_width_mm:g}",
-            "X-LED-Bus-Side": settings.usb_side,
+            "X-Back-Colour-Change-Z-Mm": f"{settings.back_colour_change_z_mm:g}",
+            "X-Back-Colour-Change-Layer-02mm": str(settings.back_colour_change_layer_02mm),
+            "X-Back-Outer-Colour": "black",
+            "X-Back-Inner-Colour": "white",
+            "X-Back-Inner-White-Thickness-Mm": f"{settings.back_inner_white_thickness_mm:g}",
             "X-Housing-Outer-Size-Mm": f"{settings.outer_width_mm:g}x{settings.outer_height_mm:g}x{settings.depth_mm:g}",
             "X-Panel-Pocket-Depth-Mm": f"{settings.panel_pocket_depth_mm:g}",
             "X-Panel-Clip-Count": str(settings.panel_clip_count),

@@ -521,9 +521,10 @@ def build_housing_body(params) -> Mesh:
     return mesh
 
 
-def build_housing_back(params) -> Mesh:
+def _build_housing_back(params, part: str = "combined") -> Mesh:
     width, height = params.outer_width_mm, params.outer_height_mm
     thickness = params.back_thickness_mm
+    white_top = params.back_inner_surface_y_mm
     lip_depth, lip = params.back_lip_depth_mm, params.back_lip_mm
     inset = params.wall_mm + params.back_clearance_mm
     x0, x1, z0, z1 = inset, width - inset, inset, height - inset
@@ -543,31 +544,13 @@ def build_housing_back(params) -> Mesh:
     press_ys = [thickness + index * params.back_press_rib_height_mm / press_steps for index in range(press_steps + 1)]
     press_reaches = [params.back_press_rib_reach_mm * index / press_steps for index in range(1, press_steps + 1)]
 
-    # Five horizontal COB strips (four on unusually short custom covers) are
-    # glued directly to the flat inner plate. A vertical flat bus lane joins
-    # them beside the USB-C/controller side. Low stiffeners occupy only the
-    # gaps, so neither LEDs nor wiring have to bridge a rib.
+    # The white inner skin is a full 1 mm reflector inside the rear opening.
+    # A neutral reinforcement grid replaces the former LED-specific lanes.
+    # It remains shallow enough to stay clear of the electronics and light.
     rib_margin = params.back_rib_margin_mm
     rib_x0, rib_x1 = rib_margin, width - rib_margin
-    rib_z0 = params.back_led_vertical_margin_mm
-    rib_z1 = height - params.back_led_vertical_margin_mm
+    rib_z0, rib_z1 = rib_margin, height - rib_margin
     rib_half = params.back_rib_width_mm / 2
-    led_half = params.back_led_lane_width_mm / 2
-    led_centers = params.back_led_strip_centers_z_mm
-    led_intervals = [(center - led_half, center + led_half) for center in led_centers]
-    bus_half = params.back_led_bus_width_mm / 2
-    bus_x0 = params.back_led_bus_center_x_mm - bus_half
-    bus_x1 = params.back_led_bus_center_x_mm + bus_half
-
-    led_gaps = [
-        (start, end)
-        for start, end in (
-            [(rib_z0, led_intervals[0][0])]
-            + [(left[1], right[0]) for left, right in zip(led_intervals, led_intervals[1:])]
-            + [(led_intervals[-1][1], rib_z1)]
-        )
-        if end - start > 2 * params.back_rib_width_mm
-    ]
 
     def rib_centers(start: float, end: float) -> list[float]:
         span = end - start
@@ -576,11 +559,8 @@ def build_housing_back(params) -> Mesh:
         sections = max(1, int(np.ceil(span / params.back_rib_max_spacing_mm)))
         return [start + span * index / sections for index in range(1, sections)]
 
-    vertical_ribs = [
-        center for center in rib_centers(rib_x0, rib_x1)
-        if not bus_x0 - rib_half < center < bus_x1 + rib_half
-    ]
-    horizontal_ribs = [(start + end) / 2 for start, end in led_gaps]
+    vertical_ribs = rib_centers(rib_x0, rib_x1)
+    horizontal_ribs = rib_centers(rib_z0, rib_z1)
     rib_grid_xs = [value for center in vertical_ribs for value in (center - rib_half, center + rib_half)]
     rib_grid_zs = [value for center in horizontal_ribs for value in (center - rib_half, center + rib_half)]
     press_grid_xs = [value for interval in horizontal_press for value in interval]
@@ -588,15 +568,15 @@ def build_housing_back(params) -> Mesh:
     xs = [
         0, x0, x0 + lip, x1 - lip, x1, width / 2, width, rib_x0, rib_x1,
         *(x0 - reach for reach in press_reaches), *(x1 + reach for reach in press_reaches),
-        bus_x0, params.back_led_bus_center_x_mm, bus_x1,
         *press_grid_xs, *rib_grid_xs,
     ]
-    ys = [0, thickness, thickness + params.back_rib_height_mm, thickness + lip_depth, *press_ys]
+    ys = [
+        0, thickness, white_top, white_top + params.back_rib_height_mm,
+        thickness + lip_depth, *press_ys,
+    ]
     zs = [
         0, z0, z0 + lip, z1 - lip, z1, height, rib_z0, rib_z1,
         *(z0 - reach for reach in press_reaches), *(z1 + reach for reach in press_reaches),
-        *(value for interval in led_intervals for value in interval), *led_centers,
-        *(value for interval in led_gaps for value in interval),
         *press_grid_zs, *horizontal_ribs, *rib_grid_zs,
     ]
 
@@ -610,22 +590,18 @@ def build_housing_back(params) -> Mesh:
         return params.back_press_rib_reach_mm * step / press_steps
 
     def solid(x: float, y: float, z: float) -> bool:
-        plate = y < thickness
+        black_plate = y < thickness
+        white_plate = thickness < y < white_top and x0 < x < x1 and z0 < z < z1
         ring = (
             thickness < y < thickness + lip_depth
             and x0 < x < x1 and z0 < z < z1
             and (x < x0 + lip or x > x1 - lip or z < z0 + lip or z > z1 - lip)
         )
         rib = (
-            thickness < y < thickness + params.back_rib_height_mm
+            white_top < y < white_top + params.back_rib_height_mm
             and rib_x0 < x < rib_x1 and rib_z0 < z < rib_z1
-            and not bus_x0 < x < bus_x1
-            and not in_intervals(z, led_intervals)
             and (
-                (
-                    in_intervals(z, led_gaps)
-                    and any(abs(x - center) < rib_half for center in vertical_ribs)
-                )
+                any(abs(x - center) < rib_half for center in vertical_ribs)
                 or any(abs(z - center) < rib_half for center in horizontal_ribs)
             )
         )
@@ -640,9 +616,28 @@ def build_housing_back(params) -> Mesh:
                 and (x0 - reach < x < x0 + lip or x1 - lip < x < x1 + reach)
             )
         )
-        return plate or ring or rib or press
+        if part == "black":
+            return black_plate
+        if part == "white":
+            return white_plate or ring or rib or press
+        return black_plate or white_plate or ring or rib or press
 
     return _cell_mesh(xs, ys, zs, solid)
+
+
+def build_housing_back(params) -> Mesh:
+    """Complete rear cover for single-colour fallback printing."""
+    return _build_housing_back(params)
+
+
+def build_housing_back_black(params) -> Mesh:
+    """Externally visible structural plate, printed entirely in black."""
+    return _build_housing_back(params, "black")
+
+
+def build_housing_back_white(params) -> Mesh:
+    """Opaque inner reflector, locating lip and reinforcement grid."""
+    return _build_housing_back(params, "white")
 
 
 def build_housing_wedges(params) -> Mesh:

@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from app.housing import (
-    build_housing_back, build_housing_body,
+    build_housing_back, build_housing_back_black, build_housing_back_white, build_housing_body,
     build_housing_wedges, orient_front_on_bed,
 )
 from app.main import app
@@ -116,10 +116,10 @@ def test_rear_cover_uses_local_interference_instead_of_hardware():
 def test_rear_cover_grid_is_shallow_and_clear_of_side_electronics():
     params = HousingParams(kind="frame", panel_width_mm=200, panel_height_mm=150)
     assert params.back_rib_height_mm < params.back_lip_depth_mm
-    assert params.back_rib_margin_mm >= params.back_led_side_margin_mm
+    assert params.back_rib_margin_mm == pytest.approx(14)
     back = build_housing_back(params)
     assert back.vertices[:, 1].max() == pytest.approx(params.back_thickness_mm + params.back_lip_depth_mm)
-    assert any(y == pytest.approx(params.back_thickness_mm + params.back_rib_height_mm) for _, y, _ in back.vertices)
+    assert any(y == pytest.approx(params.back_inner_surface_y_mm + params.back_rib_height_mm) for _, y, _ in back.vertices)
     assert validate_mesh(back)["watertight"]
     assert component_count(back) == 1
 
@@ -248,31 +248,20 @@ def test_touch_dimmer_channels_preload_the_antenna_spring_against_the_wall():
 
 
 @pytest.mark.parametrize("kind", ["box", "frame"])
-def test_rear_cover_has_five_flat_cob_lanes_and_a_vertical_bus(kind):
+def test_rear_cover_has_one_black_to_white_transition_and_an_opaque_reflector(kind):
     params = HousingParams(kind=kind, panel_width_mm=200, panel_height_mm=150)
-    assert params.led_strip_width_mm == pytest.approx(8.0)
-    assert params.back_led_lane_width_mm == pytest.approx(8.5)
-    assert params.back_led_strip_count == 5
-    assert len(params.back_led_strip_centers_z_mm) == 5
-    assert params.back_led_bus_width_mm == pytest.approx(10.0)
-    assert params.back_led_total_length_mm == pytest.approx(5 * params.back_led_strip_length_mm)
-    back = build_housing_back(params)
-    assert validate_mesh(back)["watertight"]
-    assert component_count(back) == 1
-    # Centre points are included in the mesh grid. At every COB centre and
-    # along the vertical bus the inner surface stays completely flat.
-    sample_x = params.outer_width_mm / 2
-    for center_z in params.back_led_strip_centers_z_mm:
-        assert max(
-            y for x, y, z in back.vertices
-            if x == pytest.approx(sample_x) and z == pytest.approx(center_z)
-        ) == pytest.approx(params.back_thickness_mm)
-    bus_x = params.back_led_bus_center_x_mm
-    sample_z = (params.back_led_strip_centers_z_mm[0] + params.back_led_strip_centers_z_mm[1]) / 2
-    assert max(
-        y for x, y, z in back.vertices
-        if x == pytest.approx(bus_x) and z == pytest.approx(sample_z)
-    ) == pytest.approx(params.back_thickness_mm)
+    black = build_housing_back_black(params)
+    white = build_housing_back_white(params)
+    assert params.back_inner_white_thickness_mm == pytest.approx(1.0)
+    assert params.back_colour_change_z_mm == pytest.approx(3.0)
+    assert params.back_colour_change_layer_02mm == 16
+    assert black.vertices[:, 1].min() == pytest.approx(0)
+    assert black.vertices[:, 1].max() == pytest.approx(params.back_colour_change_z_mm)
+    assert white.vertices[:, 1].min() == pytest.approx(params.back_colour_change_z_mm)
+    assert white.vertices[:, 1].max() == pytest.approx(params.back_thickness_mm + params.back_lip_depth_mm)
+    for part in (black, white):
+        assert validate_mesh(part)["watertight"]
+        assert component_count(part) == 1
 
 
 @pytest.mark.parametrize("side", ["left", "right"])
@@ -376,12 +365,14 @@ def test_every_preset_orientation_fits_and_stays_manifold(kind, width, height):
     params = HousingParams(kind=kind, panel_width_mm=width, panel_height_mm=height)
     assert params.outer_width_mm <= 256
     assert params.outer_height_mm <= 256
-    assert params.back_led_strip_count == 5
+    assert params.back_colour_change_layer_02mm == 16
     assert validate_mesh(build_housing_body(params))["watertight"]
     assert validate_mesh(build_housing_back(params))["watertight"]
+    assert validate_mesh(build_housing_back_black(params))["watertight"]
+    assert validate_mesh(build_housing_back_white(params))["watertight"]
 
 
-def test_housing_api_returns_body_and_back_as_separate_stls():
+def test_housing_api_returns_a_two_colour_3mf_and_fallback_stls():
     response = client.post("/api/housing/generate", json={
         "kind": "frame",
         "panel_width_mm": 150,
@@ -393,11 +384,11 @@ def test_housing_api_returns_body_and_back_as_separate_stls():
     assert response.headers["x-panel-size-mm"] == "156x106"
     assert response.headers["x-visible-image-size-mm"] == "150x100"
     assert response.headers["x-housing-outer-size-mm"] == "190x140x40"
-    assert response.headers["x-led-strip-count"] == "5"
-    assert response.headers["x-led-strip-width-mm"] == "8"
-    assert response.headers["x-led-strip-length-mm"] == "158"
-    assert response.headers["x-led-bus-width-mm"] == "10"
-    assert response.headers["x-led-bus-side"] == "right"
+    assert response.headers["x-back-colour-change-z-mm"] == "3"
+    assert response.headers["x-back-colour-change-layer-02mm"] == "16"
+    assert response.headers["x-back-outer-colour"] == "black"
+    assert response.headers["x-back-inner-colour"] == "white"
+    assert response.headers["x-back-inner-white-thickness-mm"] == "1"
     assert response.headers["x-panel-pocket-depth-mm"] == "2"
     assert response.headers["x-panel-clip-count"] == "12"
     assert response.headers["x-panel-lock-count"] == "12"
@@ -409,7 +400,10 @@ def test_housing_api_returns_body_and_back_as_separate_stls():
     with ZipFile(BytesIO(response.content)) as archive:
         assert sorted(archive.namelist()) == [
             "README-PL.txt",
-            "litho-frame-150x100-back.stl",
+            "litho-frame-150x100-back-black.stl",
+            "litho-frame-150x100-back-one-colour.stl",
+            "litho-frame-150x100-back-two-colour.3mf",
+            "litho-frame-150x100-back-white.stl",
             "litho-frame-150x100-body.stl",
             "litho-frame-150x100-wedges.stl",
         ]
@@ -417,16 +411,26 @@ def test_housing_api_returns_body_and_back_as_separate_stls():
             payload = archive.read(name)
             assert len(payload) > 84
             assert payload.startswith(b"Lithophane Generator V1")
+        with ZipFile(BytesIO(archive.read("litho-frame-150x100-back-two-colour.3mf"))) as model:
+            assert sorted(model.namelist()) == ["3D/3dmodel.model", "[Content_Types].xml", "_rels/.rels"]
+            xml = model.read("3D/3dmodel.model").decode("utf-8")
+            assert 'name="Zewnetrzna - czarna"' in xml
+            assert 'displaycolor="#111111FF"' in xml
+            assert 'name="Wewnetrzna - biala"' in xml
+            assert 'displaycolor="#FFFFFFFF"' in xml
+            assert "<components>" in xml
         instructions = archive.read("README-PL.txt").decode("utf-8")
         assert "sprezystymi zatrzaskami" in instructions
         assert "bez kleju" in instructions
         assert "ukrytym kolnierzem" in instructions
-        assert "5 poziomych paskow COB" in instructions
-        assert "pionowa plaska magistrale" in instructions
+        assert "15 pelnych warstw czarnych" in instructions
+        assert "od warstwy 16" in instructions
+        assert "Zmiana wystepuje tylko raz" in instructions
+        assert "back-two-colour.3mf" in instructions
         assert "jednakowych klinow" in instructions
         assert "klej CA" in instructions
         assert "wszystkich czterech bokach" in instructions
-        assert "Niskie zebra pokrywy" in instructions
+        assert "nie zawiera prowadnic ani mocowan paskow LED" in instructions
         assert "zamkniecie stale" in instructions
 
 

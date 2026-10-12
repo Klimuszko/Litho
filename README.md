@@ -59,19 +59,21 @@ Widok `Obudowa` generuje podświetlany `Box` albo `Ramkę` dla paneli
 100 × 150, 130 × 180, 150 × 200 mm oraz wymiarów własnych. Podany wymiar jest
 dokładnym wymiarem panelu Litho; aplikacja automatycznie dodaje ściany, kieszeń
 montażową 2,0 mm, luz, obramowanie i tylną pokrywę. Wynikiem jest ZIP zawierający
-osobny STL korpusu i pokrywy oraz instrukcję montażu. Panel wkłada się od otwartego
+STL korpusu, dwukolorową pokrywę 3MF, rozdzielone części STL i instrukcję montażu. Panel wkłada się od otwartego
 tyłu, opiera kołnierzem o wewnętrzny rant i dociska pod 4 lub 6 sprężystych
 zatrzasków. Tylna pokrywa ma wewnętrzną kratownicę usztywniającą, ciągły rant
 pozycjonujący oraz lokalne żebra dociskowe na wszystkich czterech bokach.
 Po próbie montażu na sucho pokrywę zamyka się na stałe klejem CA. Rozwiązanie
 nie wymaga śrub ani innych części metalowych, nie pozostawia widocznych otworów
-i utrudnia klientowi otwarcie obudowy bez jej uszkodzenia. Oba modele są
+i utrudnia klientowi otwarcie obudowy bez jej uszkodzenia. Modele są
 eksportowane płaską stroną do stołu i nie wymagają podpór.
 
-Oświetlenie tworzy pięć poziomych pasków COB 8 mm przyklejanych do płaskich
-pasów na wewnętrznej stronie tylnej pokrywy. Przy sterowniku znajduje się
-pionowa strefa wspólnej magistrali; wszystkie paski łączy się z nią równolegle.
-Niskie żebra usztywniające leżą wyłącznie pomiędzy paskami i poza magistralą.
+Tylna pokrywa nie ma prowadnic ani mocowań LED. Jej pełna zewnętrzna płyta jest
+czarna, natomiast wewnętrzny odbłyśnik o grubości 1 mm, rant, kratownica i punkty
+docisku są białe. Gotowy 3MF zachowuje wspólne położenie obu materiałów. Przy
+warstwie 0,20 mm pierwszych 15 warstw jest czarnych, a biały materiał zaczyna się
+od warstwy 16, więc cały wydruk wymaga tylko jednej zmiany koloru i nigdy dwóch
+kolorów na tej samej warstwie.
 USB-C, sterownik oraz blokady panelu korzystają z jednego identycznego typu
 drukowanego klina, dostarczanego w jednym pliku STL.
 

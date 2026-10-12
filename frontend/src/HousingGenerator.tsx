@@ -57,10 +57,6 @@ export function housingBackPressRibCount(params: HousingParams) {
   return 2 * (horizontal + vertical);
 }
 
-export function housingBackLedStripCount(params: HousingParams) {
-  return housingOuterSize(params).height >= 90 ? 5 : 4;
-}
-
 export function housingPreviewSize(params: HousingParams, maxWidth = 520, maxHeight = 390) {
   const outer = housingOuterSize(params);
   const scale = Math.min(maxWidth / outer.width, maxHeight / outer.height);
@@ -71,7 +67,7 @@ export function validateHousing(params: HousingParams): string {
   if (params.panel_width_mm < 20 || params.panel_height_mm < 20) return "Panel musi mieć co najmniej 20 × 20 mm.";
   const outer = housingOuterSize(params);
   if (outer.width > 256 || outer.height > 256) return "Obudowa nie mieści się na stole 256 × 256 mm.";
-  if (params.depth_mm < 40) return "Obudowa z taśmą COB i elektroniką wymaga co najmniej 40 mm głębokości.";
+  if (params.depth_mm < 40) return "Obudowa z elektroniką wymaga co najmniej 40 mm głębokości.";
   if (outer.height < 59) return "Obudowa jest za niska na pionowe mocowanie ściemniacza.";
   return "";
 }
@@ -90,7 +86,6 @@ export default function HousingGenerator({active, onOpenLithophane}: {active: bo
   const previewSize = housingPreviewSize(params);
   const clipCount = housingClipCount(params);
   const backPressRibCount = housingBackPressRibCount(params);
-  const ledStripCount = housingBackLedStripCount(params);
   const landscape = params.panel_width_mm >= params.panel_height_mm;
   const set = <K extends keyof HousingParams>(key: K, value: HousingParams[K]) => setParams(current => ({...current, [key]: value}));
   const chooseFormat = (short: number, long: number) => {
@@ -165,7 +160,7 @@ export default function HousingGenerator({active, onOpenLithophane}: {active: bo
           <button className={params.usb_side === "left" && params.electronics_position === "bottom" ? "active" : ""} onClick={() => setElectronicsPlacement("left", "bottom")}>Lewy dolny bok</button>
           <button className={params.usb_side === "right" && params.electronics_position === "bottom" ? "active" : ""} onClick={() => setElectronicsPlacement("right", "bottom")}>Prawy dolny bok</button>
         </div>
-        <p className="quality-note housing-note">USB-C: 8,85 × 3,12 mm, płytka 14,02 mm. Elementy i panel blokują identyczne drukowane kliny. Na tylnej pokrywie przygotowano {ledStripCount} poziomych pasów pod COB 8 mm oraz pionową magistralę po stronie sterownika.</p>
+        <p className="quality-note housing-note">USB-C: 8,85 × 3,12 mm, płytka 14,02 mm. Elementy i panel blokują identyczne drukowane kliny. Klapka jest dwukolorowa: z zewnątrz 3 mm czarnego, od warstwy 16 biała powierzchnia odbijająca światło. Zmiana filamentu występuje tylko raz.</p>
         <div className="housing-spec">
           <span><small>KIESZEŃ PANELU</small><b>{(params.panel_thickness_mm + params.clearance_mm).toFixed(1)} mm</b></span>
           <span><small>KLIPSY PANELU</small><b>{clipCount} × 0.4 mm</b></span>
@@ -184,7 +179,7 @@ export default function HousingGenerator({active, onOpenLithophane}: {active: bo
           </div>
           <div className="depth-preview"><div style={{width: `${Math.max(70, params.depth_mm * 2)}px`}}/><span>{params.depth_mm} mm</span></div>
         </div>
-        <div className="stats"><span><small>PANEL / OBRAZ</small><b>{params.panel_width_mm + 2 * LITHO_MOUNT_FLANGE_MM} × {params.panel_height_mm + 2 * LITHO_MOUNT_FLANGE_MM} / {params.panel_width_mm} × {params.panel_height_mm} mm</b></span><span><small>OBUDOWA</small><b>{outer.width.toFixed(1)} × {outer.height.toFixed(1)} × {params.depth_mm} mm</b></span><span><small>OŚWIETLENIE</small><b>{ledStripCount} × COB 8 mm + magistrala</b></span></div>
+        <div className="stats"><span><small>PANEL / OBRAZ</small><b>{params.panel_width_mm + 2 * LITHO_MOUNT_FLANGE_MM} × {params.panel_height_mm + 2 * LITHO_MOUNT_FLANGE_MM} / {params.panel_width_mm} × {params.panel_height_mm} mm</b></span><span><small>OBUDOWA</small><b>{outer.width.toFixed(1)} × {outer.height.toFixed(1)} × {params.depth_mm} mm</b></span><span><small>KLAPKA</small><b>3 mm czarna + 1 mm biała · 3MF</b></span></div>
         {(error || validateHousing(params)) && <p className="error">{error || validateHousing(params)}</p>}
         <button className="generate" disabled={busy || Boolean(validateHousing(params))} onClick={generate}>{busy ? "Generowanie zestawu…" : "Generuj korpus i pokrywę ZIP"}<span>→</span></button>
       </article>
