@@ -5,6 +5,11 @@ import { housingBackPressRibCount, housingBackSnapCount, housingClipCount, housi
 const valid: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .8, max_thickness_mm: 3, gamma: 1, brightness: 1, contrast: 1, nozzle_diameter_mm: .4, quality_profile: "optimal", orientation: "landscape", border_width_mm: 0, border_widths_mm: null, border_height_mm: 3, mounting_flange: false, invert: false, mirror: false, rotation_degrees: 0, crop: {x: 0, y: 0, width: 1, height: 1}};
 
 describe("client parameter validation", () => {
+  it("starts with the largest lithophane preset selected", () => {
+    expect(initial.width_mm).toBe(200);
+    expect(initial.height_mm).toBe(150);
+    expect(initial.orientation).toBe("landscape");
+  });
   it("uses a modest default contrast boost", () => expect(initial.contrast).toBe(1.25));
   it("uses the calibrated 1.0 to 4.0 mm thickness range", () => {
     expect(initial.min_thickness_mm).toBe(1);
@@ -101,8 +106,8 @@ describe("frame dimensions", () => {
   });
   it("adds the Mount V2 flange outside the selected visible image", () => {
     const mounted = {...initial, mounting_flange: true};
-    expect(imageAreaForParams(mounted)).toEqual({width: 150, height: 100});
-    expect(modelSize(mounted)).toEqual({width: 156, height: 106});
+    expect(imageAreaForParams(mounted)).toEqual({width: 200, height: 150});
+    expect(modelSize(mounted)).toEqual({width: 206, height: 156});
   });
 });
 
