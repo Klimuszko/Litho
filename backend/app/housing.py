@@ -218,16 +218,23 @@ def build_housing_body(params) -> Mesh:
         (center - horizontal_clip_half, center + horizontal_clip_half) for center in params.panel_horizontal_clip_centers_mm
     ]
 
-    # Rear-cover snap pockets live only in the top and bottom walls. The side
-    # selected for USB-C and the mandatory touch controller remains untouched.
+    # Rear-cover snap pockets sit in the last 2.2 mm of all four walls. This
+    # rear band is behind the USB-C and touch-controller mounting depth.
     back_inset = wall + params.back_clearance_mm
-    back_snap_intervals = _centered_intervals(
+    back_horizontal_snap_intervals = _centered_intervals(
         back_inset + params.back_lip_mm,
         width - back_inset - params.back_lip_mm,
         params.back_horizontal_press_count,
         params.back_press_rib_width_mm,
     )
-    back_snap_xs = [value for interval in back_snap_intervals for value in interval]
+    back_vertical_snap_intervals = _centered_intervals(
+        back_inset + params.back_lip_mm,
+        height - back_inset - params.back_lip_mm,
+        params.back_vertical_press_count,
+        params.back_press_rib_width_mm,
+    )
+    back_snap_xs = [value for interval in back_horizontal_snap_intervals for value in interval]
+    back_snap_zs = [value for interval in back_vertical_snap_intervals for value in interval]
     back_snap_y0 = depth - params.back_snap_groove_front_offset_mm
     back_snap_y1 = depth - params.back_snap_groove_rear_offset_mm
     back_snap_depth = params.back_snap_groove_depth_mm
@@ -354,10 +361,10 @@ def build_housing_body(params) -> Mesh:
     flex_xs = [pocket_x0 - flex - relief, pocket_x0 - flex, pocket_x1 + flex, pocket_x1 + flex + relief]
     flex_zs = [pocket_z0 - flex - relief, pocket_z0 - flex, pocket_z1 + flex, pocket_z1 + flex + relief]
 
-    xs = [0, wall, pocket_x0, panel_x0, opening_x0, opening_x1, panel_x1, pocket_x1, width - wall, width, *clip_xs, *reach_xs, *flex_xs, *usb_xs, *dimmer_xs, *back_snap_xs]
+    xs = [0, wall - back_snap_depth, wall, pocket_x0, panel_x0, opening_x0, opening_x1, panel_x1, pocket_x1, width - wall, width - wall + back_snap_depth, width, *clip_xs, *reach_xs, *flex_xs, *usb_xs, *dimmer_xs, *back_snap_xs]
     clip_release_y1 = clip_ys[-1] + params.panel_clip_end_relief_mm
     ys = [0, bezel_front, pocket_y1, clip_release_y1, depth, back_snap_y0, back_snap_y1, *clip_ys, *usb_ys, *dimmer_ys, *icon_ys]
-    zs = [0, wall - back_snap_depth, wall, pocket_z0, panel_z0, opening_z0, opening_z1, panel_z1, pocket_z1, height - wall, height - wall + back_snap_depth, height, *clip_zs, *reach_zs, *flex_zs, *usb_zs, *dimmer_zs, *icon_zs]
+    zs = [0, wall - back_snap_depth, wall, pocket_z0, panel_z0, opening_z0, opening_z1, panel_z1, pocket_z1, height - wall, height - wall + back_snap_depth, height, *clip_zs, *reach_zs, *flex_zs, *usb_zs, *dimmer_zs, *icon_zs, *back_snap_zs]
 
     lock_xs_centers = params.panel_horizontal_lock_centers_mm
     lock_zs_centers = params.panel_vertical_lock_centers_mm
@@ -396,10 +403,21 @@ def build_housing_body(params) -> Mesh:
         # wall remains as a positive shoulder, while the outside stays closed.
         back_snap_pocket = (
             back_snap_y0 < y < back_snap_y1
-            and in_intervals(x, back_snap_intervals)
             and (
-                wall - back_snap_depth < z < wall
-                or height - wall < z < height - wall + back_snap_depth
+                (
+                    in_intervals(x, back_horizontal_snap_intervals)
+                    and (
+                        wall - back_snap_depth < z < wall
+                        or height - wall < z < height - wall + back_snap_depth
+                    )
+                )
+                or (
+                    in_intervals(z, back_vertical_snap_intervals)
+                    and (
+                        wall - back_snap_depth < x < wall
+                        or width - wall < x < width - wall + back_snap_depth
+                    )
+                )
             )
         )
         if back_snap_pocket:
@@ -556,8 +574,8 @@ def _build_housing_back(params, part: str = "combined") -> Mesh:
     inset = params.wall_mm + params.back_clearance_mm
     x0, x1, z0, z1 = inset, width - inset, inset, height - inset
 
-    # Local ribs close the seam on all four sides. On the top and bottom they
-    # also engage matching body pockets as true one-way snap hooks.
+    # Local ribs close the seam and engage matching body pockets as true
+    # one-way snap hooks on all four sides.
     press_width = params.back_press_rib_width_mm
     horizontal_press = _centered_intervals(
         x0 + lip, x1 - lip, params.back_horizontal_press_count, press_width,

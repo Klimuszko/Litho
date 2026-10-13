@@ -339,9 +339,9 @@ class HousingParams(BaseModel):
 
     @property
     def back_vertical_press_count(self) -> int:
-        # Every short edge gets at least two positive press points, preventing
-        # its centre from lifting while the CA glue cures.
-        return 3 if self.outer_height_mm >= 175 else 2
+        # Two positive locks on each side edge close the seam without making
+        # final one-way assembly unnecessarily difficult.
+        return 2
 
     @property
     def back_press_rib_count(self) -> int:
@@ -389,9 +389,9 @@ class HousingParams(BaseModel):
 
     @property
     def back_snap_count(self) -> int:
-        # True retaining pockets are restricted to the two horizontal walls,
-        # safely away from the USB-C and touch-controller side mounts.
-        return 2 * self.back_horizontal_press_count
+        # Every press rib now has a matching pocket on all four walls. Side
+        # pockets sit in the rear band, behind the electronics mounting depth.
+        return self.back_press_rib_count
 
     @property
     def back_rib_width_mm(self) -> float:

@@ -65,9 +65,10 @@ zatrzasków. Tylna pokrywa ma wewnętrzną kratownicę usztywniającą, ciągły
 pozycjonujący o głębokości 4 mm oraz gęsto rozmieszczone, stopniowane żebra
 dociskowe na wszystkich czterech bokach. Żebra tworzą mocny lokalny wcisk,
 który utrzymuje klapkę całkowicie dosuniętą i ogranicza widoczną linię łączenia.
-Na górnej i dolnej krawędzi żebra kończą się jednokierunkowymi barkami, które
-zatrzaskują się w zamkniętych kieszeniach korpusu. Kieszenie pozostawiają 2 mm
-zewnętrznej ścianki i nie kolidują z USB-C ani sterownikiem na bocznej ścianie.
+Na wszystkich czterech krawędziach żebra kończą się jednokierunkowymi barkami,
+które zatrzaskują się w zamkniętych kieszeniach korpusu. Każda boczna ścianka
+ma dwa zatrzaski. Kieszenie pozostawiają 2 mm zewnętrznej ścianki i znajdują się
+w tylnej strefie, za mocowaniami USB-C oraz sterownika.
 Przed klejeniem sprawdza się jedynie początek pasowania rantu; pełne zatrzaśnięcie
 wykonuje się dopiero podczas ostatecznego montażu z klejem CA.
 Po sprawdzeniu wstępnego pasowania pokrywę zamyka się na stałe klejem CA. Rozwiązanie

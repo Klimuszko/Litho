@@ -101,8 +101,8 @@ def test_panel_clips_and_rear_cover_press_points_scale_on_every_edge():
     assert params.back_press_rib_count == 10
     wide = HousingParams(kind="frame", panel_width_mm=200, panel_height_mm=150)
     assert wide.back_horizontal_press_count == 4
-    assert wide.back_vertical_press_count == 3
-    assert wide.back_press_rib_count == 14
+    assert wide.back_vertical_press_count == 2
+    assert wide.back_press_rib_count == 12
 
 
 def test_rear_cover_uses_local_interference_instead_of_hardware():
@@ -141,17 +141,19 @@ def test_rear_cover_has_locking_shoulders_and_tapered_ramps_on_all_four_sides():
     assert component_count(back) == 1
 
 
-def test_body_has_closed_snap_pockets_away_from_side_electronics():
+def test_body_has_closed_snap_pockets_on_all_four_walls_behind_electronics():
     params = HousingParams(kind="frame")
     body = build_housing_body(params)
     pocket_floor = params.wall_mm - params.back_snap_groove_depth_mm
     pocket_front = params.body_depth_mm - params.back_snap_groove_front_offset_mm
     pocket_rear = params.body_depth_mm - params.back_snap_groove_rear_offset_mm
-    assert params.back_snap_count == 8
+    assert params.back_snap_count == 12
     assert params.wall_mm - params.back_snap_groove_depth_mm == pytest.approx(2.0)
     assert any(z == pytest.approx(pocket_floor) and y == pytest.approx(pocket_front) for _, y, z in body.vertices)
     assert any(z == pytest.approx(pocket_floor) and y == pytest.approx(pocket_rear) for _, y, z in body.vertices)
     assert any(z == pytest.approx(params.outer_height_mm - pocket_floor) and y == pytest.approx(pocket_front) for _, y, z in body.vertices)
+    assert any(x == pytest.approx(pocket_floor) and y == pytest.approx(pocket_front) for x, y, _ in body.vertices)
+    assert any(x == pytest.approx(params.outer_width_mm - pocket_floor) and y == pytest.approx(pocket_rear) for x, y, _ in body.vertices)
     assert validate_mesh(body)["watertight"]
     assert component_count(body) == 1
 
@@ -425,7 +427,7 @@ def test_housing_api_returns_one_back_stl_with_two_aligned_shells():
     assert response.headers["x-panel-pocket-depth-mm"] == "2"
     assert response.headers["x-panel-clip-count"] == "12"
     assert response.headers["x-panel-lock-count"] == "12"
-    assert response.headers["x-back-snap-count"] == "8"
+    assert response.headers["x-back-snap-count"] == "12"
     assert response.headers["x-back-closure"] == "snap-fit-ca-glue"
     assert response.headers["x-back-press-rib-count"] == "12"
     assert response.headers["x-back-hardware-count"] == "0"

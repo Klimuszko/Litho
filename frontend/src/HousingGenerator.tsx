@@ -53,13 +53,12 @@ export function housingClipCount(params: HousingParams) {
 export function housingBackPressRibCount(params: HousingParams) {
   const outer = housingOuterSize(params);
   const horizontal = outer.width >= 175 ? 4 : 3;
-  const vertical = outer.height >= 175 ? 3 : 2;
+  const vertical = 2;
   return 2 * (horizontal + vertical);
 }
 
 export function housingBackSnapCount(params: HousingParams) {
-  const outer = housingOuterSize(params);
-  return 2 * (outer.width >= 175 ? 4 : 3);
+  return housingBackPressRibCount(params);
 }
 
 export function housingPreviewSize(params: HousingParams, maxWidth = 520, maxHeight = 390) {
