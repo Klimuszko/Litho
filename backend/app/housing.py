@@ -218,6 +218,20 @@ def build_housing_body(params) -> Mesh:
         (center - horizontal_clip_half, center + horizontal_clip_half) for center in params.panel_horizontal_clip_centers_mm
     ]
 
+    # Rear-cover snap pockets live only in the top and bottom walls. The side
+    # selected for USB-C and the mandatory touch controller remains untouched.
+    back_inset = wall + params.back_clearance_mm
+    back_snap_intervals = _centered_intervals(
+        back_inset + params.back_lip_mm,
+        width - back_inset - params.back_lip_mm,
+        params.back_horizontal_press_count,
+        params.back_press_rib_width_mm,
+    )
+    back_snap_xs = [value for interval in back_snap_intervals for value in interval]
+    back_snap_y0 = depth - params.back_snap_groove_front_offset_mm
+    back_snap_y1 = depth - params.back_snap_groove_rear_offset_mm
+    back_snap_depth = params.back_snap_groove_depth_mm
+
     # The UI names the side as seen from the finished display front. This
     # mesh is assembled from the open rear, so its horizontal axis is mirrored.
     electronics_min_x = params.electronics_on_min_x_wall
@@ -340,10 +354,10 @@ def build_housing_body(params) -> Mesh:
     flex_xs = [pocket_x0 - flex - relief, pocket_x0 - flex, pocket_x1 + flex, pocket_x1 + flex + relief]
     flex_zs = [pocket_z0 - flex - relief, pocket_z0 - flex, pocket_z1 + flex, pocket_z1 + flex + relief]
 
-    xs = [0, wall, pocket_x0, panel_x0, opening_x0, opening_x1, panel_x1, pocket_x1, width - wall, width, *clip_xs, *reach_xs, *flex_xs, *usb_xs, *dimmer_xs]
+    xs = [0, wall, pocket_x0, panel_x0, opening_x0, opening_x1, panel_x1, pocket_x1, width - wall, width, *clip_xs, *reach_xs, *flex_xs, *usb_xs, *dimmer_xs, *back_snap_xs]
     clip_release_y1 = clip_ys[-1] + params.panel_clip_end_relief_mm
-    ys = [0, bezel_front, pocket_y1, clip_release_y1, depth, *clip_ys, *usb_ys, *dimmer_ys, *icon_ys]
-    zs = [0, wall, pocket_z0, panel_z0, opening_z0, opening_z1, panel_z1, pocket_z1, height - wall, height, *clip_zs, *reach_zs, *flex_zs, *usb_zs, *dimmer_zs, *icon_zs]
+    ys = [0, bezel_front, pocket_y1, clip_release_y1, depth, back_snap_y0, back_snap_y1, *clip_ys, *usb_ys, *dimmer_ys, *icon_ys]
+    zs = [0, wall - back_snap_depth, wall, pocket_z0, panel_z0, opening_z0, opening_z1, panel_z1, pocket_z1, height - wall, height - wall + back_snap_depth, height, *clip_zs, *reach_zs, *flex_zs, *usb_zs, *dimmer_zs, *icon_zs]
 
     lock_xs_centers = params.panel_horizontal_lock_centers_mm
     lock_zs_centers = params.panel_vertical_lock_centers_mm
@@ -377,6 +391,19 @@ def build_housing_body(params) -> Mesh:
 
     def solid(x: float, y: float, z: float) -> bool:
         material = x < wall or x > width - wall or z < wall or z > height - wall
+
+        # Blind internal pockets receive the rear-cover hooks. A 0.4 mm rear
+        # wall remains as a positive shoulder, while the outside stays closed.
+        back_snap_pocket = (
+            back_snap_y0 < y < back_snap_y1
+            and in_intervals(x, back_snap_intervals)
+            and (
+                wall - back_snap_depth < z < wall
+                or height - wall < z < height - wall + back_snap_depth
+            )
+        )
+        if back_snap_pocket:
+            material = False
         if y < bezel_front:
             opening = opening_x0 < x < opening_x1 and opening_z0 < z < opening_z1
             material = material or not opening
@@ -529,9 +556,8 @@ def _build_housing_back(params, part: str = "combined") -> Mesh:
     inset = params.wall_mm + params.back_clearance_mm
     x0, x1, z0, z1 = inset, width - inset, inset, height - inset
 
-    # Local crush ribs give a light temporary press fit while CA glue cures.
-    # The complete locating lip keeps its assembly clearance, so dimensional
-    # variation never has to be overcome around the full perimeter at once.
+    # Local ribs close the seam on all four sides. On the top and bottom they
+    # also engage matching body pockets as true one-way snap hooks.
     press_width = params.back_press_rib_width_mm
     horizontal_press = _centered_intervals(
         x0 + lip, x1 - lip, params.back_horizontal_press_count, press_width,
@@ -540,8 +566,12 @@ def _build_housing_back(params, part: str = "combined") -> Mesh:
         z0 + lip, z1 - lip, params.back_vertical_press_count, press_width,
     )
     press_step = params.back_press_rib_step_mm
-    press_steps = int(np.ceil(params.back_press_rib_height_mm / press_step))
-    press_ys = [thickness + index * params.back_press_rib_height_mm / press_steps for index in range(press_steps + 1)]
+    shoulder = params.back_snap_shoulder_mm
+    press_steps = int(np.ceil((params.back_press_rib_height_mm - shoulder) / press_step))
+    press_ys = [
+        thickness + shoulder + index * (params.back_press_rib_height_mm - shoulder) / press_steps
+        for index in range(press_steps + 1)
+    ]
     press_reaches = [params.back_press_rib_reach_mm * index / press_steps for index in range(1, press_steps + 1)]
 
     # The white inner skin is a full 1 mm reflector inside the rear opening.
@@ -584,10 +614,13 @@ def _build_housing_back(params, part: str = "combined") -> Mesh:
         return any(start < value < end for start, end in intervals)
 
     def press_reach_at(y: float) -> float:
-        if not thickness < y < thickness + params.back_press_rib_height_mm:
+        distance = y - thickness
+        if not shoulder < distance < params.back_press_rib_height_mm:
             return 0.0
-        step = min(int((y - thickness) / (params.back_press_rib_height_mm / press_steps)) + 1, press_steps)
-        return params.back_press_rib_reach_mm * step / press_steps
+        # Maximum projection is immediately behind the locking shoulder. It
+        # then decreases towards the leading edge to form the insertion ramp.
+        step = min(int((distance - shoulder) / ((params.back_press_rib_height_mm - shoulder) / press_steps)), press_steps - 1)
+        return params.back_press_rib_reach_mm * (press_steps - step) / press_steps
 
     def solid(x: float, y: float, z: float) -> bool:
         black_plate = y < thickness

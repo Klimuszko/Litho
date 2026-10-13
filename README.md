@@ -65,7 +65,12 @@ zatrzasków. Tylna pokrywa ma wewnętrzną kratownicę usztywniającą, ciągły
 pozycjonujący o głębokości 4 mm oraz gęsto rozmieszczone, stopniowane żebra
 dociskowe na wszystkich czterech bokach. Żebra tworzą mocny lokalny wcisk,
 który utrzymuje klapkę całkowicie dosuniętą i ogranicza widoczną linię łączenia.
-Po próbie montażu na sucho pokrywę zamyka się na stałe klejem CA. Rozwiązanie
+Na górnej i dolnej krawędzi żebra kończą się jednokierunkowymi barkami, które
+zatrzaskują się w zamkniętych kieszeniach korpusu. Kieszenie pozostawiają 2 mm
+zewnętrznej ścianki i nie kolidują z USB-C ani sterownikiem na bocznej ścianie.
+Przed klejeniem sprawdza się jedynie początek pasowania rantu; pełne zatrzaśnięcie
+wykonuje się dopiero podczas ostatecznego montażu z klejem CA.
+Po sprawdzeniu wstępnego pasowania pokrywę zamyka się na stałe klejem CA. Rozwiązanie
 nie wymaga śrub ani innych części metalowych, nie pozostawia widocznych otworów
 i utrudnia klientowi otwarcie obudowy bez jej uszkodzenia. Modele są
 eksportowane płaską stroną do stołu i nie wymagają podpór.

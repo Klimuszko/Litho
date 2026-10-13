@@ -539,8 +539,8 @@ async def generate_housing(settings: HousingParams):
                     if settings.panel_lock_count else ""
                 )
                 + "Na zewnatrz scianki sa wglebione ikony: USB przy gniezdzie oraz wlacznik 21,9 mm od gniazda - tam dotykasz, aby sterowac swiatlem.\n"
-                + f"Przed klejeniem wykonaj probe na sucho: ustaw tylna pokrywe rantem prosto w korpusie i dociskaj rownomiernie po przeciwnych bokach. Rant o glebokosci {settings.back_lip_depth_mm:g} mm oraz {settings.back_press_rib_count} stopniowanych zeberek z lokalnym wciskiem {settings.back_press_rib_reach_mm - settings.back_clearance_mm:g} mm na wszystkich czterech bokach tworza mocna blokade i utrzymuja pokrywe calkowicie zlicowana.\n"
-                + "Po kontroli dzialania wyjmij pokrywe, nanies oszczednie sredni klej CA (super glue) na ukryte powierzchnie styku rantu, z dala od elektroniki, a nastepnie wcisnij ja ponownie do pelnego zlicowania. Docisnij cala krawedz do zwiazania. Jest to zamkniecie stale i odporne na manipulacje; ponowne otwarcie wymaga uszkodzenia pokrywy lub rantu.\n"
+                + "Przed klejeniem sprawdz tylko ustawienie pokrywy, wsuwajac poczatek rantu bez dociskania jej do pelnego zlicowania. Nie zatrzaskuj pokrywy na sucho: zaczepy sa jednokierunkowe i ponowne wyjecie moze je uszkodzic.\n"
+                + f"Po kontroli dzialania nanies oszczednie sredni klej CA (super glue) na ukryte powierzchnie styku rantu, z dala od elektroniki. Ustaw pokrywe prosto i dociskaj rownomiernie po przeciwnych bokach, az {settings.back_snap_count} zaczepow na gornej i dolnej sciance wskoczy do ukrytych gniazd. Rant o glebokosci {settings.back_lip_depth_mm:g} mm oraz {settings.back_press_rib_count} stopniowanych zeberek z lokalnym wciskiem {settings.back_press_rib_reach_mm - settings.back_clearance_mm:g} mm na wszystkich czterech bokach utrzymuja pokrywe calkowicie zlicowana. Docisnij cala krawedz do zwiazania. Jest to zamkniecie stale i odporne na manipulacje; ponowne otwarcie wymaga uszkodzenia pokrywy lub rantu.\n"
                 + f"Biale zebra pokrywy maja {settings.back_rib_width_mm:g} x {settings.back_rib_height_mm:g} mm i tworza neutralna kratownice usztywniajaca. Pokrywa nie zawiera prowadnic ani mocowan paskow LED.\n"
                 "Przed drukiem produkcyjnym wykonaj krotka probe pasowania kieszeni dla swojego filamentu.\n"
             ).encode("utf-8"),
@@ -565,8 +565,8 @@ async def generate_housing(settings: HousingParams):
             "X-Panel-Pocket-Depth-Mm": f"{settings.panel_pocket_depth_mm:g}",
             "X-Panel-Clip-Count": str(settings.panel_clip_count),
             "X-Panel-Lock-Count": str(settings.panel_lock_count),
-            "X-Back-Snap-Count": "0",
-            "X-Back-Closure": "press-fit-ca-glue",
+            "X-Back-Snap-Count": str(settings.back_snap_count),
+            "X-Back-Closure": "snap-fit-ca-glue",
             "X-Back-Press-Rib-Count": str(settings.back_press_rib_count),
             "X-Back-Hardware-Count": "0",
             "X-Connection-Type": "usb_c",

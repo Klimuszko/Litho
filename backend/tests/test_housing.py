@@ -127,18 +127,33 @@ def test_rear_cover_grid_is_shallow_and_clear_of_side_electronics():
     assert component_count(back) == 1
 
 
-def test_rear_cover_has_tapered_press_ribs_on_all_four_sides():
+def test_rear_cover_has_locking_shoulders_and_tapered_ramps_on_all_four_sides():
     params = HousingParams(kind="frame")
     back = build_housing_back(params)
     inset = params.wall_mm + params.back_clearance_mm
-    top = params.back_thickness_mm + params.back_press_rib_height_mm
+    shoulder_top = params.back_thickness_mm + params.back_snap_shoulder_mm
     reach = params.back_press_rib_reach_mm
-    assert any(x == pytest.approx(inset - reach) and y == pytest.approx(top) for x, y, _ in back.vertices)
-    assert any(x == pytest.approx(params.outer_width_mm - inset + reach) and y == pytest.approx(top) for x, y, _ in back.vertices)
-    assert any(z == pytest.approx(inset - reach) and y == pytest.approx(top) for _, y, z in back.vertices)
-    assert any(z == pytest.approx(params.outer_height_mm - inset + reach) and y == pytest.approx(top) for _, y, z in back.vertices)
+    assert any(x == pytest.approx(inset - reach) and y == pytest.approx(shoulder_top) for x, y, _ in back.vertices)
+    assert any(x == pytest.approx(params.outer_width_mm - inset + reach) and y == pytest.approx(shoulder_top) for x, y, _ in back.vertices)
+    assert any(z == pytest.approx(inset - reach) and y == pytest.approx(shoulder_top) for _, y, z in back.vertices)
+    assert any(z == pytest.approx(params.outer_height_mm - inset + reach) and y == pytest.approx(shoulder_top) for _, y, z in back.vertices)
     assert validate_mesh(back)["watertight"]
     assert component_count(back) == 1
+
+
+def test_body_has_closed_snap_pockets_away_from_side_electronics():
+    params = HousingParams(kind="frame")
+    body = build_housing_body(params)
+    pocket_floor = params.wall_mm - params.back_snap_groove_depth_mm
+    pocket_front = params.body_depth_mm - params.back_snap_groove_front_offset_mm
+    pocket_rear = params.body_depth_mm - params.back_snap_groove_rear_offset_mm
+    assert params.back_snap_count == 8
+    assert params.wall_mm - params.back_snap_groove_depth_mm == pytest.approx(2.0)
+    assert any(z == pytest.approx(pocket_floor) and y == pytest.approx(pocket_front) for _, y, z in body.vertices)
+    assert any(z == pytest.approx(pocket_floor) and y == pytest.approx(pocket_rear) for _, y, z in body.vertices)
+    assert any(z == pytest.approx(params.outer_height_mm - pocket_floor) and y == pytest.approx(pocket_front) for _, y, z in body.vertices)
+    assert validate_mesh(body)["watertight"]
+    assert component_count(body) == 1
 
 
 def test_clip_hook_reaches_over_panel_edge_at_controlled_clearance():
@@ -410,8 +425,8 @@ def test_housing_api_returns_one_back_stl_with_two_aligned_shells():
     assert response.headers["x-panel-pocket-depth-mm"] == "2"
     assert response.headers["x-panel-clip-count"] == "12"
     assert response.headers["x-panel-lock-count"] == "12"
-    assert response.headers["x-back-snap-count"] == "0"
-    assert response.headers["x-back-closure"] == "press-fit-ca-glue"
+    assert response.headers["x-back-snap-count"] == "8"
+    assert response.headers["x-back-closure"] == "snap-fit-ca-glue"
     assert response.headers["x-back-press-rib-count"] == "12"
     assert response.headers["x-back-hardware-count"] == "0"
     assert response.headers["x-print-orientation"] == "front-face-down"
@@ -439,6 +454,8 @@ def test_housing_api_returns_one_back_stl_with_two_aligned_shells():
         assert "STL nie zapisuje nazw ani kolorow" in instructions
         assert "jednakowych klinow" in instructions
         assert "klej CA" in instructions
+        assert "Nie zatrzaskuj pokrywy na sucho" in instructions
+        assert "zaczepy sa jednokierunkowe" in instructions
         assert "wszystkich czterech bokach" in instructions
         assert "nie zawiera prowadnic ani mocowan paskow LED" in instructions
         assert "zamkniecie stale" in instructions

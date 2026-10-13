@@ -362,10 +362,36 @@ class HousingParams(BaseModel):
         return 2.4
 
     @property
-    def back_press_rib_step_mm(self) -> float:
-        # Printed plate-down, six shallow steps grow into the interference
-        # without creating an unsupported horizontal ledge or needing support.
+    def back_snap_shoulder_mm(self) -> float:
+        # The first 0.4 mm beside the plate stays flush. The following sharp
+        # shoulder locks behind the matching rear wall left in the body.
         return 0.4
+
+    @property
+    def back_press_rib_step_mm(self) -> float:
+        # The insertion face is split into shallow printable steps. The only
+        # locking ledge is 0.35 mm deep, within a single extrusion overhang.
+        return 0.4
+
+    @property
+    def back_snap_groove_depth_mm(self) -> float:
+        # Leaves 2.0 mm of the standard 2.4 mm wall behind every pocket.
+        return 0.4
+
+    @property
+    def back_snap_groove_rear_offset_mm(self) -> float:
+        return self.back_snap_shoulder_mm
+
+    @property
+    def back_snap_groove_front_offset_mm(self) -> float:
+        # Slightly longer than the ramp so the hook can relax completely.
+        return self.back_press_rib_height_mm + 0.2
+
+    @property
+    def back_snap_count(self) -> int:
+        # True retaining pockets are restricted to the two horizontal walls,
+        # safely away from the USB-C and touch-controller side mounts.
+        return 2 * self.back_horizontal_press_count
 
     @property
     def back_rib_width_mm(self) -> float:

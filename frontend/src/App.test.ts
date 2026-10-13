@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { automaticCrop, effectiveBorderHeight, effectiveGrid, imageArea, imageAreaForParams, initial, inscribedSize, modelSize, panCrop, Params, resolvedBorders, rotatedSize, validateParams, zoomCrop, zoomCropAt } from "./App";
-import { housingBackPressRibCount, housingClipCount, housingOuterSize, housingPreviewSize, initialHousing, validateHousing } from "./HousingGenerator";
+import { housingBackPressRibCount, housingBackSnapCount, housingClipCount, housingOuterSize, housingPreviewSize, initialHousing, validateHousing } from "./HousingGenerator";
 
 const valid: Params = {width_mm: 150, height_mm: 100, min_thickness_mm: .8, max_thickness_mm: 3, gamma: 1, brightness: 1, contrast: 1, nozzle_diameter_mm: .4, quality_profile: "optimal", orientation: "landscape", border_width_mm: 0, border_widths_mm: null, border_height_mm: 3, mounting_flange: false, invert: false, mirror: false, rotation_degrees: 0, crop: {x: 0, y: 0, width: 1, height: 1}};
 
@@ -124,6 +124,11 @@ describe("housing generator", () => {
     expect(housingBackPressRibCount(initialHousing)).toBe(10);
     expect(housingBackPressRibCount({...initialHousing, panel_width_mm: 200, panel_height_mm: 150})).toBe(12);
     expect(housingBackPressRibCount({...initialHousing, kind: "frame", panel_width_mm: 200, panel_height_mm: 150})).toBe(14);
+  });
+  it("adds true rear-cover snaps to the two walls clear of electronics", () => {
+    expect(housingBackSnapCount(initialHousing)).toBe(6);
+    expect(housingBackSnapCount({...initialHousing, panel_width_mm: 200})).toBe(8);
+    expect(housingBackSnapCount({...initialHousing, kind: "frame", panel_width_mm: 200})).toBe(8);
   });
   it("uses a three millimetre outer plate for the two-colour rear cover", () => {
     expect(initialHousing.back_thickness_mm).toBe(3);
