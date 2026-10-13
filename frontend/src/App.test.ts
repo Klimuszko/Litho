@@ -107,26 +107,31 @@ describe("frame dimensions", () => {
 });
 
 describe("housing generator", () => {
+  it("starts with the largest preset frame selected", () => {
+    expect(initialHousing.kind).toBe("frame");
+    expect(initialHousing.panel_width_mm).toBe(200);
+    expect(initialHousing.panel_height_mm).toBe(150);
+  });
   it("treats preset dimensions as visible image size and adds the hidden flange", () => {
-    expect(housingOuterSize(initialHousing)).toEqual({width: 161.6, height: 111.6});
-    expect(housingOuterSize({...initialHousing, kind: "frame"})).toEqual({width: 190, height: 140});
+    expect(housingOuterSize(initialHousing)).toEqual({width: 240, height: 190});
+    expect(housingOuterSize({...initialHousing, kind: "box"})).toEqual({width: 211.6, height: 161.6});
   });
   it("rejects a frame that exceeds the 256 mm bed", () => {
     expect(validateHousing({...initialHousing, kind: "frame", panel_width_mm: 240})).toContain("256");
   });
   it("scales clips independently for every panel edge", () => {
-    expect(housingClipCount(initialHousing)).toBe(10);
+    expect(housingClipCount(initialHousing)).toBe(12);
     expect(housingClipCount({...initialHousing, kind: "frame", panel_width_mm: 200, panel_height_mm: 150})).toBe(12);
-    expect(housingClipCount({...initialHousing, panel_width_mm: 180, panel_height_mm: 130})).toBe(14);
-    expect(housingClipCount({...initialHousing, panel_width_mm: 200, panel_height_mm: 150})).toBe(14);
+    expect(housingClipCount({...initialHousing, kind: "box", panel_width_mm: 180, panel_height_mm: 130})).toBe(14);
+    expect(housingClipCount({...initialHousing, kind: "box", panel_width_mm: 200, panel_height_mm: 150})).toBe(14);
   });
   it("places local press ribs on all four rear-cover edges", () => {
-    expect(housingBackPressRibCount(initialHousing)).toBe(10);
+    expect(housingBackPressRibCount(initialHousing)).toBe(12);
     expect(housingBackPressRibCount({...initialHousing, panel_width_mm: 200, panel_height_mm: 150})).toBe(12);
     expect(housingBackPressRibCount({...initialHousing, kind: "frame", panel_width_mm: 200, panel_height_mm: 150})).toBe(12);
   });
   it("adds true rear-cover snaps to all four walls behind the electronics", () => {
-    expect(housingBackSnapCount(initialHousing)).toBe(10);
+    expect(housingBackSnapCount(initialHousing)).toBe(12);
     expect(housingBackSnapCount({...initialHousing, panel_width_mm: 200})).toBe(12);
     expect(housingBackSnapCount({...initialHousing, kind: "frame", panel_width_mm: 200})).toBe(12);
   });
@@ -135,15 +140,15 @@ describe("housing generator", () => {
   });
   it("rotates the housing preview together with the selected panel orientation", () => {
     const landscape = housingPreviewSize(initialHousing);
-    const portrait = housingPreviewSize({...initialHousing, panel_width_mm: 100, panel_height_mm: 150});
+    const portrait = housingPreviewSize({...initialHousing, panel_width_mm: 150, panel_height_mm: 200});
     expect(landscape.width).toBeGreaterThan(landscape.height);
     expect(portrait.width).toBeLessThan(portrait.height);
-    expect(landscape.width / landscape.height).toBeCloseTo(161.6 / 111.6);
-    expect(portrait.width / portrait.height).toBeCloseTo(111.6 / 161.6);
+    expect(landscape.width / landscape.height).toBeCloseTo(240 / 190);
+    expect(portrait.width / portrait.height).toBeCloseTo(190 / 240);
   });
   it("validates the USB-C side mount and touch controller envelope", () => {
     expect(validateHousing({...initialHousing, depth_mm: 39})).toContain("40 mm");
-    expect(validateHousing({...initialHousing, panel_height_mm: 40})).toContain("za niska");
+    expect(validateHousing({...initialHousing, kind: "box", panel_height_mm: 40})).toContain("za niska");
     expect(validateHousing(initialHousing)).toBe("");
   });
 });
