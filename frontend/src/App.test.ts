@@ -123,6 +123,7 @@ describe("housing generator", () => {
   });
   it("rejects a frame that exceeds the 256 mm bed", () => {
     expect(validateHousing({...initialHousing, kind: "frame", panel_width_mm: 240})).toContain("256");
+    expect(validateHousing({...initialHousing, kind: "box", panel_width_mm: 244})).toContain("256");
   });
   it("scales clips independently for every panel edge", () => {
     expect(housingClipCount(initialHousing)).toBe(12);

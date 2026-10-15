@@ -63,8 +63,8 @@ STL korpusu, pokrywę STL z dwiema wyrównanymi bryłami i instrukcję montażu.
 tyłu, opiera kołnierzem o wewnętrzny rant i dociska pod 4 lub 6 sprężystych
 zatrzasków. Tylna pokrywa ma wewnętrzną kratownicę usztywniającą, ciągły rant
 pozycjonujący o głębokości 4 mm oraz gęsto rozmieszczone, stopniowane żebra
-dociskowe na wszystkich czterech bokach. Żebra tworzą mocny lokalny wcisk,
-który utrzymuje klapkę całkowicie dosuniętą i ogranicza widoczną linię łączenia.
+ustalające na wszystkich czterech bokach. Żebra mają lekki lokalny wcisk 0,05 mm,
+więc pozycjonują klapkę bez wyginania jej; trwałe zamknięcie zapewnia klej CA.
 Na wszystkich czterech krawędziach żebra kończą się jednokierunkowymi barkami,
 które zatrzaskują się w zamkniętych kieszeniach korpusu. Każda boczna ścianka
 ma dwa zatrzaski. Kieszenie pozostawiają 2 mm zewnętrznej ścianki i znajdują się
@@ -75,6 +75,10 @@ Po sprawdzeniu wstępnego pasowania pokrywę zamyka się na stałe klejem CA. Ro
 nie wymaga śrub ani innych części metalowych, nie pozostawia widocznych otworów
 i utrudnia klientowi otwarcie obudowy bez jej uszkodzenia. Modele są
 eksportowane płaską stroną do stołu i nie wymagają podpór.
+
+Zewnętrzna płyta klapki ma kompensację produkcyjną 0,30 mm na każdej krawędzi
+(0,60 mm w całym wymiarze), wynikającą z pomiarów gotowych wydruków. Kompensacja
+nie zmienia położenia rantu, zaczepów ani ich gniazd.
 
 Tylna pokrywa nie ma prowadnic ani mocowań LED. Jej pełna zewnętrzna płyta jest
 czarna, natomiast wewnętrzny odbłyśnik o grubości 1 mm, rant, kratownica i punkty

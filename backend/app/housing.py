@@ -568,6 +568,7 @@ def build_housing_body(params) -> Mesh:
 
 def _build_housing_back(params, part: str = "combined") -> Mesh:
     width, height = params.outer_width_mm, params.outer_height_mm
+    edge_compensation = params.back_plate_edge_compensation_mm
     thickness = params.back_thickness_mm
     white_top = params.back_inner_surface_y_mm
     lip_depth, lip = params.back_lip_depth_mm, params.back_lip_mm
@@ -614,7 +615,8 @@ def _build_housing_back(params, part: str = "combined") -> Mesh:
     press_grid_xs = [value for interval in horizontal_press for value in interval]
     press_grid_zs = [value for interval in vertical_press for value in interval]
     xs = [
-        0, x0, x0 + lip, x1 - lip, x1, width / 2, width, rib_x0, rib_x1,
+        -edge_compensation, 0, x0, x0 + lip, x1 - lip, x1, width / 2, width,
+        width + edge_compensation, rib_x0, rib_x1,
         *(x0 - reach for reach in press_reaches), *(x1 + reach for reach in press_reaches),
         *press_grid_xs, *rib_grid_xs,
     ]
@@ -623,7 +625,8 @@ def _build_housing_back(params, part: str = "combined") -> Mesh:
         thickness + lip_depth, *press_ys,
     ]
     zs = [
-        0, z0, z0 + lip, z1 - lip, z1, height, rib_z0, rib_z1,
+        -edge_compensation, 0, z0, z0 + lip, z1 - lip, z1, height,
+        height + edge_compensation, rib_z0, rib_z1,
         *(z0 - reach for reach in press_reaches), *(z1 + reach for reach in press_reaches),
         *press_grid_zs, *horizontal_ribs, *rib_grid_zs,
     ]

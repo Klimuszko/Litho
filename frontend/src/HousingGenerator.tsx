@@ -3,6 +3,7 @@ import "./housing.css";
 import {useAuth} from "./Auth";
 
 export const LITHO_MOUNT_FLANGE_MM = 3;
+export const BACK_PLATE_EDGE_COMPENSATION_MM = .3;
 
 export type HousingParams = {
   kind: "box" | "frame";
@@ -70,7 +71,8 @@ export function housingPreviewSize(params: HousingParams, maxWidth = 520, maxHei
 export function validateHousing(params: HousingParams): string {
   if (params.panel_width_mm < 20 || params.panel_height_mm < 20) return "Panel musi mieć co najmniej 20 × 20 mm.";
   const outer = housingOuterSize(params);
-  if (outer.width > 256 || outer.height > 256) return "Obudowa nie mieści się na stole 256 × 256 mm.";
+  const backExtra = 2 * BACK_PLATE_EDGE_COMPENSATION_MM;
+  if (outer.width + backExtra > 256 || outer.height + backExtra > 256) return "Obudowa wraz z klapką nie mieści się na stole 256 × 256 mm.";
   if (params.depth_mm < 40) return "Obudowa z elektroniką wymaga co najmniej 40 mm głębokości.";
   if (outer.height < 59) return "Obudowa jest za niska na pionowe mocowanie ściemniacza.";
   return "";

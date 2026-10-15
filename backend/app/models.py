@@ -175,7 +175,8 @@ class HousingParams(BaseModel):
             raise ValueError("Bezel overlap is too large for the panel")
         if self.bezel_overlap_mm > MOUNTING_FLANGE_WIDTH_MM:
             raise ValueError("Bezel overlap cannot exceed the 2 mm Litho mounting flange")
-        if self.outer_width_mm > 256 or self.outer_height_mm > 256:
+        back_extra = 2 * self.back_plate_edge_compensation_mm
+        if self.outer_width_mm + back_extra > 256 or self.outer_height_mm + back_extra > 256:
             raise ValueError("Housing footprint must fit within 256 x 256 mm")
         minimum_depth = self.electronics_minimum_depth_mm
         if self.depth_mm < minimum_depth:
@@ -327,9 +328,16 @@ class HousingParams(BaseModel):
 
     @property
     def back_clearance_mm(self) -> float:
-        # Close running fit on the plain sections of the tongue. Positive
-        # retention is added only at the tapered press ribs below.
-        return 0.10
+        # A relaxed running fit keeps the large cover from bowing while it is
+        # pressed into the body. The final assembly is secured with CA glue.
+        return 0.20
+
+    @property
+    def back_plate_edge_compensation_mm(self) -> float:
+        # Production prints left a 0.28-0.32 mm step at each body edge. Add
+        # the measured correction to every outside edge while the
+        # tongue, hooks and their mating pockets keep their original datum.
+        return 0.30
 
     @property
     def back_horizontal_press_count(self) -> int:
@@ -353,9 +361,10 @@ class HousingParams(BaseModel):
 
     @property
     def back_press_rib_reach_mm(self) -> float:
-        # With 0.10 mm tongue clearance, 0.35 mm reach creates 0.25 mm local
-        # interference: a deliberately firm press lock at discrete locations.
-        return 0.35
+        # With 0.20 mm tongue clearance, 0.25 mm reach creates only 0.05 mm
+        # local interference. The hooks locate the cover without bending it;
+        # CA glue supplies the permanent retention.
+        return 0.25
 
     @property
     def back_press_rib_height_mm(self) -> float:
