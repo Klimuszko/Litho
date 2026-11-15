@@ -110,7 +110,7 @@ def test_rear_cover_uses_local_interference_instead_of_hardware():
     assert params.back_lip_mm == pytest.approx(1.4)
     assert params.back_lip_depth_mm == pytest.approx(4.0)
     assert params.back_clearance_mm == pytest.approx(0.20)
-    assert params.back_plate_edge_compensation_mm == pytest.approx(0.30)
+    assert params.back_plate_edge_compensation_mm == pytest.approx(0.20)
     assert params.back_press_rib_reach_mm - params.back_clearance_mm == pytest.approx(0.05)
     assert params.back_press_rib_height_mm == pytest.approx(2.4)
     assert params.back_press_rib_step_mm == pytest.approx(0.4)
@@ -207,10 +207,10 @@ def test_export_orientation_places_front_flat_on_print_bed(builder):
 def test_housing_rejects_dimensions_outside_p1s_bed():
     with pytest.raises(ValidationError, match="256 x 256"):
         HousingParams(kind="frame", panel_width_mm=240, panel_height_mm=150)
-    # The body itself is 255.6 mm wide, but the compensated rear plate is
-    # 256.2 mm and therefore must also be rejected.
+    # The body itself is 255.7 mm wide, but the compensated rear plate is
+    # 256.1 mm and therefore must also be rejected.
     with pytest.raises(ValidationError, match="256 x 256"):
-        HousingParams(kind="box", panel_width_mm=244, panel_height_mm=100)
+        HousingParams(kind="box", panel_width_mm=244.1, panel_height_mm=100)
 
 
 def test_usb_c_side_mount_rejects_too_shallow_or_too_short_housing():

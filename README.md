@@ -76,8 +76,8 @@ nie wymaga śrub ani innych części metalowych, nie pozostawia widocznych otwor
 i utrudnia klientowi otwarcie obudowy bez jej uszkodzenia. Modele są
 eksportowane płaską stroną do stołu i nie wymagają podpór.
 
-Zewnętrzna płyta klapki ma kompensację produkcyjną 0,30 mm na każdej krawędzi
-(0,60 mm w całym wymiarze), wynikającą z pomiarów gotowych wydruków. Kompensacja
+Zewnętrzna płyta klapki ma kompensację produkcyjną 0,20 mm na każdej krawędzi
+(0,40 mm w całym wymiarze), wynikającą z pomiarów gotowych wydruków. Kompensacja
 nie zmienia położenia rantu, zaczepów ani ich gniazd.
 
 Tylna pokrywa nie ma prowadnic ani mocowań LED. Jej pełna zewnętrzna płyta jest

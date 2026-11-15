@@ -3,7 +3,7 @@ import "./housing.css";
 import {useAuth} from "./Auth";
 
 export const LITHO_MOUNT_FLANGE_MM = 3;
-export const BACK_PLATE_EDGE_COMPENSATION_MM = .3;
+export const BACK_PLATE_EDGE_COMPENSATION_MM = .2;
 
 export type HousingParams = {
   kind: "box" | "frame";

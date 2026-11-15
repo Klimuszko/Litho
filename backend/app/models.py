@@ -334,10 +334,9 @@ class HousingParams(BaseModel):
 
     @property
     def back_plate_edge_compensation_mm(self) -> float:
-        # Production prints left a 0.28-0.32 mm step at each body edge. Add
-        # the measured correction to every outside edge while the
-        # tongue, hooks and their mating pockets keep their original datum.
-        return 0.30
+        # Apply a modest production correction to every outside edge while
+        # the tongue, hooks and their mating pockets keep their original datum.
+        return 0.20
 
     @property
     def back_horizontal_press_count(self) -> int:
