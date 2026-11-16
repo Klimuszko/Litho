@@ -464,6 +464,10 @@ def test_housing_api_returns_one_back_stl_with_two_aligned_shells():
             assert len(payload) > 84
             assert payload.startswith(b"Lithophane Generator V1")
         instructions = archive.read("README-PL.txt").decode("utf-8")
+        assert "FUZZY SKIN - OPCJONALNE WYKONCZENIE POWIERZCHNI" in instructions
+        assert "odleglosc punktow: 0,15 mm" in instructions
+        assert "grubosc: 0,10 mm" in instructions
+        assert "Nie stosuj Fuzzy Skin na panelu litofanii" in instructions
         assert "sprezystymi zatrzaskami" in instructions
         assert "bez kleju" in instructions
         assert "ukrytym kolnierzem" in instructions

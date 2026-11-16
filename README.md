@@ -1,6 +1,7 @@
-# Litho — generator litofanii V1
+# Litho — generator litofanii i obudów 3D
 
-Samodzielna aplikacja webowa generująca płaskie, zamknięte modele litofanii STL bez GPU i bez zewnętrznego generatora geometrii.
+Samodzielna aplikacja webowa oparta na React i FastAPI. Generuje litofanie STL,
+dopasowane obudowy oraz udostępnia bibliotekę parametrycznych modułów OpenSCAD.
 
 ## Publikacja obrazu w GitHub Container Registry
 
@@ -51,46 +52,30 @@ Jasne piksele dają minimalną grubość, a ciemne maksymalną:
 t = min + (1 - luminance)^gamma * (max - min)
 ```
 
-Backend przetwarza obraz i STL wyłącznie w pamięci. Katalogi `data/` pozostają przygotowane do opcjonalnej diagnostyki, lecz V1 nie zapisuje w nich prywatnych plików.
+Generator przetwarza obraz i geometrię w pamięci. Trwałe projekty klientów są
+zapisywane wyłącznie w prywatnym wolumenie aplikacji.
 
 ## Generator obudów
 
-Widok `Obudowa` generuje podświetlany `Box` albo `Ramkę` dla paneli
-100 × 150, 130 × 180, 150 × 200 mm oraz wymiarów własnych. Podany wymiar jest
-dokładnym wymiarem panelu Litho; aplikacja automatycznie dodaje ściany, kieszeń
-montażową 2,0 mm, luz, obramowanie i tylną pokrywę. Wynikiem jest ZIP zawierający
-STL korpusu, pokrywę STL z dwiema wyrównanymi bryłami i instrukcję montażu. Panel wkłada się od otwartego
-tyłu, opiera kołnierzem o wewnętrzny rant i dociska pod 4 lub 6 sprężystych
-zatrzasków. Tylna pokrywa ma wewnętrzną kratownicę usztywniającą, ciągły rant
-pozycjonujący o głębokości 4 mm oraz gęsto rozmieszczone, stopniowane żebra
-ustalające na wszystkich czterech bokach. Żebra mają lekki lokalny wcisk 0,05 mm,
-więc pozycjonują klapkę bez wyginania jej; trwałe zamknięcie zapewnia klej CA.
-Na wszystkich czterech krawędziach żebra kończą się jednokierunkowymi barkami,
-które zatrzaskują się w zamkniętych kieszeniach korpusu. Każda boczna ścianka
-ma dwa zatrzaski. Kieszenie pozostawiają 2 mm zewnętrznej ścianki i znajdują się
-w tylnej strefie, za mocowaniami USB-C oraz sterownika.
-Przed klejeniem sprawdza się jedynie początek pasowania rantu; pełne zatrzaśnięcie
-wykonuje się dopiero podczas ostatecznego montażu z klejem CA.
-Po sprawdzeniu wstępnego pasowania pokrywę zamyka się na stałe klejem CA. Rozwiązanie
-nie wymaga śrub ani innych części metalowych, nie pozostawia widocznych otworów
-i utrudnia klientowi otwarcie obudowy bez jej uszkodzenia. Modele są
-eksportowane płaską stroną do stołu i nie wymagają podpór.
+Widok `Obudowa` generuje `Box` albo `Ramkę` dla paneli 100 × 150,
+130 × 180, 150 × 200 mm oraz wymiarów własnych mieszczących się na stole
+256 × 256 mm. Wynikiem jest ZIP z korpusem, tylną pokrywą, klinami oraz
+`README-PL.txt` zawierającym aktualne ustawienia produkcyjne.
 
-Zewnętrzna płyta klapki ma kompensację produkcyjną 0,20 mm na każdej krawędzi
-(0,40 mm w całym wymiarze), wynikającą z pomiarów gotowych wydruków. Kompensacja
-nie zmienia położenia rantu, zaczepów ani ich gniazd.
+Najważniejsze parametry:
 
-Tylna pokrywa nie ma prowadnic ani mocowań LED. Jej pełna zewnętrzna płyta jest
-czarna, natomiast wewnętrzny odbłyśnik o grubości 1 mm, rant, kratownica i punkty
-docisku są białe. Gotowy plik `back.stl` zawiera dwie osobne, zamknięte bryły
-we wspólnych współrzędnych. Wydruk jednokolorowy nie wymaga żadnych zmian. Dla
-dwóch kolorów w Bambu Studio należy wybrać `Podziel → Na części`, nie przesuwać
-powstałych części i przypisać im osobno czarny oraz biały filament. Przy
-warstwie 0,20 mm pierwszych 15 warstw jest czarnych, a biały materiał zaczyna się
-od warstwy 16, więc cały wydruk wymaga tylko jednej zmiany koloru i nigdy dwóch
-kolorów na tej samej warstwie.
-USB-C, sterownik oraz blokady panelu korzystają z jednego identycznego typu
-drukowanego klina, dostarczanego w jednym pliku STL.
+- minimalna głębokość obudowy: 40 mm,
+- szerokość obramowania ramki: 17 mm,
+- zewnętrzna kompensacja pleców: 0,20 mm na każdą krawędź
+  (0,40 mm w całym wymiarze),
+- luz rantu pleców: 0,20 mm na stronę,
+- lokalny wcisk zaczepów pleców: 0,05 mm,
+- zewnętrzna część pleców: 3 mm,
+- wewnętrzny biały odbłyśnik: 1 mm.
+
+`back.stl` zawiera dwie wyrównane, zamknięte bryły przeznaczone do druku
+jedno- albo dwukolorowego. Dla warstwy 0,20 mm pierwszych 15 warstw jest
+czarnych, a biały materiał zaczyna się od warstwy 16.
 
 ```text
 POST /api/housing/generate
@@ -99,6 +84,22 @@ Content-Type: application/json
 
 Oba warianty są przeznaczone dla litofanii wygenerowanej z opcją
 `Kołnierz montażowy Litho Mount V2`.
+
+## Ustawienia powierzchni Fuzzy Skin
+
+Fuzzy Skin dodaje drobną, nieregularną fakturę, która ogranicza widoczność
+linii warstw na zewnętrznych powierzchniach obudowy.
+
+```text
+Odległość punktów: 0,15 mm
+Grubość:           0,10 mm
+```
+
+Teksturę należy stosować tylko na widocznych powierzchniach zewnętrznych
+korpusu i pokrywy. Nie należy jej nakładać na panel litofanii ani na powierzchnie
+pasowane: rant pleców, zatrzaski, kliny, kieszeń panelu i mocowania elektroniki.
+Te same informacje są automatycznie dodawane do `README-PL.txt` w każdej nowej
+paczce STL.
 
 ## Testy backendu
 
@@ -127,12 +128,5 @@ moderacją, audytem, kolejką, anulowaniem i cache. Instrukcja importowania modu
 składnia Customizera i model bezpieczeństwa są opisane w
 [SCAD_MODULES.md](SCAD_MODULES.md). Przykładowy moduł minimalny oraz planetary
 fidget znajdują się w `examples/scad/`.
-
-## Ograniczenia V1
-
-- płaski model prostokątny;
-- synchroniczne generowanie;
-- opcjonalna ramka rozszerza bryłę na zewnątrz i nie zabiera obszaru fotografii;
-- brak 3MF, kolejki i podglądu 3D.
 
 Szczegółowe decyzje i kontrakty opisuje [ARCHITECTURE.md](ARCHITECTURE.md).
