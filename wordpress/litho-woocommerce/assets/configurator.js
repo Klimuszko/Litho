@@ -84,7 +84,14 @@
     // stretching the same landscape-sized frame.
     const portrait = state.orientation === 'portrait';
     root.classList.toggle('is-portrait', portrait);
+    root.classList.toggle('is-fit-contain', state.fitMode === 'contain');
     previewStage.dataset.orientation = portrait ? 'portrait' : 'landscape';
+    canvas.style.setProperty('position', 'absolute', 'important');
+    canvas.style.setProperty('inset', '0', 'important');
+    canvas.style.setProperty('width', '100%', 'important');
+    canvas.style.setProperty('height', '100%', 'important');
+    canvas.style.setProperty('max-width', 'none', 'important');
+    canvas.style.setProperty('max-height', 'none', 'important');
     clampPan();
     draw();
   }
