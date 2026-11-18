@@ -224,7 +224,6 @@
 
   root.querySelectorAll('[data-orientation]').forEach(button => button.addEventListener('click', () => {
     state.orientation = button.dataset.orientation;
-    state.rotation = 0;
     root.querySelectorAll('[data-orientation]').forEach(item => item.classList.toggle('active', item === button));
     resetView();
   }));
