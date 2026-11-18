@@ -77,6 +77,10 @@
     const ratio = state.orientation === 'landscape' ? longSide / shortSide : shortSide / longSide;
     canvas.width = state.orientation === 'landscape' ? 900 : Math.round(900 * ratio);
     canvas.height = state.orientation === 'landscape' ? Math.round(900 / ratio) : 900;
+    // Match the full generator: portrait uses a narrower stage instead of
+    // stretching the same landscape-sized frame.
+    canvas.style.width = state.orientation === 'landscape' ? '100%' : '75%';
+    canvas.style.marginInline = state.orientation === 'landscape' ? '0' : 'auto';
     clampPan();
     draw();
   }
