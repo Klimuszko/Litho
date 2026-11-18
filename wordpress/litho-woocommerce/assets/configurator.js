@@ -23,7 +23,7 @@
   const signatureInput = root.querySelector('#litho-project-signature');
   const cartButton = document.querySelector('form.cart button.single_add_to_cart_button');
 
-  const state = {image: null, file: null, orientation: 'landscape', rotation: 0, zoom: 1, panX: 0, panY: 0, dragging: false, lastX: 0, lastY: 0, busy: false};
+  const state = {image: null, file: null, orientation: 'landscape', previewMode: 'photo', rotation: 0, zoom: 1, panX: 0, panY: 0, dragging: false, lastX: 0, lastY: 0, busy: false};
   const apiRoot = String(LithoConfig.restUrl).replace(/\/$/, '');
 
   function fillSelect(select, choices) {
@@ -134,10 +134,18 @@
       const luminance = (lookup[pixels.data[index]] * 0.299)
         + (lookup[pixels.data[index + 1]] * 0.587)
         + (lookup[pixels.data[index + 2]] * 0.114);
-      const dark = luminance < 128;
-      pixels.data[index] = dark ? 28 : 245;
-      pixels.data[index + 1] = dark ? 34 : 240;
-      pixels.data[index + 2] = dark ? 45 : 214;
+      if (state.previewMode === 'photo') {
+        pixels.data[index] = lookup[pixels.data[index]];
+        pixels.data[index + 1] = lookup[pixels.data[index + 1]];
+        pixels.data[index + 2] = lookup[pixels.data[index + 2]];
+      } else {
+        // Match the full generator's Lithophane view: grayscale, inverted,
+        // with a subtle warm light overlay rather than a hard binary posterize.
+        const tone = 255 - Math.round(luminance);
+        pixels.data[index] = Math.min(255, Math.round(tone + 255 * Math.min(0.42, gamma / 10) * 0.95));
+        pixels.data[index + 1] = Math.min(255, Math.round(tone + 255 * Math.min(0.42, gamma / 10) * 0.68));
+        pixels.data[index + 2] = Math.min(255, Math.round(tone + 255 * Math.min(0.42, gamma / 10) * 0.30));
+      }
     }
     ctx.putImageData(pixels, 0, 0);
   }
@@ -203,6 +211,11 @@
     state.orientation = button.dataset.orientation;
     root.querySelectorAll('[data-orientation]').forEach(item => item.classList.toggle('active', item === button));
     resetView();
+  }));
+  root.querySelectorAll('[data-preview-mode]').forEach(button => button.addEventListener('click', () => {
+    state.previewMode = button.dataset.previewMode;
+    root.querySelectorAll('[data-preview-mode]').forEach(item => item.classList.toggle('active', item === button));
+    draw();
   }));
   root.querySelectorAll('[data-rotate]').forEach(button => button.addEventListener('click', () => {
     state.rotation = ((state.rotation + Number(button.dataset.rotate) + 540) % 360) - 180;

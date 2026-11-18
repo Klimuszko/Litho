@@ -105,7 +105,7 @@ final class Litho_WC_Integration {
             <div class="litho-grid">
                 <div class="litho-controls">
                     <label class="litho-upload"><input type="file" accept="image/jpeg,image/png"><b><?php esc_html_e('Wybierz zdjęcie', 'litho-wc'); ?></b><small>JPG lub PNG · maks. 20 MB</small></label>
-                    <div class="litho-field litho-fixed-format"><label><?php esc_html_e('Format', 'litho-wc'); ?></label><p>Stały maksymalny format: <strong>15 × 20 cm</strong>.</p></div>
+                    <div class="litho-field litho-fixed-format"><label><?php esc_html_e('Format', 'litho-wc'); ?></label><p>Format <strong>15 × 20 cm</strong> lub <strong>20 × 15 cm</strong> — zależnie od wybranej orientacji.</p></div>
                     <div class="litho-field"><label><?php esc_html_e('Orientacja', 'litho-wc'); ?></label><div class="litho-segment"><button type="button" data-orientation="landscape" class="active"><?php esc_html_e('Pozioma', 'litho-wc'); ?></button><button type="button" data-orientation="portrait"><?php esc_html_e('Pionowa', 'litho-wc'); ?></button></div></div>
                     <div class="litho-field"><label for="litho-housing-color"><?php esc_html_e('Kolor obudowy', 'litho-wc'); ?></label><select id="litho-housing-color"></select></div>
                     <div class="litho-field"><label for="litho-led-color"><?php esc_html_e('Barwa LED', 'litho-wc'); ?></label><select id="litho-led-color"></select></div>
@@ -115,7 +115,7 @@ final class Litho_WC_Integration {
                     <div class="litho-field litho-adjustment"><label for="litho-contrast"><?php esc_html_e('Kontrast', 'litho-wc'); ?>: <output id="litho-contrast-value">1.25</output></label><input id="litho-contrast" type="range" min="0.5" max="2" value="1.25" step="0.05"></div>
                     <div class="litho-field litho-adjustment"><label for="litho-gamma"><?php esc_html_e('Gamma', 'litho-wc'); ?>: <output id="litho-gamma-value">1.00</output></label><input id="litho-gamma" type="range" min="0.5" max="2" value="1" step="0.05"></div>
                 </div>
-                <div class="litho-preview-wrap"><canvas id="litho-preview" width="900" height="600"></canvas><p><?php esc_html_e('Przeciągnij zdjęcie, aby ustawić kadr. Kółko myszy zmienia powiększenie.', 'litho-wc'); ?></p></div>
+                <div class="litho-preview-wrap"><div class="litho-preview-modes"><button type="button" data-preview-mode="photo" class="active">Obraz</button><button type="button" data-preview-mode="lithophane">Litofania</button></div><canvas id="litho-preview" width="900" height="600"></canvas><p><?php esc_html_e('Podgląd działa tak jak w pełnym generatorze. Przeciągnij zdjęcie, aby ustawić kadr. Kółko myszy zmienia powiększenie.', 'litho-wc'); ?></p></div>
             </div>
             <button class="litho-approve" id="litho-approve" type="button"><?php esc_html_e('Zatwierdź projekt', 'litho-wc'); ?></button>
             <div class="litho-status" id="litho-status" role="status" aria-live="polite"></div>
