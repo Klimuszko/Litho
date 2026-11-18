@@ -6,6 +6,7 @@
 
   const canvas = root.querySelector('#litho-preview');
   const previewWrap = root.querySelector('.litho-preview-wrap');
+  const previewFrame = root.querySelector('.litho-preview-frame');
   const ctx = canvas.getContext('2d');
   const fileInput = root.querySelector('input[type="file"]');
   const FIXED_SIZE = '150x200';
@@ -82,13 +83,15 @@
     // stretching the same landscape-sized frame.
     const portrait = state.orientation === 'portrait';
     root.classList.toggle('is-portrait', portrait);
+    previewFrame.classList.toggle('is-portrait', portrait);
+    previewFrame.classList.toggle('is-landscape', !portrait);
     const compact = window.matchMedia('(max-width: 720px)').matches;
     previewWrap.style.width = portrait && !compact ? '75%' : '100%';
     previewWrap.style.marginInline = portrait && !compact ? 'auto' : '0';
     canvas.style.width = '100%';
     canvas.style.marginInline = '0';
-    canvas.style.aspectRatio = portrait ? '3 / 4' : '4 / 3';
-    canvas.style.height = 'auto';
+    canvas.style.aspectRatio = 'auto';
+    canvas.style.height = '100%';
     clampPan();
     draw();
   }
