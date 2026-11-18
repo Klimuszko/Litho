@@ -8,6 +8,8 @@ describe("generator puzzli", () => {
     expect(initialPuzzle.piece_count).toBe(100);
     expect(initialPuzzle.color_count).toBe(4);
     expect(initialPuzzle.color_layout).toBe("layered");
+    expect(initialPuzzle.image_style).toBe("auto");
+    expect(initialPuzzle.detail_strength).toBe(1);
     expect(initialPuzzle.available_colors).toHaveLength(20);
     expect(initialPuzzle.color_thickness_mm).toBe(.2);
     expect(puzzleTotalThickness(initialPuzzle)).toBeCloseTo(2.6);

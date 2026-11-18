@@ -4,6 +4,7 @@ from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
 from fastapi.testclient import TestClient
+import numpy as np
 from PIL import Image
 import pytest
 from shapely.geometry import box
@@ -12,7 +13,7 @@ from shapely.ops import unary_union
 from app.main import app
 from app.mesh import validate_mesh
 from app.models import PuzzleParams
-from app.puzzle import build_puzzle_3mf, build_puzzle_frame, puzzle_piece_shapes
+from app.puzzle import build_puzzle_3mf, build_puzzle_frame, prepare_puzzle, puzzle_piece_shapes
 
 
 client = TestClient(app)
@@ -56,7 +57,21 @@ def test_defaults_are_the_recommended_product_configuration():
     assert params.piece_count == 100
     assert params.color_count == 4
     assert params.color_layout == "layered"
+    assert params.image_style == "auto"
+    assert params.detail_strength == pytest.approx(1.0)
     assert params.total_thickness_mm == pytest.approx(2.6)
+
+
+def test_sepia_uses_an_ordered_warm_tonal_filament_palette():
+    params = small_params(
+        image_style="sepia",
+        available_colors=[
+            "#111111", "#7F4F24", "#B08968", "#F5F3E8", "#D62828", "#277DA1",
+        ],
+    )
+    _, palette = prepare_puzzle(sample_png(), params)
+    assert set(palette.hex_colors) == {"#111111", "#7F4F24", "#B08968", "#F5F3E8"}
+    assert len(np.unique(palette.labels)) == 4
 
 
 def test_jigsaw_edges_are_complementary_and_cover_the_picture():
@@ -98,6 +113,8 @@ def test_3mf_contains_separate_pieces_and_selected_filaments():
         assert settings["palette"] == palette
         assert settings["dominant_base_color"] == palette[0]
         assert settings["color_layout"] == "layered"
+        assert settings["image_style"] == "auto"
+        assert settings["resolved_image_style"] == "sepia"
         assert settings["print_strategy"] == "dominant_base_then_one_filament_per_height_band"
         assert settings["color_change_heights_mm"] == [2.0, 2.2, 2.4]
         assert settings["shared_surface_band_mm"] is None
@@ -143,6 +160,7 @@ def test_puzzle_api_preview_generate_and_frame_endpoints():
     assert preview.status_code == 200, preview.text
     assert preview.headers["content-type"] == "image/png"
     assert len(json.loads(preview.headers["x-puzzle-palette"])) == 4
+    assert preview.headers["x-puzzle-image-style"] == "sepia"
 
     generated = client.post("/api/puzzle/generate", files=files, data={"params": raw_params})
     assert generated.status_code == 200, generated.text

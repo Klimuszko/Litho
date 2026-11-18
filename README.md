@@ -94,6 +94,18 @@ z listy posiadanych filamentów. Dostępne siatki mają 36, 64, 100, 144 lub
 225 elementów, a generator pilnuje minimalnego rozmiaru pojedynczego puzzla
 oraz pola roboczego 250 × 250 mm.
 
+Domyślne przygotowanie obrazu jest automatyczne: generator wyrównuje zakres
+jasności, wzmacnia istotne detale i najpierw rozpoznaje główne role kolorów
+w fotografii, a dopiero potem przypisuje im rzeczywiście dostępne filamenty.
+Dzięki temu mały, ale ważny obszar (np. niebieska bluza albo twarz) nie znika
+tylko dlatego, że inny kolor minimalnie lepiej pasował do większości pikseli.
+Można też ręcznie wybrać pełny kolor, ciepłą sepię albo skalę czarno-białą.
+Sepia i skala szarości używają uporządkowanych tonów od ciemnego do jasnego,
+co zwykle daje najlepszą czytelność portretu przy 3–5 filamentach.
+W ustawieniu automatycznym projekt czterokolorowy korzysta z czytelnej skali
+sepii; przy większej palecie kolorowe fotografie zachowują swoje główne barwy.
+Tryb `Kolor` pozwala wymusić barwny wynik także przy czterech filamentach.
+
 Plik 3MF zachowuje każdy puzzel jako osobny obiekt i przypisuje częściom
 wybrane filamenty. Dostępne są dwa sposoby druku koloru:
 

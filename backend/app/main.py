@@ -503,7 +503,7 @@ async def preview_puzzle(image: UploadFile = File(...), params: str = Form(...))
     settings = parse_puzzle_params(params)
     raw = await read_image(image)
     try:
-        payload, palette = puzzle_preview_png(raw, settings)
+        payload, palette, resolved_style = puzzle_preview_png(raw, settings)
     except InvalidImage as exc:
         raise HTTPException(status_code=422, detail={"error_code": "INVALID_IMAGE_FORMAT", "message": str(exc)}) from exc
     return Response(
@@ -513,6 +513,7 @@ async def preview_puzzle(image: UploadFile = File(...), params: str = Form(...))
             "Cache-Control": "no-store",
             "X-Puzzle-Palette": json.dumps(palette, separators=(",", ":")),
             "X-Puzzle-Count": str(settings.piece_count),
+            "X-Puzzle-Image-Style": resolved_style,
         },
     )
 

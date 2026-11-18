@@ -8,7 +8,7 @@ from xml.etree import ElementTree as ET
 from zipfile import ZIP_DEFLATED, ZipFile
 
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter, ImageOps
 import shapely
 import shapely.affinity
 from shapely.geometry import MultiPolygon, Point, Polygon, box
@@ -43,6 +43,7 @@ class PuzzlePiece:
 class PuzzlePalette:
     labels: np.ndarray
     colors: tuple[tuple[int, int, int], ...]
+    resolved_style: str
 
     @property
     def hex_colors(self) -> list[str]:
@@ -116,67 +117,196 @@ def puzzle_piece_shapes(params: PuzzleParams, *, with_clearance: bool = True) ->
     return pieces
 
 
-def _quantize(image: Image.Image, params: PuzzleParams) -> PuzzlePalette:
-    columns = max(2, round(params.width_mm / params.color_pixel_mm))
-    rows = max(2, round(params.height_mm / params.color_pixel_mm))
-    reduced = np.asarray(
-        image.resize((columns, rows), Image.Resampling.LANCZOS),
-        dtype=np.float32,
-    )
-    pixels = reduced.reshape(-1, 3)
-    available = np.asarray([
-        tuple(int(color[offset:offset + 2], 16) for offset in (1, 3, 5))
-        for color in params.available_colors
-    ], dtype=np.float32)
+def _rgb_to_lab(rgb: np.ndarray) -> np.ndarray:
+    """Convert rows of sRGB values to CIE Lab for perceptual matching."""
+    srgb = np.asarray(rgb, dtype=np.float32) / 255.0
+    linear = np.where(srgb <= 0.04045, srgb / 12.92, ((srgb + 0.055) / 1.055) ** 2.4)
+    xyz = linear @ np.asarray([
+        [0.4124564, 0.3575761, 0.1804375],
+        [0.2126729, 0.7151522, 0.0721750],
+        [0.0193339, 0.1191920, 0.9503041],
+    ], dtype=np.float32).T
+    xyz /= np.asarray([0.95047, 1.0, 1.08883], dtype=np.float32)
+    delta = 6 / 29
+    transformed = np.where(xyz > delta ** 3, np.cbrt(xyz), xyz / (3 * delta ** 2) + 4 / 29)
+    return np.column_stack((
+        116 * transformed[:, 1] - 16,
+        500 * (transformed[:, 0] - transformed[:, 1]),
+        200 * (transformed[:, 1] - transformed[:, 2]),
+    ))
 
-    def rgb_to_lab(rgb: np.ndarray) -> np.ndarray:
-        srgb = rgb / 255.0
-        linear = np.where(srgb <= 0.04045, srgb / 12.92, ((srgb + 0.055) / 1.055) ** 2.4)
-        xyz = linear @ np.asarray([
-            [0.4124564, 0.3575761, 0.1804375],
-            [0.2126729, 0.7151522, 0.0721750],
-            [0.0193339, 0.1191920, 0.9503041],
-        ], dtype=np.float32).T
-        xyz /= np.asarray([0.95047, 1.0, 1.08883], dtype=np.float32)
-        delta = 6 / 29
-        transformed = np.where(xyz > delta ** 3, np.cbrt(xyz), xyz / (3 * delta ** 2) + 4 / 29)
-        return np.column_stack((
-            116 * transformed[:, 1] - 16,
-            500 * (transformed[:, 0] - transformed[:, 1]),
-            200 * (transformed[:, 1] - transformed[:, 2]),
+
+def _enhance_for_puzzle(image: Image.Image, size: tuple[int, int], detail_strength: float) -> Image.Image:
+    """Create a clean, contrast-balanced source before reducing the palette.
+
+    Resizing first removes camera noise which would otherwise become tiny
+    printable islands. A restrained auto-contrast and unsharp mask recover
+    faces, clothing seams and silhouettes without creating a noisy halftone.
+    """
+    reduced = image.resize(size, Image.Resampling.LANCZOS)
+    normalized = ImageOps.autocontrast(reduced, cutoff=1)
+    reduced = Image.blend(reduced, normalized, 0.52)
+    if detail_strength > 0:
+        reduced = reduced.filter(ImageFilter.UnsharpMask(
+            radius=1.15,
+            percent=round(45 + detail_strength * 65),
+            threshold=3,
         ))
+    return reduced.convert("RGB")
 
-    pixel_lab = rgb_to_lab(pixels)
-    available_lab = rgb_to_lab(available)
-    distances = np.sum((pixel_lab[:, None, :] - available_lab[None, :, :]) ** 2, axis=2)
 
-    # Start from the available filament which naturally covers the largest
-    # part of the image, then greedily add colors which reduce the perceptual
-    # error most. This constrains the result to filament the user really owns.
-    all_assignments = np.argmin(distances, axis=1)
-    selected = [int(np.argmax(np.bincount(all_assignments, minlength=len(available))))]
-    best_distance = distances[:, selected[0]].copy()
-    while len(selected) < params.color_count:
-        improvements = np.maximum(best_distance[:, None] - distances, 0).sum(axis=0)
-        improvements[selected] = -1
-        candidate = int(np.argmax(improvements))
-        selected.append(candidate)
-        best_distance = np.minimum(best_distance, distances[:, candidate])
+def _resolved_style(image: Image.Image, params: PuzzleParams) -> str:
+    if params.image_style != "auto":
+        return params.image_style
+    if params.color_count <= 4:
+        return "sepia"
+    lab = _rgb_to_lab(np.asarray(image, dtype=np.float32).reshape(-1, 3))
+    chroma = np.sqrt(lab[:, 1] ** 2 + lab[:, 2] ** 2)
+    # Colourful photographs keep their characteristic colours. Low-saturation
+    # photographs use a warm tonal treatment, which is clearer with 3-5
+    # filaments than arbitrary almost-grey filament matches.
+    colourful_share = float(np.mean(chroma >= 22))
+    return "color" if colourful_share >= 0.12 or params.color_count >= 6 else "sepia"
 
-    selected_distances = distances[:, selected]
-    raw_labels = np.argmin(selected_distances, axis=1)
-    counts = np.bincount(raw_labels, minlength=len(selected))
+
+def _dominant_first(
+    raw_labels: np.ndarray,
+    colors: list[np.ndarray],
+    rows: int,
+    columns: int,
+    resolved_style: str,
+) -> PuzzlePalette:
+    counts = np.bincount(raw_labels, minlength=len(colors))
     dominant = int(np.argmax(counts))
-    order = [dominant, *[index for index in range(len(selected)) if index != dominant]]
+    order = [dominant, *[index for index in range(len(colors)) if index != dominant]]
     remap = np.empty(len(order), dtype=np.int16)
     for new_index, old_index in enumerate(order):
         remap[old_index] = new_index
     labels = remap[raw_labels].reshape(rows, columns)
-    colors = tuple(
-        tuple(int(channel) for channel in available[selected[index]])
+    ordered_colors = tuple(
+        tuple(int(channel) for channel in colors[index])
         for index in order
     )
-    return PuzzlePalette(labels, colors)
+    return PuzzlePalette(labels, ordered_colors, resolved_style)
+
+
+def _pick_distinct_filaments(targets: np.ndarray, available: np.ndarray) -> list[np.ndarray]:
+    target_lab = _rgb_to_lab(targets)
+    available_lab = _rgb_to_lab(available)
+    selected: list[int] = []
+    for target in target_lab:
+        distances = np.sum((available_lab - target) ** 2, axis=1)
+        if selected:
+            distances[selected] = np.inf
+        selected.append(int(np.argmin(distances)))
+    return [available[index] for index in selected]
+
+
+def _tone_targets(style: str, count: int) -> np.ndarray:
+    if style == "grayscale":
+        stops = np.asarray([
+            [15, 15, 15], [58, 58, 58], [112, 112, 112],
+            [174, 174, 174], [245, 245, 245],
+        ], dtype=np.float32)
+    else:
+        stops = np.asarray([
+            [27, 16, 12], [77, 43, 29], [124, 76, 50],
+            [176, 132, 94], [218, 190, 151], [247, 239, 219],
+        ], dtype=np.float32)
+    source_positions = np.linspace(0, 1, len(stops))
+    target_positions = np.linspace(0, 1, count)
+    return np.column_stack([
+        np.interp(target_positions, source_positions, stops[:, channel])
+        for channel in range(3)
+    ]).astype(np.float32)
+
+
+def _tonal_labels(image: Image.Image, count: int) -> np.ndarray:
+    gray = ImageOps.grayscale(image)
+    equalized = ImageOps.equalize(gray)
+    gray = Image.blend(gray, equalized, 0.24)
+    values = np.asarray(gray, dtype=np.float32).reshape(-1)
+    centers = np.quantile(values, np.linspace(0.03, 0.97, count)).astype(np.float32)
+    for _ in range(18):
+        labels = np.argmin(np.abs(values[:, None] - centers[None, :]), axis=1)
+        updated = centers.copy()
+        for index in range(count):
+            members = values[labels == index]
+            if len(members):
+                updated[index] = float(np.mean(members))
+        updated.sort()
+        if np.max(np.abs(updated - centers)) < 0.05:
+            centers = updated
+            break
+        centers = updated
+    return np.argmin(np.abs(values[:, None] - centers[None, :]), axis=1)
+
+
+def _quantize_tonal(
+    image: Image.Image,
+    params: PuzzleParams,
+    available: np.ndarray,
+    style: str,
+) -> PuzzlePalette:
+    rows, columns = image.height, image.width
+    raw_labels = _tonal_labels(image, params.color_count)
+    targets = _tone_targets(style, params.color_count)
+    colors = _pick_distinct_filaments(targets, available)
+    colors.sort(key=lambda color: float(_rgb_to_lab(color.reshape(1, 3))[0, 0]))
+    return _dominant_first(raw_labels, colors, rows, columns, style)
+
+
+def _quantize_color(
+    image: Image.Image,
+    params: PuzzleParams,
+    available: np.ndarray,
+    resolved_style: str = "color",
+) -> PuzzlePalette:
+    rows, columns = image.height, image.width
+    # Median-cut first discovers the actual visual roles in the photograph
+    # (sky, skin, clothing, shadows). Only then are those roles matched to
+    # filament. The old per-pixel matching could discard an entire blue shirt
+    # merely because another colour reduced the global error slightly more.
+    quantized = image.quantize(
+        colors=params.color_count,
+        method=Image.Quantize.MEDIANCUT,
+        dither=Image.Dither.NONE,
+    )
+    raw_labels = np.asarray(quantized, dtype=np.int16).reshape(-1)
+    palette_data = np.asarray(quantized.getpalette()[:params.color_count * 3], dtype=np.float32)
+    targets = palette_data.reshape(params.color_count, 3)
+    counts = np.bincount(raw_labels, minlength=params.color_count)
+    target_order = list(np.argsort(-counts))
+    selected_by_target: dict[int, np.ndarray] = {}
+    available_lab = _rgb_to_lab(available)
+    used: list[int] = []
+    for target_index in target_order:
+        target_lab = _rgb_to_lab(targets[target_index:target_index + 1])[0]
+        # Luminance receives a little more weight than hue so faces and object
+        # boundaries retain contrast after mapping to a real filament set.
+        delta = available_lab - target_lab
+        distances = delta[:, 0] ** 2 * 1.45 + delta[:, 1] ** 2 + delta[:, 2] ** 2
+        if used:
+            distances[used] = np.inf
+        chosen = int(np.argmin(distances))
+        used.append(chosen)
+        selected_by_target[target_index] = available[chosen]
+    colors = [selected_by_target[index] for index in range(params.color_count)]
+    return _dominant_first(raw_labels, colors, rows, columns, resolved_style)
+
+
+def _quantize(image: Image.Image, params: PuzzleParams) -> PuzzlePalette:
+    columns = max(2, round(params.width_mm / params.color_pixel_mm))
+    rows = max(2, round(params.height_mm / params.color_pixel_mm))
+    reduced = _enhance_for_puzzle(image, (columns, rows), params.detail_strength)
+    available = np.asarray([
+        tuple(int(color[offset:offset + 2], 16) for offset in (1, 3, 5))
+        for color in params.available_colors
+    ], dtype=np.float32)
+    style = _resolved_style(reduced, params)
+    if style in {"sepia", "grayscale"}:
+        return _quantize_tonal(reduced, params, available, style)
+    return _quantize_color(reduced, params, available, style)
 
 
 def prepare_puzzle(raw: bytes, params: PuzzleParams) -> tuple[Image.Image, PuzzlePalette]:
@@ -184,7 +314,7 @@ def prepare_puzzle(raw: bytes, params: PuzzleParams) -> tuple[Image.Image, Puzzl
     return image, _quantize(image, params)
 
 
-def puzzle_preview_png(raw: bytes, params: PuzzleParams) -> tuple[bytes, list[str]]:
+def puzzle_preview_png(raw: bytes, params: PuzzleParams) -> tuple[bytes, list[str], str]:
     _, palette = prepare_puzzle(raw, params)
     rgb = np.asarray(palette.colors, dtype=np.uint8)[palette.labels]
     preview = Image.fromarray(rgb)
@@ -204,7 +334,7 @@ def puzzle_preview_png(raw: bytes, params: PuzzleParams) -> tuple[bytes, list[st
         draw.line(points, fill=(20, 24, 31), width=line_width, joint="curve")
     output = BytesIO()
     preview.save(output, "PNG", optimize=True)
-    return output.getvalue(), palette.hex_colors
+    return output.getvalue(), palette.hex_colors, palette.resolved_style
 
 
 def _polygon_parts(geometry) -> list[Polygon]:
@@ -491,6 +621,9 @@ def build_puzzle_3mf(raw: bytes, params: PuzzleParams) -> tuple[bytes, list[str]
         "piece_count": params.piece_count,
         "color_count": params.color_count,
         "color_layout": params.color_layout,
+        "image_style": params.image_style,
+        "resolved_image_style": palette.resolved_style,
+        "detail_strength": params.detail_strength,
         "palette": palette.hex_colors,
         "dominant_base_color": palette.hex_colors[0],
         "print_strategy": (

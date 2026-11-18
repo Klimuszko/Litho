@@ -8,6 +8,7 @@ export type PuzzleParams = {
   piece_count: 36 | 64 | 100 | 144 | 225;
   color_count: number;
   color_layout: "layered" | "same_layer";
+  image_style: "auto" | "color" | "sepia" | "grayscale";
   available_colors: string[];
   base_thickness_mm: number;
   color_thickness_mm: number;
@@ -18,6 +19,7 @@ export type PuzzleParams = {
   brightness: number;
   contrast: number;
   saturation: number;
+  detail_strength: number;
   mirror: boolean;
   rotation_degrees: number;
   crop: {x: number; y: number; width: number; height: number};
@@ -45,6 +47,7 @@ export const initialPuzzle: PuzzleParams = {
   piece_count: 100,
   color_count: 4,
   color_layout: "layered",
+  image_style: "auto",
   available_colors: [...DEFAULT_FILAMENT_COLORS],
   base_thickness_mm: 2,
   color_thickness_mm: .2,
@@ -55,6 +58,7 @@ export const initialPuzzle: PuzzleParams = {
   brightness: 1,
   contrast: 1.1,
   saturation: 1,
+  detail_strength: 1,
   mirror: false,
   rotation_degrees: 0,
   crop: {x: 0, y: 0, width: 1, height: 1},
@@ -144,6 +148,7 @@ export default function PuzzleGenerator({active, onOpenLithophane, onOpenHousing
   const [sourceSize, setSourceSize] = useState<ImageSize | null>(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [palette, setPalette] = useState<string[]>([]);
+  const [resolvedStyle, setResolvedStyle] = useState("");
   const sourceUrlRef = useRef("");
   const previewUrlRef = useRef("");
   const [previewBusy, setPreviewBusy] = useState(false);
@@ -161,6 +166,10 @@ export default function PuzzleGenerator({active, onOpenLithophane, onOpenHousing
     Math.min(params.width_mm, params.height_mm) === Math.min(format.width, format.height)
     && Math.max(params.width_mm, params.height_mm) === Math.max(format.width, format.height)
   );
+  const styleName = (style: string) => style === "color" ? "kolor" : style === "sepia" ? "sepia" : style === "grayscale" ? "czarno-białe" : "automatycznie";
+  const previewStyle = params.image_style === "auto"
+    ? (resolvedStyle ? `auto: ${styleName(resolvedStyle)}` : "obróbka auto")
+    : styleName(params.image_style);
 
   const set = <K extends keyof PuzzleParams>(key: K, value: PuzzleParams[K]) =>
     setParams(current => ({...current, [key]: value}));
@@ -192,6 +201,7 @@ export default function PuzzleGenerator({active, onOpenLithophane, onOpenHousing
     if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
     previewUrlRef.current = "";
     setPreviewUrl("");
+    setResolvedStyle("");
     const image = new Image();
     image.onload = () => {
       const size = {width: image.naturalWidth, height: image.naturalHeight};
@@ -213,11 +223,13 @@ export default function PuzzleGenerator({active, onOpenLithophane, onOpenHousing
         const response = await apiFetch("/api/puzzle/preview", {method: "POST", body, signal: controller.signal});
         if (!response.ok) throw new Error(await responseMessage(response, "Nie udało się przygotować podglądu."));
         const nextPalette = JSON.parse(response.headers.get("X-Puzzle-Palette") || "[]") as string[];
+        const nextResolvedStyle = response.headers.get("X-Puzzle-Image-Style") || params.image_style;
         const blob = await response.blob();
         const nextUrl = URL.createObjectURL(blob);
         if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
         previewUrlRef.current = nextUrl;
         setPalette(nextPalette);
+        setResolvedStyle(nextResolvedStyle);
         setPreviewUrl(nextUrl);
         setError("");
       } catch (reason) {
@@ -358,8 +370,23 @@ export default function PuzzleGenerator({active, onOpenLithophane, onOpenHousing
           const disabled = Math.min(params.width_mm / countGrid, params.height_mm / countGrid) < 9;
           return <button key={count} disabled={disabled} className={params.piece_count === count ? "active" : ""} onClick={() => set("piece_count", count)}>{count}<small>{countGrid} × {countGrid}</small></button>;
         })}</div>
+        <h3>Przygotowanie zdjęcia</h3>
+        <div className="puzzle-image-styles">
+          <button type="button" className={params.image_style === "auto" ? "active" : ""} onClick={() => set("image_style", "auto")}>
+            <b>Automatyczne</b><small>Przy 4 kolorach stawia na czytelność tonalną</small>
+          </button>
+          <button type="button" className={params.image_style === "color" ? "active" : ""} onClick={() => set("image_style", "color")}>
+            <b>Kolor</b><small>Zachowuje charakterystyczne barwy fotografii</small>
+          </button>
+          <button type="button" className={params.image_style === "sepia" ? "active" : ""} onClick={() => set("image_style", "sepia")}>
+            <b>Sepia</b><small>Ciepła skala tonalna, dobra przy 3–5 kolorach</small>
+          </button>
+          <button type="button" className={params.image_style === "grayscale" ? "active" : ""} onClick={() => set("image_style", "grayscale")}>
+            <b>Czarno-białe</b><small>Neutralna skala od czerni do bieli</small>
+          </button>
+        </div>
         <Range label="Liczba kolorów w projekcie" value={params.color_count} min={3} max={Math.min(12, params.available_colors.length)} step={1} onChange={value => set("color_count", value)}/>
-        <p className="quality-note puzzle-note">Minimum 3 kolory zachowuje czytelność zdjęcia. Generator wybierze najlepsze z filamentów, które masz.</p>
+        <p className="quality-note puzzle-note">Tryb automatyczny wyrównuje światło, chroni kontury i najpierw rozpoznaje ważne role kolorów w zdjęciu. Dopiero potem dopasowuje je do filamentów, które masz.</p>
         <div className="inventory-title"><h3>Dostępne filamenty</h3><span>{params.available_colors.length}</span></div>
         <div className="filament-inventory">
           {params.available_colors.map((color, index) => <div className="filament-color" key={index}>
@@ -373,7 +400,8 @@ export default function PuzzleGenerator({active, onOpenLithophane, onOpenHousing
         </div>
         <Range label="Jasność" value={params.brightness} min={.5} max={1.5} step={.05} onChange={value => set("brightness", value)}/>
         <Range label="Kontrast" value={params.contrast} min={.5} max={2} step={.05} onChange={value => set("contrast", value)}/>
-        <Range label="Nasycenie" value={params.saturation} min={0} max={2} step={.05} onChange={value => set("saturation", value)}/>
+        {(params.image_style === "auto" || params.image_style === "color") && <Range label="Nasycenie" value={params.saturation} min={0} max={2} step={.05} onChange={value => set("saturation", value)}/>}
+        <Range label="Wyrazistość detali" value={params.detail_strength} min={0} max={2} step={.1} onChange={value => set("detail_strength", value)}/>
 
         <h2><span>04</span> Wydruk</h2>
         <h3>Układ kolorów</h3>
@@ -397,7 +425,7 @@ export default function PuzzleGenerator({active, onOpenLithophane, onOpenHousing
 
     <section className="workbench puzzle-workbench">
       <article className="preview puzzle-preview">
-        <div className="preview-head"><div><p className="eyebrow">PODGLĄD PUZZLI</p><h2>Zdjęcie podzielone na {params.piece_count} elementów</h2></div><span className="puzzle-badge">{params.color_count} filamenty · {params.color_layout === "layered" ? "warstwowo" : "AMS"} · {grid} × {grid}</span></div>
+        <div className="preview-head"><div><p className="eyebrow">PODGLĄD PUZZLI</p><h2>Zdjęcie podzielone na {params.piece_count} elementów</h2></div><span className="puzzle-badge">{params.color_count} filamenty · {previewStyle} · {params.color_layout === "layered" ? "warstwowo" : "AMS"} · {grid} × {grid}</span></div>
         <div className="puzzle-stage" style={{aspectRatio: `${params.width_mm} / ${params.height_mm}`}}>
           {file ? <img src={previewUrl || sourceUrl} alt="Podgląd puzzli"/> : <button type="button" className="puzzle-empty" onClick={() => input.current?.click()}><span>＋</span><b>Dodaj fotografię</b><small>Kliknij tutaj, aby rozpocząć</small></button>}
           {previewBusy && <div className="puzzle-loading">Przeliczanie kolorów i kształtów…</div>}
