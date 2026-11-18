@@ -86,6 +86,8 @@
     previewWrap.style.marginInline = portrait && !compact ? 'auto' : '0';
     canvas.style.width = '100%';
     canvas.style.marginInline = '0';
+    canvas.style.aspectRatio = portrait ? '3 / 4' : '4 / 3';
+    canvas.style.height = 'auto';
     clampPan();
     draw();
   }
