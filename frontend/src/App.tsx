@@ -374,7 +374,7 @@ function LithophaneGenerator({active, onSelectProduct}: {active: boolean; onSele
       <aside className="sidebar">
       <div className="sidebar-brand"><span className="mark">L</span><div><strong>Litho</strong><small>Generator litofanii 3D</small></div><span className="version">V2</span></div>
         <GeneratorProductNav active="lithophane" onSelect={onSelectProduct}/>
-        <div className="sidebar-scroll">
+        <fieldset className="sidebar-scroll generator-controls" disabled={busy} aria-busy={busy}>
         <h2><span>01</span> Obraz</h2>
         <label className="drop"><input ref={fileInput} type="file" accept="image/jpeg,image/png" onChange={choose}/><b>{file ? file.name : "Wybierz zdjęcie"}</b><small>JPG lub PNG · maks. 20 MB</small></label>
         <h3>Kadrowanie</h3>
@@ -412,7 +412,7 @@ function LithophaneGenerator({active, onSelectProduct}: {active: boolean; onSele
         </>}
         <label className="check"><input type="checkbox" checked={params.invert} onChange={e => set("invert", e.target.checked)}/><span>Odwróć obraz</span></label>
         <label className="check"><input type="checkbox" checked={params.mirror} onChange={e => set("mirror", e.target.checked)}/><span>Odbij zdjęcie lustrzanie</span></label>
-        </div>
+        </fieldset>
         <div className="sidebar-foot">Lokalne przetwarzanie · STL manifold</div>
       </aside>
       <section className="workbench">

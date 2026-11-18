@@ -145,7 +145,7 @@ export default function HousingGenerator({active, onSelectProduct}: {active: boo
     <aside className="sidebar">
       <div className="sidebar-brand"><span className="mark">L</span><div><strong>Litho</strong><small>Generator obudów 3D</small></div><span className="version">V2</span></div>
       <GeneratorProductNav active="housing" onSelect={onSelectProduct}/>
-      <div className="sidebar-scroll">
+      <fieldset className="sidebar-scroll generator-controls" disabled={busy} aria-busy={busy}>
         <h2><span>01</span> Typ obudowy</h2>
         <div className="housing-kind">
           <button className={params.kind === "box" ? "active" : ""} onClick={() => set("kind", "box")}><b>Box</b><small>Wąska maskownica frontu</small></button>
@@ -174,7 +174,7 @@ export default function HousingGenerator({active, onSelectProduct}: {active: boo
           <span><small>KLIPSY PANELU</small><b>{clipCount} × 0.4 mm</b></span>
           <span><small>PRZYŁĄCZE</small><b>{`USB-C · ${params.usb_side === "left" ? "lewy" : "prawy"} ${params.electronics_position === "bottom" ? "dół" : "góra"}`}</b></span>
         </div>
-      </div>
+      </fieldset>
       <div className="sidebar-foot">Zatrzaski mechaniczne + klej CA · bez metalowych części</div>
     </aside>
     <section className="workbench housing-workbench">

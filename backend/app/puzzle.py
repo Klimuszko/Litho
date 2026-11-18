@@ -536,7 +536,9 @@ def build_puzzle_3mf(raw: bytes, params: PuzzleParams) -> tuple[bytes, list[str]
         ET.SubElement(
             materials,
             f"{{{MATERIAL_NS}}}base",
-            {"name": f"Filament {index}", "displaycolor": f"#{red:02X}{green:02X}{blue:02X}FF"},
+            # 3MF displaycolor is an opaque six-digit RGB value.  Bambu Studio
+            # rejects the package when an unsupported alpha suffix is present.
+            {"name": f"Filament {index}", "displaycolor": f"#{red:02X}{green:02X}{blue:02X}"},
         )
 
     build = ET.SubElement(model, f"{{{CORE_NS}}}build")

@@ -114,6 +114,8 @@ def test_3mf_contains_separate_pieces_and_selected_filaments():
         materials = model.findall(".//{http://schemas.microsoft.com/3dmanufacturing/material/2015/02}base")
         assert len(build_items) == 36
         assert len(materials) == 4
+        assert all(len(item.attrib["displaycolor"]) == 7 for item in materials)
+        assert all(item.attrib["displaycolor"].startswith("#") for item in materials)
         config = ET.fromstring(archive.read("Metadata/model_settings.config"))
         extruders = {
             element.attrib["value"]

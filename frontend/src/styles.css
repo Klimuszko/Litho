@@ -70,6 +70,16 @@ button { cursor: pointer; }
   scrollbar-color: #cfd5df transparent;
 }
 
+/* Freeze all settings atomically while a print file is being generated. */
+.generator-controls {
+  border: 0;
+  min-inline-size: 0;
+  margin: 0;
+  width: 100%;
+  color: inherit;
+}
+.generator-controls:disabled { opacity: .72; }
+
 .sidebar-scroll::-webkit-scrollbar { width: 6px; }
 .sidebar-scroll::-webkit-scrollbar-thumb { background: #cfd5df; border-radius: 10px; }
 .sidebar-foot { padding: 12px 22px; border-top: 1px solid #edf0f4; color: #929aaa; font-size: 10px; }

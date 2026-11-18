@@ -347,7 +347,7 @@ export default function PuzzleGenerator({active, mode, onSelectProduct}: {
     <aside className="sidebar">
       <div className="sidebar-brand"><span className="mark">L</span><div><strong>Litho</strong><small>Generator puzzli 3D</small></div><span className="version">V1</span></div>
       <GeneratorProductNav active={frameMode ? "puzzle-frame" : "puzzle"} onSelect={onSelectProduct}/>
-      <div className="sidebar-scroll">
+      <fieldset className="sidebar-scroll generator-controls" disabled={puzzleBusy || frameBusy} aria-busy={puzzleBusy || frameBusy}>
         {!frameMode && <>
         <h2><span>01</span> Zdjęcie</h2>
         <label className="drop"><input ref={input} type="file" accept="image/jpeg,image/png" onChange={choose}/><b>{file?.name || "Wybierz zdjęcie"}</b><small>JPG lub PNG · maks. 20 MB</small></label>
@@ -443,7 +443,7 @@ export default function PuzzleGenerator({active, mode, onSelectProduct}: {
           ? "Kolor dominujący tworzy pełny podkład. Każdy następny kolor zajmuje osobny poziom, więc występuje tylko jedna zmiana filamentu na wysokość."
           : "Kolor dominujący tworzy pełny podkład, a wszystkie kolory obrazu są obok siebie w jednym płaskim pasie. Ten tryb wymaga AMS lub innego systemu wielomateriałowego."}</p>
         </>}
-      </div>
+      </fieldset>
       <div className="sidebar-foot">{frameMode ? "Ramka · stojak · mocowanie ścienne" : "Osobne obiekty · paleta 3–12 filamentów · bez zapisu zdjęcia"}</div>
     </aside>
 
