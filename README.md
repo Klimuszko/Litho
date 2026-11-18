@@ -85,6 +85,28 @@ Content-Type: application/json
 Oba warianty są przeznaczone dla litofanii wygenerowanej z opcją
 `Kołnierz montażowy Litho Mount V2`.
 
+## Generator puzzli
+
+Widok `Puzzle` przygotowuje dwa niezależne pliki: wielokolorowy model puzzli
+`3MF` oraz paczkę `ZIP` z ramką i składaną podpórką. Domyślna konfiguracja to
+100 elementów, format 150 × 200 mm i 4 kolory wybrane automatycznie wyłącznie
+z listy posiadanych filamentów. Dostępne siatki mają 36, 64, 100, 144 lub
+225 elementów, a generator pilnuje minimalnego rozmiaru pojedynczego puzzla
+oraz pola roboczego 250 × 250 mm.
+
+Plik 3MF zachowuje każdy puzzel jako osobny obiekt i przypisuje częściom
+wybrane filamenty. Dostępne są dwa sposoby druku koloru:
+
+- `Warstwowo` — kolor dominujący jest pełnym podkładem, a kolejne kolory
+  zajmują osobne wysokości Z. Tryb nie wymaga AMS i ogranicza zmiany filamentu
+  do jednej zmiany na poziom.
+- `Jedna wysokość` — kolor dominujący nadal wzmacnia cały puzzel, natomiast
+  wszystkie kolory obrazu tworzą wspólną, płaską powierzchnię. Ten wariant
+  wymaga AMS lub innego systemu wielomateriałowego.
+
+Ramka ma jednocześnie otwory do zawieszenia i zawias podpórki pod popularną
+śrubę M3 × 30, dlatego nie trzeba wybierać sposobu ekspozycji przed drukiem.
+
 ## Ustawienia powierzchni Fuzzy Skin
 
 Fuzzy Skin dodaje drobną, nieregularną fakturę, która ogranicza widoczność

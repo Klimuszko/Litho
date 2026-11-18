@@ -1,7 +1,7 @@
 import math
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 MOUNTING_FLANGE_WIDTH_MM = 3.0
 MOUNTING_FLANGE_HEIGHT_MM = 1.6
@@ -141,6 +141,89 @@ class LithophaneParams(BaseModel):
     @property
     def effective_sample_pitch_mm(self) -> float:
         return max(self.image_width_mm, self.image_height_mm) / self.effective_resolution
+
+
+class PuzzleParams(BaseModel):
+    width_mm: float = Field(150, ge=100, le=230, description="Finished assembled puzzle width")
+    height_mm: float = Field(200, ge=100, le=230, description="Finished assembled puzzle height")
+    piece_count: Literal[36, 64, 100, 144, 225] = 100
+    color_count: int = Field(4, ge=3, le=12)
+    color_layout: Literal["layered", "same_layer"] = "layered"
+    available_colors: list[str] = Field(
+        default_factory=lambda: [
+            "#111111", "#F5F3E8", "#8A8D91", "#D62828", "#F77F00",
+            "#F4D35E", "#8AC926", "#2A9D5B", "#1B998B", "#32BDE8",
+            "#277DA1", "#2541B2", "#6A4C93", "#B5179E", "#FF70A6",
+            "#7F4F24", "#B08968", "#DDB892", "#E9C46A", "#6D071A",
+        ],
+        min_length=3,
+        max_length=40,
+    )
+    base_thickness_mm: float = Field(2.0, ge=1.4, le=3.0)
+    color_thickness_mm: float = Field(0.2, ge=0.08, le=0.4)
+    piece_clearance_mm: float = Field(0.18, ge=0.1, le=0.35)
+    color_pixel_mm: float = Field(0.8, ge=0.6, le=1.5)
+    frame_border_mm: float = Field(10, ge=8, le=15)
+    frame_clearance_mm: float = Field(0.6, ge=0.3, le=1.2)
+    brightness: float = Field(1.0, ge=0.5, le=1.5)
+    contrast: float = Field(1.1, ge=0.5, le=2.0)
+    saturation: float = Field(1.0, ge=0, le=2.0)
+    mirror: bool = False
+    rotation_degrees: float = Field(0, ge=-360, le=360)
+    crop: Crop = Field(default_factory=Crop)
+
+    @field_validator("available_colors")
+    @classmethod
+    def valid_available_colors(cls, colors: list[str]) -> list[str]:
+        normalized = []
+        for color in colors:
+            value = color.strip().upper()
+            if len(value) != 7 or value[0] != "#" or any(character not in "0123456789ABCDEF" for character in value[1:]):
+                raise ValueError(f"Invalid filament color: {color}")
+            normalized.append(value)
+        if len(set(normalized)) != len(normalized):
+            raise ValueError("Available filament colors must be unique")
+        return normalized
+
+    @model_validator(mode="after")
+    def physical_relations(self):
+        if len(self.available_colors) < self.color_count:
+            raise ValueError("Add at least as many available filament colors as requested output colors")
+        grid = self.grid_size
+        if min(self.width_mm / grid, self.height_mm / grid) < 9:
+            raise ValueError("Puzzle pieces would be smaller than 9 mm; choose a larger format or fewer pieces")
+        if self.frame_outer_width_mm > 250 or self.frame_total_height_mm > 250:
+            raise ValueError("Frame with its hinge must fit within 250 x 250 mm")
+        return self
+
+    @property
+    def grid_size(self) -> int:
+        return math.isqrt(self.piece_count)
+
+    @property
+    def piece_width_mm(self) -> float:
+        return self.width_mm / self.grid_size
+
+    @property
+    def piece_height_mm(self) -> float:
+        return self.height_mm / self.grid_size
+
+    @property
+    def total_thickness_mm(self) -> float:
+        color_bands = 1 if self.color_layout == "same_layer" else self.color_count - 1
+        return self.base_thickness_mm + color_bands * self.color_thickness_mm
+
+    @property
+    def frame_outer_width_mm(self) -> float:
+        return self.width_mm + 2 * self.frame_border_mm
+
+    @property
+    def frame_outer_height_mm(self) -> float:
+        return self.height_mm + 2 * self.frame_border_mm
+
+    @property
+    def frame_total_height_mm(self) -> float:
+        return self.frame_outer_height_mm + 7
 
 
 class HousingParams(BaseModel):

@@ -1,6 +1,7 @@
 import { ChangeEvent, lazy, PointerEvent as ReactPointerEvent, Suspense, useEffect, useRef, useState } from "react";
 import "./formats.css";
 import HousingGenerator from "./HousingGenerator";
+import PuzzleGenerator from "./PuzzleGenerator";
 import {useAuth} from "./Auth";
 
 const ScadModules = lazy(() => import("./ScadModules"));
@@ -158,7 +159,7 @@ function Slider({label, value, min, max, step, unit = "", onChange}: {label: str
   return <label className="control"><span>{label}<output>{value}{unit}</output></span><input type="range" value={value} min={min} max={max} step={step} onChange={e => onChange(Number(e.target.value))}/></label>;
 }
 
-function LithophaneGenerator({active, onOpenHousing}: {active: boolean; onOpenHousing: () => void}) {
+function LithophaneGenerator({active, onOpenHousing, onOpenPuzzle}: {active: boolean; onOpenHousing: () => void; onOpenPuzzle: () => void}) {
   const {apiFetch} = useAuth();
   const [file, setFile] = useState<File | null>(null);
   const [source, setSource] = useState<string>("");
@@ -371,7 +372,7 @@ function LithophaneGenerator({active, onOpenHousing}: {active: boolean; onOpenHo
   return <main className="app-shell" hidden={!active}>
       <aside className="sidebar">
       <div className="sidebar-brand"><span className="mark">L</span><div><strong>Litho</strong><small>Generator litofanii 3D</small></div><span className="version">V2</span></div>
-        <div className="product-switch"><button className="active">Litofania</button><button onClick={onOpenHousing}>Obudowa</button></div>
+        <div className="product-switch"><button className="active">Litofania</button><button onClick={onOpenHousing}>Obudowa</button><button onClick={onOpenPuzzle}>Puzzle</button></div>
         <div className="sidebar-scroll">
         <h2><span>01</span> Obraz</h2>
         <label className="drop"><input ref={fileInput} type="file" accept="image/jpeg,image/png" onChange={choose}/><b>{file ? file.name : "Wybierz zdjęcie"}</b><small>JPG lub PNG · maks. 20 MB</small></label>
@@ -428,15 +429,16 @@ function LithophaneGenerator({active, onOpenHousing}: {active: boolean; onOpenHo
 
 export default function App() {
   const {section} = useAuth();
-  const [product, setProduct] = useState<"lithophane" | "housing">("lithophane");
+  const [product, setProduct] = useState<"lithophane" | "housing" | "puzzle">("lithophane");
   const [modulesVisited, setModulesVisited] = useState(section === "modules");
   useEffect(() => {
     if (section === "modules") setModulesVisited(true);
   }, [section]);
   return <>
     <div hidden={section !== "generator"}>
-      <LithophaneGenerator active={product === "lithophane"} onOpenHousing={() => setProduct("housing")}/>
-      <HousingGenerator active={product === "housing"} onOpenLithophane={() => setProduct("lithophane")}/>
+      <LithophaneGenerator active={product === "lithophane"} onOpenHousing={() => setProduct("housing")} onOpenPuzzle={() => setProduct("puzzle")}/>
+      <HousingGenerator active={product === "housing"} onOpenLithophane={() => setProduct("lithophane")} onOpenPuzzle={() => setProduct("puzzle")}/>
+      <PuzzleGenerator active={product === "puzzle"} onOpenLithophane={() => setProduct("lithophane")} onOpenHousing={() => setProduct("housing")}/>
     </div>
     {modulesVisited && <div hidden={section !== "modules"}>
       <Suspense fallback={<main className="module-loading">Ładowanie biblioteki modułów…</main>}><ScadModules/></Suspense>

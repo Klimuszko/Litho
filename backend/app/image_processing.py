@@ -4,7 +4,7 @@ import math
 import numpy as np
 from PIL import Image, ImageEnhance, ImageOps, UnidentifiedImageError
 
-from .models import LithophaneParams
+from .models import LithophaneParams, PuzzleParams
 
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 MAX_IMAGE_DIMENSION = 8000
@@ -116,6 +116,24 @@ def prepare_image(
     image = ImageEnhance.Brightness(image).enhance(params.brightness)
     image = ImageEnhance.Contrast(image).enhance(params.contrast)
     return image.convert("L")
+
+
+def prepare_puzzle_image(image: Image.Image, params: PuzzleParams) -> Image.Image:
+    """Apply the shared crop controls while preserving full colour."""
+    image = rotate_and_inscribe(image, params.rotation_degrees)
+    crop = params.crop
+    left = round(crop.x * image.width)
+    top = round(crop.y * image.height)
+    right = round((crop.x + crop.width) * image.width)
+    bottom = round((crop.y + crop.height) * image.height)
+    image = image.crop((left, top, max(left + 1, right), max(top + 1, bottom)))
+    image = crop_to_aspect(image, params.width_mm / params.height_mm)
+    if params.mirror:
+        image = ImageOps.mirror(image)
+    image = ImageEnhance.Brightness(image).enhance(params.brightness)
+    image = ImageEnhance.Contrast(image).enhance(params.contrast)
+    image = ImageEnhance.Color(image).enhance(params.saturation)
+    return image.convert("RGB")
 
 
 def resample_luminance(image: Image.Image, cols: int, rows: int) -> np.ndarray:

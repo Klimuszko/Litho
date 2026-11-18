@@ -28,8 +28,9 @@ from .housing import (
 )
 from .image_processing import InvalidImage, decode_image, prepare_image, preview_png, resample_luminance
 from .mesh import apply_border, build_plate, combine_meshes, validate_mesh
-from .models import HousingParams, LithophaneParams
+from .models import HousingParams, LithophaneParams, PuzzleParams
 from .projects import CustomerProjectConfig, OrderReference, ProjectAlreadyAttached, project_store
+from .puzzle import build_puzzle_3mf, build_puzzle_frame_zip, puzzle_preview_png
 from .scad.router import router as scad_router
 from .scad.repository import scad_repository
 
@@ -109,6 +110,13 @@ async def require_authentication(request: Request, call_next):
 def parse_params(raw: str) -> LithophaneParams:
     try:
         return LithophaneParams.model_validate_json(raw)
+    except (ValidationError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=422, detail={"error_code": "PARAM_OUT_OF_RANGE", "message": str(exc)}) from exc
+
+
+def parse_puzzle_params(raw: str) -> PuzzleParams:
+    try:
+        return PuzzleParams.model_validate_json(raw)
     except (ValidationError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=422, detail={"error_code": "PARAM_OUT_OF_RANGE", "message": str(exc)}) from exc
 
@@ -490,6 +498,66 @@ async def generate(image: UploadFile = File(...), params: str = Form(...)):
     )
 
 
+@app.post("/api/puzzle/preview")
+async def preview_puzzle(image: UploadFile = File(...), params: str = Form(...)):
+    settings = parse_puzzle_params(params)
+    raw = await read_image(image)
+    try:
+        payload, palette = puzzle_preview_png(raw, settings)
+    except InvalidImage as exc:
+        raise HTTPException(status_code=422, detail={"error_code": "INVALID_IMAGE_FORMAT", "message": str(exc)}) from exc
+    return Response(
+        payload,
+        media_type="image/png",
+        headers={
+            "Cache-Control": "no-store",
+            "X-Puzzle-Palette": json.dumps(palette, separators=(",", ":")),
+            "X-Puzzle-Count": str(settings.piece_count),
+        },
+    )
+
+
+@app.post("/api/puzzle/generate")
+async def generate_puzzle(image: UploadFile = File(...), params: str = Form(...)):
+    settings = parse_puzzle_params(params)
+    raw = await read_image(image)
+    try:
+        payload, palette = build_puzzle_3mf(raw, settings)
+    except InvalidImage as exc:
+        raise HTTPException(status_code=422, detail={"error_code": "INVALID_IMAGE_FORMAT", "message": str(exc)}) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=500, detail={"error_code": "PUZZLE_GENERATION_FAILED", "message": str(exc)}) from exc
+    return Response(
+        payload,
+        media_type="model/3mf",
+        headers={
+            "Content-Disposition": f'attachment; filename="litho-puzzle-{settings.width_mm:g}x{settings.height_mm:g}-{settings.piece_count}.3mf"',
+            "Cache-Control": "no-store",
+            "X-Puzzle-Palette": json.dumps(palette, separators=(",", ":")),
+            "X-Puzzle-Filament-Count": str(settings.color_count),
+            "X-Puzzle-Object-Count": str(settings.piece_count),
+        },
+    )
+
+
+@app.post("/api/puzzle/frame")
+async def generate_puzzle_frame(settings: PuzzleParams):
+    try:
+        payload = build_puzzle_frame_zip(settings)
+    except ValueError as exc:
+        raise HTTPException(status_code=500, detail={"error_code": "PUZZLE_FRAME_FAILED", "message": str(exc)}) from exc
+    return Response(
+        payload,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="litho-puzzle-frame-{settings.width_mm:g}x{settings.height_mm:g}.zip"',
+            "Cache-Control": "no-store",
+            "X-Puzzle-Frame-Outer-Size-Mm": f"{settings.frame_outer_width_mm:g}x{settings.frame_outer_height_mm:g}",
+            "X-Puzzle-Hardware": "M3x30",
+        },
+    )
+
+
 @app.post("/api/housing/generate")
 async def generate_housing(settings: HousingParams):
     body = orient_front_on_bed(build_housing_body(settings))
@@ -589,6 +657,6 @@ app.include_router(scad_router)
 
 # W obrazie produkcyjnym frontend React jest kopiowany do /app/static.
 # Montowanie następuje po trasach API, więc /api/* zachowuje pierwszeństwo.
-STATIC_DIR = Path("/app/static")
+STATIC_DIR = Path(os.getenv("LITHO_STATIC_DIR", "/app/static"))
 if STATIC_DIR.is_dir():
     app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="frontend")
