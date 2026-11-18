@@ -3,13 +3,14 @@ import {initialPuzzle, puzzleFrameSize, puzzleGridSize, puzzleTotalThickness, va
 
 describe("generator puzzli", () => {
   it("starts with the recommended 100-piece, four-filament preset", () => {
-    expect(initialPuzzle.width_mm).toBe(150);
-    expect(initialPuzzle.height_mm).toBe(200);
+    expect(initialPuzzle.width_mm).toBe(200);
+    expect(initialPuzzle.height_mm).toBe(220);
     expect(initialPuzzle.piece_count).toBe(100);
+    expect(initialPuzzle.piece_pattern).toBe("natural");
     expect(initialPuzzle.color_count).toBe(4);
     expect(initialPuzzle.color_layout).toBe("layered");
     expect(initialPuzzle.image_style).toBe("auto");
-    expect(initialPuzzle.detail_strength).toBe(1);
+    expect(initialPuzzle.detail_strength).toBe(2);
     expect(initialPuzzle.available_colors).toHaveLength(20);
     expect(initialPuzzle.color_thickness_mm).toBe(.2);
     expect(puzzleTotalThickness(initialPuzzle)).toBeCloseTo(2.6);
@@ -25,7 +26,7 @@ describe("generator puzzli", () => {
   });
 
   it("keeps the default frame on a 250 mm plate", () => {
-    expect(puzzleFrameSize(initialPuzzle)).toEqual({width: 170, height: 220, printHeight: 227});
+    expect(puzzleFrameSize(initialPuzzle)).toEqual({width: 220, height: 240, printHeight: 247});
     expect(validatePuzzle(initialPuzzle)).toBe("");
   });
 
@@ -34,7 +35,7 @@ describe("generator puzzli", () => {
   });
 
   it("rejects a frame larger than the target plate", () => {
-    expect(validatePuzzle({...initialPuzzle, width_mm: 230, height_mm: 230})).toContain("250");
+    expect(validatePuzzle({...initialPuzzle, width_mm: 400, height_mm: 440})).toBe("");
   });
 
   it("requires enough unique filament colors", () => {

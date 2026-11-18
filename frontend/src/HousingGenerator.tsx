@@ -1,6 +1,7 @@
 import { useState } from "react";
 import "./housing.css";
 import {useAuth} from "./Auth";
+import GeneratorProductNav, {GeneratorProduct} from "./GeneratorProductNav";
 
 export const LITHO_MOUNT_FLANGE_MM = 3;
 export const BACK_PLATE_EDGE_COMPENSATION_MM = .2;
@@ -82,7 +83,7 @@ function Range({label, value, min, max, step, onChange}: {label: string; value: 
   return <label className="control"><span>{label}<output>{value} mm</output></span><input type="range" value={value} min={min} max={max} step={step} onChange={event => onChange(Number(event.target.value))}/></label>;
 }
 
-export default function HousingGenerator({active, onOpenLithophane, onOpenPuzzle}: {active: boolean; onOpenLithophane: () => void; onOpenPuzzle: () => void}) {
+export default function HousingGenerator({active, onSelectProduct}: {active: boolean; onSelectProduct: (product: GeneratorProduct) => void}) {
   const {apiFetch} = useAuth();
   const [params, setParams] = useState(initialHousing);
   const [custom, setCustom] = useState(false);
@@ -143,7 +144,7 @@ export default function HousingGenerator({active, onOpenLithophane, onOpenPuzzle
   return <main className="app-shell housing-shell" hidden={!active}>
     <aside className="sidebar">
       <div className="sidebar-brand"><span className="mark">L</span><div><strong>Litho</strong><small>Generator obudów 3D</small></div><span className="version">V2</span></div>
-      <div className="product-switch"><button onClick={onOpenLithophane}>Litofania</button><button className="active">Obudowa</button><button onClick={onOpenPuzzle}>Puzzle</button></div>
+      <GeneratorProductNav active="housing" onSelect={onSelectProduct}/>
       <div className="sidebar-scroll">
         <h2><span>01</span> Typ obudowy</h2>
         <div className="housing-kind">

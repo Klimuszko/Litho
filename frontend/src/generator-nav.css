@@ -1,0 +1,30 @@
+.generator-nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 10px 16px 12px;
+  border-bottom: 1px solid #e8ebf0;
+  background: #fbfcfe;
+}
+.generator-nav section { min-width: 0; }
+.generator-nav section > strong {
+  display: block;
+  margin: 0 0 5px 2px;
+  color: #8a94a5;
+  font-size: 7px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.generator-nav section > div { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.generator-nav button {
+  min-width: 0;
+  padding: 8px 3px;
+  border: 1px solid #dbe0e8;
+  border-radius: 7px;
+  background: #fff;
+  color: #687386;
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 700;
+}
+.generator-nav button.active { border-color: #182337; background: #182337; color: #fff; }

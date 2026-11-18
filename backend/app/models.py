@@ -144,12 +144,14 @@ class LithophaneParams(BaseModel):
 
 
 class PuzzleParams(BaseModel):
-    width_mm: float = Field(150, ge=100, le=230, description="Finished assembled puzzle width")
-    height_mm: float = Field(200, ge=100, le=230, description="Finished assembled puzzle height")
-    piece_count: Literal[36, 64, 100, 144, 225] = 100
+    width_mm: float = Field(200, ge=100, le=440, description="Finished assembled puzzle width")
+    height_mm: float = Field(220, ge=100, le=440, description="Finished assembled puzzle height")
+    piece_count: Literal[36, 64, 100, 144, 225, 400] = 100
+    piece_pattern: Literal["calm", "natural", "asymmetric", "compact", "bold"] = "natural"
+    magnet_mount: bool = False
     color_count: int = Field(4, ge=3, le=12)
     color_layout: Literal["layered", "same_layer"] = "layered"
-    image_style: Literal["auto", "color", "sepia", "grayscale"] = "auto"
+    image_style: Literal["auto", "color", "sepia"] = "auto"
     available_colors: list[str] = Field(
         default_factory=lambda: [
             "#111111", "#F5F3E8", "#8A8D91", "#D62828", "#F77F00",
@@ -169,7 +171,7 @@ class PuzzleParams(BaseModel):
     brightness: float = Field(1.0, ge=0.5, le=1.5)
     contrast: float = Field(1.1, ge=0.5, le=2.0)
     saturation: float = Field(1.0, ge=0, le=2.0)
-    detail_strength: float = Field(1.0, ge=0, le=2.0)
+    detail_strength: float = Field(2.0, ge=2.0, le=4.0)
     mirror: bool = False
     rotation_degrees: float = Field(0, ge=-360, le=360)
     crop: Crop = Field(default_factory=Crop)
@@ -194,8 +196,6 @@ class PuzzleParams(BaseModel):
         grid = self.grid_size
         if min(self.width_mm / grid, self.height_mm / grid) < 9:
             raise ValueError("Puzzle pieces would be smaller than 9 mm; choose a larger format or fewer pieces")
-        if self.frame_outer_width_mm > 250 or self.frame_total_height_mm > 250:
-            raise ValueError("Frame with its hinge must fit within 250 x 250 mm")
         return self
 
     @property

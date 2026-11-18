@@ -53,12 +53,13 @@ def small_params(**overrides) -> PuzzleParams:
 
 def test_defaults_are_the_recommended_product_configuration():
     params = PuzzleParams()
-    assert (params.width_mm, params.height_mm) == (150, 200)
+    assert (params.width_mm, params.height_mm) == (200, 220)
     assert params.piece_count == 100
+    assert params.piece_pattern == "natural"
     assert params.color_count == 4
     assert params.color_layout == "layered"
     assert params.image_style == "auto"
-    assert params.detail_strength == pytest.approx(1.0)
+    assert params.detail_strength == pytest.approx(2.0)
     assert params.total_thickness_mm == pytest.approx(2.6)
 
 
@@ -74,14 +75,26 @@ def test_sepia_uses_an_ordered_warm_tonal_filament_palette():
     assert len(np.unique(palette.labels)) == 4
 
 
-def test_jigsaw_edges_are_complementary_and_cover_the_picture():
-    params = small_params()
+@pytest.mark.parametrize("pattern", ["calm", "natural", "asymmetric", "compact", "bold"])
+def test_jigsaw_edges_are_complementary_and_cover_the_picture(pattern):
+    params = small_params(piece_pattern=pattern)
     pieces = puzzle_piece_shapes(params, with_clearance=False)
     combined = unary_union([piece.shape for piece in pieces])
     expected = box(0, 0, params.width_mm, params.height_mm)
     assert len(pieces) == 36
     assert combined.symmetric_difference(expected).area < 1e-5
     assert sum(piece.shape.area for piece in pieces) == pytest.approx(expected.area, abs=1e-4)
+
+
+def test_jigsaw_patterns_are_distinct_and_repeatable():
+    fingerprints = []
+    for pattern in ("calm", "natural", "asymmetric", "compact", "bold"):
+        params = small_params(piece_pattern=pattern)
+        first = puzzle_piece_shapes(params, with_clearance=False)
+        second = puzzle_piece_shapes(params, with_clearance=False)
+        assert [piece.shape.wkb for piece in first] == [piece.shape.wkb for piece in second]
+        fingerprints.append(first[7].shape.wkb)
+    assert len(set(fingerprints)) == 5
 
 
 def test_3mf_contains_separate_pieces_and_selected_filaments():
@@ -110,6 +123,7 @@ def test_3mf_contains_separate_pieces_and_selected_filaments():
         assert extruders == {"1", "2", "3", "4"}
         settings = json.loads(archive.read("Metadata/puzzle_settings.json"))
         assert settings["piece_count"] == 36
+        assert settings["piece_pattern"] == "natural"
         assert settings["palette"] == palette
         assert settings["dominant_base_color"] == palette[0]
         assert settings["color_layout"] == "layered"
@@ -176,6 +190,6 @@ def test_puzzle_api_preview_generate_and_frame_endpoints():
         assert "README-PL.txt" in names
 
 
-def test_rejects_frame_larger_than_250_mm_plate():
-    with pytest.raises(ValueError, match="250 x 250"):
-        PuzzleParams(width_mm=230, height_mm=230)
+def test_frame_is_rejected_for_the_four_plate_format():
+    with pytest.raises(ValueError, match="jednej płycie"):
+        build_puzzle_frame(PuzzleParams(width_mm=400, height_mm=440))

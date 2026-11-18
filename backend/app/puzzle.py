@@ -50,30 +50,72 @@ class PuzzlePalette:
         return [f"#{red:02X}{green:02X}{blue:02X}" for red, green, blue in self.colors]
 
 
-def _vertical_direction(row: int, boundary: int) -> int:
-    return 1 if ((row * 37 + boundary * 17 + 11) % 4) < 2 else -1
+@dataclass(frozen=True)
+class TabSpec:
+    direction: int
+    offset: float
+    depth: float
+    head_radius: float
+    head_aspect: float
+    neck_half: float
+    neck_reach: float
 
 
-def _horizontal_direction(boundary: int, column: int) -> int:
-    return 1 if ((boundary * 29 + column * 19 + 7) % 4) < 2 else -1
+_TAB_PATTERNS = {
+    # seed, offset, depth variation, depth scale, head variation, asymmetry
+    "calm": (11, 0.04, 0.05, 0.92, 0.04, 0.03),
+    "natural": (29, 0.11, 0.14, 1.00, 0.08, 0.08),
+    "asymmetric": (47, 0.16, 0.18, 1.00, 0.10, 0.13),
+    "compact": (71, 0.12, 0.12, 0.80, 0.07, 0.09),
+    "bold": (97, 0.13, 0.18, 1.12, 0.10, 0.11),
+}
 
 
-def _vertical_tab(x: float, center_y: float, depth: float, direction: int):
-    head_radius = depth * 0.46
-    head_center_x = x + direction * depth * 0.70
-    neck_end_x = x + direction * depth * 0.62
-    neck_half = depth * 0.21
-    neck = box(min(x, neck_end_x), center_y - neck_half, max(x, neck_end_x), center_y + neck_half)
-    return unary_union((neck, Point(head_center_x, center_y).buffer(head_radius, quad_segs=8)))
+def _stable_unit(seed: int, axis: int, first: int, second: int, channel: int) -> float:
+    """Return a stable pseudo-random value without relying on Python's hash seed."""
+    value = (
+        seed * 0x9E3779B1
+        + axis * 0x85EBCA77
+        + first * 0xC2B2AE3D
+        + second * 0x27D4EB2F
+        + channel * 0x165667B1
+    ) & 0xFFFFFFFF
+    value ^= value >> 16
+    value = (value * 0x7FEB352D) & 0xFFFFFFFF
+    value ^= value >> 15
+    value = (value * 0x846CA68B) & 0xFFFFFFFF
+    value ^= value >> 16
+    return value / 0xFFFFFFFF
 
 
-def _horizontal_tab(center_x: float, y: float, depth: float, direction: int):
-    head_radius = depth * 0.46
-    head_center_y = y + direction * depth * 0.70
-    neck_end_y = y + direction * depth * 0.62
-    neck_half = depth * 0.21
-    neck = box(center_x - neck_half, min(y, neck_end_y), center_x + neck_half, max(y, neck_end_y))
-    return unary_union((neck, Point(center_x, head_center_y).buffer(head_radius, quad_segs=8)))
+def _tab_spec(pattern: str, axis: int, first: int, second: int, span: float, base_depth: float) -> TabSpec:
+    seed, offset_ratio, depth_variation, depth_scale, head_variation, asymmetry = _TAB_PATTERNS[pattern]
+    direction = 1 if _stable_unit(seed, axis, first, second, 0) >= 0.5 else -1
+    offset = (_stable_unit(seed, axis, first, second, 1) * 2 - 1) * span * offset_ratio
+    depth = base_depth * depth_scale * (1 + (_stable_unit(seed, axis, first, second, 2) * 2 - 1) * depth_variation)
+    head_scale = 0.46 + (_stable_unit(seed, axis, first, second, 3) * 2 - 1) * head_variation
+    head_aspect = 1 + (_stable_unit(seed, axis, first, second, 4) * 2 - 1) * asymmetry
+    neck_half = depth * (0.18 + _stable_unit(seed, axis, first, second, 5) * 0.06)
+    neck_reach = depth * (0.58 + _stable_unit(seed, axis, first, second, 6) * 0.08)
+    return TabSpec(direction, offset, depth, depth * head_scale, head_aspect, neck_half, neck_reach)
+
+
+def _vertical_tab(x: float, center_y: float, spec: TabSpec):
+    head_center_x = x + spec.direction * spec.depth * 0.70
+    neck_end_x = x + spec.direction * spec.neck_reach
+    neck = box(min(x, neck_end_x), center_y - spec.neck_half, max(x, neck_end_x), center_y + spec.neck_half)
+    head = Point(head_center_x, center_y).buffer(spec.head_radius, quad_segs=10)
+    head = shapely.affinity.scale(head, xfact=spec.head_aspect, yfact=2 - spec.head_aspect, origin=(head_center_x, center_y))
+    return unary_union((neck, head))
+
+
+def _horizontal_tab(center_x: float, y: float, spec: TabSpec):
+    head_center_y = y + spec.direction * spec.depth * 0.70
+    neck_end_y = y + spec.direction * spec.neck_reach
+    neck = box(center_x - spec.neck_half, min(y, neck_end_y), center_x + spec.neck_half, max(y, neck_end_y))
+    head = Point(center_x, head_center_y).buffer(spec.head_radius, quad_segs=10)
+    head = shapely.affinity.scale(head, xfact=2 - spec.head_aspect, yfact=spec.head_aspect, origin=(center_x, head_center_y))
+    return unary_union((neck, head))
 
 
 def puzzle_piece_shapes(params: PuzzleParams, *, with_clearance: bool = True) -> list[PuzzlePiece]:
@@ -92,21 +134,21 @@ def puzzle_piece_shapes(params: PuzzleParams, *, with_clearance: bool = True) ->
             shape = box(x0, y0, x1, y1)
 
             if column > 0:
-                direction = _vertical_direction(row, column)
-                tab = _vertical_tab(x0, (y0 + y1) / 2, tab_depth, direction)
-                shape = shape.difference(tab) if direction > 0 else shape.union(tab)
+                spec = _tab_spec(params.piece_pattern, 0, row, column, piece_height, tab_depth)
+                tab = _vertical_tab(x0, (y0 + y1) / 2 + spec.offset, spec)
+                shape = shape.difference(tab) if spec.direction > 0 else shape.union(tab)
             if column < grid - 1:
-                direction = _vertical_direction(row, column + 1)
-                tab = _vertical_tab(x1, (y0 + y1) / 2, tab_depth, direction)
-                shape = shape.union(tab) if direction > 0 else shape.difference(tab)
+                spec = _tab_spec(params.piece_pattern, 0, row, column + 1, piece_height, tab_depth)
+                tab = _vertical_tab(x1, (y0 + y1) / 2 + spec.offset, spec)
+                shape = shape.union(tab) if spec.direction > 0 else shape.difference(tab)
             if row > 0:
-                direction = _horizontal_direction(row, column)
-                tab = _horizontal_tab((x0 + x1) / 2, y1, tab_depth, direction)
-                shape = shape.union(tab) if direction > 0 else shape.difference(tab)
+                spec = _tab_spec(params.piece_pattern, 1, row, column, piece_width, tab_depth)
+                tab = _horizontal_tab((x0 + x1) / 2 + spec.offset, y1, spec)
+                shape = shape.union(tab) if spec.direction > 0 else shape.difference(tab)
             if row < grid - 1:
-                direction = _horizontal_direction(row + 1, column)
-                tab = _horizontal_tab((x0 + x1) / 2, y0, tab_depth, direction)
-                shape = shape.difference(tab) if direction > 0 else shape.union(tab)
+                spec = _tab_spec(params.piece_pattern, 1, row + 1, column, piece_width, tab_depth)
+                tab = _horizontal_tab((x0 + x1) / 2 + spec.offset, y0, spec)
+                shape = shape.difference(tab) if spec.direction > 0 else shape.union(tab)
 
             shape = shape.buffer(0)
             if with_clearance:
@@ -203,16 +245,10 @@ def _pick_distinct_filaments(targets: np.ndarray, available: np.ndarray) -> list
 
 
 def _tone_targets(style: str, count: int) -> np.ndarray:
-    if style == "grayscale":
-        stops = np.asarray([
-            [15, 15, 15], [58, 58, 58], [112, 112, 112],
-            [174, 174, 174], [245, 245, 245],
-        ], dtype=np.float32)
-    else:
-        stops = np.asarray([
-            [27, 16, 12], [77, 43, 29], [124, 76, 50],
-            [176, 132, 94], [218, 190, 151], [247, 239, 219],
-        ], dtype=np.float32)
+    stops = np.asarray([
+        [27, 16, 12], [77, 43, 29], [124, 76, 50],
+        [176, 132, 94], [218, 190, 151], [247, 239, 219],
+    ], dtype=np.float32)
     source_positions = np.linspace(0, 1, len(stops))
     target_positions = np.linspace(0, 1, count)
     return np.column_stack([
@@ -304,7 +340,7 @@ def _quantize(image: Image.Image, params: PuzzleParams) -> PuzzlePalette:
         for color in params.available_colors
     ], dtype=np.float32)
     style = _resolved_style(reduced, params)
-    if style in {"sepia", "grayscale"}:
+    if style == "sepia":
         return _quantize_tonal(reduced, params, available, style)
     return _quantize_color(reduced, params, available, style)
 
@@ -533,7 +569,13 @@ def build_puzzle_3mf(raw: bytes, params: PuzzleParams) -> tuple[bytes, list[str]
             f"{{{CORE_NS}}}object",
             {"id": str(base_id), "type": "model", "name": f"Puzzle {piece.index:03d} - baza", "pid": "1", "pindex": "0"},
         )
-        _mesh_xml(base_object, extrude_geometry(translated_piece, 0, params.base_thickness_mm))
+        base_shape = translated_piece
+        if params.magnet_mount:
+            magnet_radius = (3.0 + 0.35) / 2
+            magnet_x = x_offset + piece.column * params.piece_width_mm + params.piece_width_mm / 2
+            magnet_y = y_offset + (params.grid_size - 1 - piece.row) * params.piece_height_mm + params.piece_height_mm / 2
+            base_shape = base_shape.difference(Point(magnet_x, magnet_y).buffer(magnet_radius, quad_segs=16)).buffer(0)
+        _mesh_xml(base_object, extrude_geometry(base_shape, 0, params.base_thickness_mm))
         parts.append((base_id, 1, "Baza"))
 
         for color_index, color_shape, z_min, z_max, part_name in color_volumes:
@@ -619,6 +661,8 @@ def build_puzzle_3mf(raw: bytes, params: PuzzleParams) -> tuple[bytes, list[str]
         "width_mm": params.width_mm,
         "height_mm": params.height_mm,
         "piece_count": params.piece_count,
+        "piece_pattern": params.piece_pattern,
+        "magnet_mount": params.magnet_mount,
         "color_count": params.color_count,
         "color_layout": params.color_layout,
         "image_style": params.image_style,
@@ -699,6 +743,8 @@ def _tube_x(
 
 
 def build_puzzle_frame(params: PuzzleParams) -> tuple[Mesh, Mesh]:
+    if params.frame_total_height_mm > 250 or params.frame_outer_width_mm > 250:
+        raise ValueError("Ramka jest dostępna tylko dla formatu mieszczącego się na jednej płycie 250 × 250 mm")
     outer_width = params.frame_outer_width_mm
     outer_height = params.frame_outer_height_mm
     border = params.frame_border_mm

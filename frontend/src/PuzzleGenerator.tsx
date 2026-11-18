@@ -1,14 +1,17 @@
 import {ChangeEvent, useEffect, useRef, useState} from "react";
 import "./puzzle.css";
 import {useAuth} from "./Auth";
+import GeneratorProductNav, {GeneratorProduct} from "./GeneratorProductNav";
 
 export type PuzzleParams = {
   width_mm: number;
   height_mm: number;
-  piece_count: 36 | 64 | 100 | 144 | 225;
+  piece_count: 36 | 64 | 100 | 144 | 225 | 400;
+  piece_pattern: "calm" | "natural" | "asymmetric" | "compact" | "bold";
+  magnet_mount: boolean;
   color_count: number;
   color_layout: "layered" | "same_layer";
-  image_style: "auto" | "color" | "sepia" | "grayscale";
+  image_style: "auto" | "color" | "sepia";
   available_colors: string[];
   base_thickness_mm: number;
   color_thickness_mm: number;
@@ -27,12 +30,9 @@ export type PuzzleParams = {
 
 type ImageSize = {width: number; height: number};
 
-export const PUZZLE_COUNTS = [36, 64, 100, 144, 225] as const;
-export const PUZZLE_FORMATS = [
-  {label: "12 × 16 cm", width: 120, height: 160},
-  {label: "15 × 20 cm", width: 150, height: 200},
-  {label: "20 × 22 cm", width: 200, height: 220},
-] as const;
+export const PUZZLE_COUNTS = [36, 64, 100, 144, 225, 400] as const;
+export const PUZZLE_MAX_FORMAT = {label: "Maksymalny · 20 × 22 cm", width: 200, height: 220} as const;
+export const PUZZLE_LARGE_FORMAT = {label: "4× większy · 40 × 44 cm · 4 płyty", width: 400, height: 440} as const;
 
 export const DEFAULT_FILAMENT_COLORS = [
   "#111111", "#F5F3E8", "#8A8D91", "#D62828", "#F77F00",
@@ -42,9 +42,11 @@ export const DEFAULT_FILAMENT_COLORS = [
 ] as const;
 
 export const initialPuzzle: PuzzleParams = {
-  width_mm: 150,
-  height_mm: 200,
+  width_mm: 200,
+  height_mm: 220,
   piece_count: 100,
+  piece_pattern: "natural",
+  magnet_mount: false,
   color_count: 4,
   color_layout: "layered",
   image_style: "auto",
@@ -58,7 +60,7 @@ export const initialPuzzle: PuzzleParams = {
   brightness: 1,
   contrast: 1.1,
   saturation: 1,
-  detail_strength: 1,
+  detail_strength: 2,
   mirror: false,
   rotation_degrees: 0,
   crop: {x: 0, y: 0, width: 1, height: 1},
@@ -90,9 +92,6 @@ export function validatePuzzle(params: PuzzleParams): string {
     return "Elementy byłyby mniejsze niż 9 mm. Wybierz większy format albo mniej puzzli.";
   }
   const frame = puzzleFrameSize(params);
-  if (frame.width > 250 || frame.printHeight > 250) {
-    return "Ramka z zawiasem nie mieści się na stole 250 × 250 mm.";
-  }
   return "";
 }
 
@@ -135,14 +134,15 @@ function download(blob: Blob, filename: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export default function PuzzleGenerator({active, onOpenLithophane, onOpenHousing}: {
+export default function PuzzleGenerator({active, mode, onSelectProduct}: {
   active: boolean;
-  onOpenLithophane: () => void;
-  onOpenHousing: () => void;
+  mode: "puzzle" | "frame";
+  onSelectProduct: (product: GeneratorProduct) => void;
 }) {
   const {apiFetch} = useAuth();
   const input = useRef<HTMLInputElement>(null);
   const [params, setParams] = useState(initialPuzzle);
+  const [customSize, setCustomSize] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [sourceUrl, setSourceUrl] = useState("");
   const [sourceSize, setSourceSize] = useState<ImageSize | null>(null);
@@ -162,11 +162,15 @@ export default function PuzzleGenerator({active, onOpenLithophane, onOpenHousing
   const printWidth = params.width_mm + (grid - 1) * 1.2 + 6;
   const printHeight = params.height_mm + (grid - 1) * 1.2 + 6;
   const portrait = params.height_mm >= params.width_mm;
-  const selectedFormat = PUZZLE_FORMATS.find(format =>
-    Math.min(params.width_mm, params.height_mm) === Math.min(format.width, format.height)
-    && Math.max(params.width_mm, params.height_mm) === Math.max(format.width, format.height)
-  );
-  const styleName = (style: string) => style === "color" ? "kolor" : style === "sepia" ? "sepia" : style === "grayscale" ? "czarno-białe" : "automatycznie";
+  const frameMode = mode === "frame";
+  const selectedMaxFormat = !customSize
+    && Math.min(params.width_mm, params.height_mm) === PUZZLE_MAX_FORMAT.width
+    && Math.max(params.width_mm, params.height_mm) === PUZZLE_MAX_FORMAT.height;
+  const selectedLargeFormat = !customSize
+    && Math.min(params.width_mm, params.height_mm) === PUZZLE_LARGE_FORMAT.width
+    && Math.max(params.width_mm, params.height_mm) === PUZZLE_LARGE_FORMAT.height;
+  const largeFormat = params.width_mm > 230 || params.height_mm > 230;
+  const styleName = (style: string) => style === "color" ? "kolor" : style === "sepia" ? "sepia" : "automatycznie";
   const previewStyle = params.image_style === "auto"
     ? (resolvedStyle ? `auto: ${styleName(resolvedStyle)}` : "obróbka auto")
     : styleName(params.image_style);
@@ -274,6 +278,10 @@ export default function PuzzleGenerator({active, onOpenLithophane, onOpenHousing
 
   const generateFrame = async () => {
     const invalid = validatePuzzle(params);
+    if (largeFormat) {
+      setError("Ramka jest dostępna tylko dla maksymalnego formatu na jedną płytę. Dla wersji 4× wygeneruj same puzzle.");
+      return;
+    }
     if (invalid) {
       setError(invalid);
       return;
@@ -338,12 +346,9 @@ export default function PuzzleGenerator({active, onOpenLithophane, onOpenHousing
   return <main className="app-shell puzzle-shell" hidden={!active}>
     <aside className="sidebar">
       <div className="sidebar-brand"><span className="mark">L</span><div><strong>Litho</strong><small>Generator puzzli 3D</small></div><span className="version">V1</span></div>
-      <div className="product-switch">
-        <button onClick={onOpenLithophane}>Litofania</button>
-        <button onClick={onOpenHousing}>Obudowa</button>
-        <button className="active">Puzzle</button>
-      </div>
+      <GeneratorProductNav active={frameMode ? "puzzle-frame" : "puzzle"} onSelect={onSelectProduct}/>
       <div className="sidebar-scroll">
+        {!frameMode && <>
         <h2><span>01</span> Zdjęcie</h2>
         <label className="drop"><input ref={input} type="file" accept="image/jpeg,image/png" onChange={choose}/><b>{file?.name || "Wybierz zdjęcie"}</b><small>JPG lub PNG · maks. 20 MB</small></label>
         <div className="puzzle-image-actions">
@@ -352,24 +357,44 @@ export default function PuzzleGenerator({active, onOpenLithophane, onOpenHousing
         </div>
         <Range label="Powiększenie kadru" value={Number(zoom.toFixed(2))} min={1} max={3} step={.05} unit="×" onChange={setZoom}/>
         <label className="check"><input type="checkbox" checked={params.mirror} onChange={event => set("mirror", event.target.checked)}/><span>Odbij zdjęcie lustrzanie</span></label>
+        </>}
 
-        <h2><span>02</span> Format</h2>
+        <h2><span>{frameMode ? "01" : "02"}</span> Format</h2>
         <div className="orientation"><button className={!portrait ? "active" : ""} onClick={() => setSize(Math.max(params.width_mm, params.height_mm), Math.min(params.width_mm, params.height_mm))}>Pozioma</button><button className={portrait ? "active" : ""} onClick={() => setSize(Math.min(params.width_mm, params.height_mm), Math.max(params.width_mm, params.height_mm))}>Pionowa</button></div>
         <div className="puzzle-formats">
-          {PUZZLE_FORMATS.map(format => <button key={format.label} className={selectedFormat === format ? "active" : ""} onClick={() => setSize(portrait ? format.width : format.height, portrait ? format.height : format.width)}>{format.label}</button>)}
+          <button className={selectedMaxFormat ? "active" : ""} onClick={() => { setCustomSize(false); setParams(current => ({...current, piece_count: 100, width_mm: portrait ? PUZZLE_MAX_FORMAT.width : PUZZLE_MAX_FORMAT.height, height_mm: portrait ? PUZZLE_MAX_FORMAT.height : PUZZLE_MAX_FORMAT.width})); }}>{PUZZLE_MAX_FORMAT.label}</button>
+          {!frameMode && <button className={selectedLargeFormat ? "active" : ""} onClick={() => { setCustomSize(false); setParams(current => ({...current, piece_count: 400, width_mm: portrait ? PUZZLE_LARGE_FORMAT.width : PUZZLE_LARGE_FORMAT.height, height_mm: portrait ? PUZZLE_LARGE_FORMAT.height : PUZZLE_LARGE_FORMAT.width})); }}>{PUZZLE_LARGE_FORMAT.label}</button>}
+          <button className={customSize ? "active" : ""} onClick={() => setCustomSize(true)}>Własny wymiar</button>
         </div>
-        <div className="dimension-grid">
+        {customSize && <div className="dimension-grid">
           <label>Szerokość<input type="number" min="100" max="230" value={params.width_mm} onChange={event => setSize(Math.max(100, Math.min(230, Number(event.target.value) || 100)), params.height_mm)}/><span>mm</span></label>
           <label>Wysokość<input type="number" min="100" max="230" value={params.height_mm} onChange={event => setSize(params.width_mm, Math.max(100, Math.min(230, Number(event.target.value) || 100)))}/><span>mm</span></label>
-        </div>
+        </div>}
 
+        {frameMode ? <>
+        <h2><span>02</span> Ramka</h2>
+        <Range label="Szerokość obramowania" value={params.frame_border_mm} min={8} max={15} step={.5} unit=" mm" onChange={value => set("frame_border_mm", value)}/>
+        <Range label="Luz na ułożone puzzle" value={params.frame_clearance_mm} min={.3} max={1.2} step={.05} unit=" mm" onChange={value => set("frame_clearance_mm", value)}/>
+        <p className="quality-note puzzle-note">Zestaw zawiera ramkę, składaną podpórkę na śrubę M3×30 oraz otwory do zawieszenia. Wymiary odpowiadają formatowi puzzli wybranemu powyżej.</p>
+        </> : <>
         <h2><span>03</span> Puzzle i kolory</h2>
         <h3>Liczba elementów</h3>
         <div className="puzzle-counts">{PUZZLE_COUNTS.map(count => {
           const countGrid = puzzleGridSize(count);
-          const disabled = Math.min(params.width_mm / countGrid, params.height_mm / countGrid) < 9;
+          const disabled = count === 400 ? !largeFormat : Math.min(params.width_mm / countGrid, params.height_mm / countGrid) < 9;
           return <button key={count} disabled={disabled} className={params.piece_count === count ? "active" : ""} onClick={() => set("piece_count", count)}>{count}<small>{countGrid} × {countGrid}</small></button>;
         })}</div>
+        <h3>Wzór łączeń</h3>
+        <div className="puzzle-patterns">
+          {([
+            ["calm", "Spokojny"],
+            ["natural", "Naturalny"],
+            ["asymmetric", "Asymetryczny"],
+            ["compact", "Drobny"],
+            ["bold", "Mocny"],
+          ] as const).map(([value, label], index) => <button type="button" key={value} className={params.piece_pattern === value ? "active" : ""} onClick={() => set("piece_pattern", value)}><b>{index + 1}</b><span>{label}</span></button>)}
+        </div>
+        <p className="quality-note puzzle-note">Każdy wzór zmienia położenie, wielkość i kształt zaczepów. Sąsiednie elementy zawsze pozostają idealnie dopasowane.</p>
         <h3>Przygotowanie zdjęcia</h3>
         <div className="puzzle-image-styles">
           <button type="button" className={params.image_style === "auto" ? "active" : ""} onClick={() => set("image_style", "auto")}>
@@ -380,9 +405,6 @@ export default function PuzzleGenerator({active, onOpenLithophane, onOpenHousing
           </button>
           <button type="button" className={params.image_style === "sepia" ? "active" : ""} onClick={() => set("image_style", "sepia")}>
             <b>Sepia</b><small>Ciepła skala tonalna, dobra przy 3–5 kolorach</small>
-          </button>
-          <button type="button" className={params.image_style === "grayscale" ? "active" : ""} onClick={() => set("image_style", "grayscale")}>
-            <b>Czarno-białe</b><small>Neutralna skala od czerni do bieli</small>
           </button>
         </div>
         <Range label="Liczba kolorów w projekcie" value={params.color_count} min={3} max={Math.min(12, params.available_colors.length)} step={1} onChange={value => set("color_count", value)}/>
@@ -401,7 +423,7 @@ export default function PuzzleGenerator({active, onOpenLithophane, onOpenHousing
         <Range label="Jasność" value={params.brightness} min={.5} max={1.5} step={.05} onChange={value => set("brightness", value)}/>
         <Range label="Kontrast" value={params.contrast} min={.5} max={2} step={.05} onChange={value => set("contrast", value)}/>
         {(params.image_style === "auto" || params.image_style === "color") && <Range label="Nasycenie" value={params.saturation} min={0} max={2} step={.05} onChange={value => set("saturation", value)}/>}
-        <Range label="Wyrazistość detali" value={params.detail_strength} min={0} max={2} step={.1} onChange={value => set("detail_strength", value)}/>
+        <Range label="Wyrazistość detali" value={params.detail_strength} min={2} max={4} step={.1} onChange={value => set("detail_strength", value)}/>
 
         <h2><span>04</span> Wydruk</h2>
         <h3>Układ kolorów</h3>
@@ -416,15 +438,33 @@ export default function PuzzleGenerator({active, onOpenLithophane, onOpenHousing
         <Range label="Grubość podstawy" value={params.base_thickness_mm} min={1.4} max={3} step={.1} unit=" mm" onChange={value => set("base_thickness_mm", value)}/>
         <Range label={params.color_layout === "layered" ? "Wysokość jednej warstwy koloru" : "Grubość kolorowej powierzchni"} value={params.color_thickness_mm} min={.08} max={.4} step={.04} unit=" mm" onChange={value => set("color_thickness_mm", value)}/>
         <Range label="Luz elementów" value={params.piece_clearance_mm} min={.1} max={.35} step={.01} unit=" mm" onChange={value => set("piece_clearance_mm", value)}/>
+        <label className="check magnet-option"><input type="checkbox" checked={params.magnet_mount} onChange={event => set("magnet_mount", event.target.checked)}/><span>Otwory pod magnesy 3 × 2 mm<small>Jeden otwór od spodu każdego elementu, z luzem na wklejenie magnesu.</small></span></label>
         <p className="quality-note puzzle-note">{params.color_layout === "layered"
           ? "Kolor dominujący tworzy pełny podkład. Każdy następny kolor zajmuje osobny poziom, więc występuje tylko jedna zmiana filamentu na wysokość."
           : "Kolor dominujący tworzy pełny podkład, a wszystkie kolory obrazu są obok siebie w jednym płaskim pasie. Ten tryb wymaga AMS lub innego systemu wielomateriałowego."}</p>
+        </>}
       </div>
-      <div className="sidebar-foot">Osobne obiekty · paleta 3–12 filamentów · bez zapisu zdjęcia</div>
+      <div className="sidebar-foot">{frameMode ? "Ramka · stojak · mocowanie ścienne" : "Osobne obiekty · paleta 3–12 filamentów · bez zapisu zdjęcia"}</div>
     </aside>
 
     <section className="workbench puzzle-workbench">
       <article className="preview puzzle-preview">
+        {frameMode ? <>
+        <div className="preview-head"><div><p className="eyebrow">PODGLĄD RAMKI</p><h2>Ramka do puzzli {params.width_mm} × {params.height_mm} mm</h2></div><span className="puzzle-badge">stojak + zawieszenie</span></div>
+        <div className="puzzle-frame-stage">
+          <div className="puzzle-frame-model" style={{aspectRatio: `${frame.width} / ${frame.height}`, padding: `${Math.max(14, params.frame_border_mm * 1.8)}px`}}>
+            <div style={{aspectRatio: `${params.width_mm} / ${params.height_mm}`}}><b>MIEJSCE NA PUZZLE</b><small>{params.width_mm} × {params.height_mm} mm</small></div>
+          </div>
+        </div>
+        <div className="stats puzzle-frame-stats">
+          <span><small>PUZZLE</small><b>{params.width_mm} × {params.height_mm} mm</b></span>
+          <span><small>RAMKA</small><b>{frame.width} × {frame.height} mm</b></span>
+          <span><small>OBSZAR DRUKU</small><b>{frame.width} × {frame.printHeight} mm</b></span>
+        </div>
+        <div className="puzzle-frame-note"><b>Jedna ramka, dwa zastosowania</b><span>Składana nóżka na śrubę M3×30 oraz dwa otwory do zawieszenia są w tym samym zestawie.</span></div>
+        {(error || validatePuzzle(params)) && <p className="error">{error || validatePuzzle(params)}</p>}
+        <button className="generate" disabled={frameBusy || largeFormat || Boolean(validatePuzzle(params))} onClick={generateFrame}>{frameBusy ? "Generowanie ramki…" : "Generuj ramkę i stojak ZIP"}<span>→</span></button>
+        </> : <>
         <div className="preview-head"><div><p className="eyebrow">PODGLĄD PUZZLI</p><h2>Zdjęcie podzielone na {params.piece_count} elementów</h2></div><span className="puzzle-badge">{params.color_count} filamenty · {previewStyle} · {params.color_layout === "layered" ? "warstwowo" : "AMS"} · {grid} × {grid}</span></div>
         <div className="puzzle-stage" style={{aspectRatio: `${params.width_mm} / ${params.height_mm}`}}>
           {file ? <img src={previewUrl || sourceUrl} alt="Podgląd puzzli"/> : <button type="button" className="puzzle-empty" onClick={() => input.current?.click()}><span>＋</span><b>Dodaj fotografię</b><small>Kliknij tutaj, aby rozpocząć</small></button>}
@@ -436,14 +476,11 @@ export default function PuzzleGenerator({active, onOpenLithophane, onOpenHousing
           <span><small>PUZZLE 3MF</small><b>{printWidth.toFixed(1)} × {printHeight.toFixed(1)} × {puzzleTotalThickness(params).toFixed(2)} mm</b></span>
           <span><small>RAMKA</small><b>{frame.width} × {frame.height} mm</b></span>
         </div>
-        <div className="puzzle-frame-note"><b>Jedna ramka, dwa zastosowania</b><span>Składana nóżka na śrubę M3×30 oraz dwa otwory do zawieszenia są w tym samym zestawie.</span></div>
         {(error || validatePuzzle(params)) && <p className="error">{error || validatePuzzle(params)}</p>}
-        <div className="puzzle-downloads">
-          <button className="generate" disabled={puzzleBusy || frameBusy || !file || Boolean(validatePuzzle(params))} onClick={generatePuzzle}>{puzzleBusy ? "Generowanie 3MF…" : "Generuj puzzle 3MF"}<span>→</span></button>
-          <button className="generate secondary" disabled={puzzleBusy || frameBusy || Boolean(validatePuzzle(params))} onClick={generateFrame}>{frameBusy ? "Generowanie ramki…" : "Generuj ramkę i stojak ZIP"}<span>→</span></button>
-        </div>
+        <button className="generate" disabled={puzzleBusy || !file || Boolean(validatePuzzle(params))} onClick={generatePuzzle}>{puzzleBusy ? "Generowanie 3MF…" : "Generuj puzzle 3MF"}<span>→</span></button>
+        </>}
       </article>
-      <footer>Zdjęcie jest przetwarzane w pamięci i nie jest przechowywane na serwerze.</footer>
+      <footer>{frameMode ? "Ramka i stojak są generowane jako osobne pliki STL." : "Zdjęcie jest przetwarzane w pamięci i nie jest przechowywane na serwerze."}</footer>
     </section>
   </main>;
 }
