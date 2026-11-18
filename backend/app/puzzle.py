@@ -541,24 +541,39 @@ def build_puzzle_3mf(raw: bytes, params: PuzzleParams) -> tuple[bytes, list[str]
 
     build = ET.SubElement(model, f"{{{CORE_NS}}}build")
     model_config = ET.Element("config")
-    plate_config = ET.SubElement(model_config, "plate")
-    ET.SubElement(plate_config, "metadata", {"key": "plater_id", "value": "1"})
-    ET.SubElement(plate_config, "metadata", {"key": "plater_name", "value": "Litho Puzzle"})
-    ET.SubElement(plate_config, "metadata", {"key": "locked", "value": "false"})
     filament_map = " ".join(str(index) for index in range(1, params.color_count + 1))
-    ET.SubElement(plate_config, "metadata", {"key": "filament_maps", "value": filament_map})
-    ET.SubElement(
-        plate_config,
-        "metadata",
-        {"key": "filament_volume_maps", "value": " ".join("1" for _ in range(params.color_count))},
-    )
+    plate_count = 4 if params.piece_count == 400 else 1
+    plate_configs = []
+    for plate_index in range(plate_count):
+        plate_config = ET.SubElement(model_config, "plate")
+        ET.SubElement(plate_config, "metadata", {"key": "plater_id", "value": str(plate_index + 1)})
+        ET.SubElement(plate_config, "metadata", {"key": "plater_name", "value": f"Litho Puzzle {plate_index + 1}/{plate_count}"})
+        ET.SubElement(plate_config, "metadata", {"key": "locked", "value": "false"})
+        ET.SubElement(plate_config, "metadata", {"key": "filament_maps", "value": filament_map})
+        ET.SubElement(
+            plate_config,
+            "metadata",
+            {"key": "filament_volume_maps", "value": " ".join("1" for _ in range(params.color_count))},
+        )
+        plate_configs.append(plate_config)
 
     next_object_id = 2
     exploded_gap = 1.2
     margin = 3.0
     for piece in pieces:
-        x_offset = margin + piece.column * exploded_gap
-        y_offset = margin + (params.grid_size - 1 - piece.row) * exploded_gap
+        if plate_count == 4:
+            half = params.grid_size // 2
+            plate_column = 0 if piece.column < half else 1
+            plate_row = 0 if piece.row >= half else 1
+            plate_index = plate_row * 2 + plate_column
+            quadrant_x = plate_column * params.width_mm / 2
+            quadrant_y = plate_row * params.height_mm / 2
+        else:
+            plate_index = 0
+            quadrant_x = 0
+            quadrant_y = 0
+        x_offset = margin + piece.column * exploded_gap - quadrant_x
+        y_offset = margin + (params.grid_size - 1 - piece.row) * exploded_gap - quadrant_y
         translated_piece = shapely.affinity.translate(piece.shape, xoff=x_offset, yoff=y_offset)
         parts: list[tuple[int, int, str]] = []
 
@@ -626,7 +641,7 @@ def build_puzzle_3mf(raw: bytes, params: PuzzleParams) -> tuple[bytes, list[str]
             ET.SubElement(part, "metadata", {"key": "name", "value": name})
             ET.SubElement(part, "metadata", {"key": "extruder", "value": str(extruder)})
 
-        instance = ET.SubElement(plate_config, "model_instance")
+        instance = ET.SubElement(plate_configs[plate_index], "model_instance")
         ET.SubElement(instance, "metadata", {"key": "object_id", "value": str(parent_id)})
         ET.SubElement(instance, "metadata", {"key": "instance_id", "value": "0"})
 
@@ -663,6 +678,7 @@ def build_puzzle_3mf(raw: bytes, params: PuzzleParams) -> tuple[bytes, list[str]
         "piece_count": params.piece_count,
         "piece_pattern": params.piece_pattern,
         "magnet_mount": params.magnet_mount,
+        "plate_count": plate_count,
         "color_count": params.color_count,
         "color_layout": params.color_layout,
         "image_style": params.image_style,
