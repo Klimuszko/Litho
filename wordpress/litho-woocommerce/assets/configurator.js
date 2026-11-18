@@ -81,6 +81,7 @@
     // Match the full generator: portrait uses a narrower stage instead of
     // stretching the same landscape-sized frame.
     const portrait = state.orientation === 'portrait';
+    root.classList.toggle('is-portrait', portrait);
     const compact = window.matchMedia('(max-width: 720px)').matches;
     previewWrap.style.width = portrait && !compact ? '75%' : '100%';
     previewWrap.style.marginInline = portrait && !compact ? 'auto' : '0';
