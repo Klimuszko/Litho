@@ -194,12 +194,13 @@ final class Litho_WC_REST {
     }
 
     private function validated_config(WP_REST_Request $request, $product_id) {
-        $size = sanitize_text_field((string) $request->get_param('size'));
+        // The customer configurator uses one fixed, maximum format.
+        $size = '150x200';
         $orientation = sanitize_key((string) $request->get_param('orientation'));
         $housing_color = sanitize_title((string) $request->get_param('housing_color'));
         $led = sanitize_title((string) $request->get_param('light_temperature'));
         $housing = get_post_meta($product_id, '_litho_housing_type', true) ?: 'frame';
-        if (!in_array($size, array('100x150', '130x180', '150x200'), true)
+        if ($size !== '150x200'
             || !in_array($orientation, array('landscape', 'portrait'), true)
             || !isset($this->settings->housing_colors()[$housing_color])
             || !isset($this->settings->led_colors()[$led])

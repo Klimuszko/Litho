@@ -23,7 +23,7 @@ class ProjectAlreadyAttached(RuntimeError):
 
 
 class CustomerProjectConfig(BaseModel):
-    size: Literal["100x150", "130x180", "150x200"] = "100x150"
+    size: Literal["100x150", "130x180", "150x200"] = "150x200"
     orientation: Literal["landscape", "portrait"] = "landscape"
     housing_type: Literal["frame", "box"] = "frame"
     housing_color: str = Field("black-matte", min_length=1, max_length=64, pattern=r"^[a-z0-9][a-z0-9-]*$")

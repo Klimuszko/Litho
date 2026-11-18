@@ -131,7 +131,7 @@ export function modelSize(p: Params) {
 export function imageAreaForParams(p: Params, border: number | BorderWidths = resolvedBorders(p)) {
   return p.mounting_flange ? {width: p.width_mm, height: p.height_mm} : imageArea(p.width_mm, p.height_mm, border);
 }
-export const initial: Params = {width_mm: 200, height_mm: 150, min_thickness_mm: 1, max_thickness_mm: 4, gamma: 1, brightness: 1, contrast: 1.25, nozzle_diameter_mm: .4, quality_profile: "maximum", orientation: "landscape", border_width_mm: 0, border_widths_mm: null, border_height_mm: 4, mounting_flange: false, invert: false, mirror: false, rotation_degrees: 0, crop: {x: 0, y: 0, width: 1, height: 1}};
+export const initial: Params = {width_mm: 200, height_mm: 150, min_thickness_mm: 1, max_thickness_mm: 4, gamma: 1, brightness: 1, contrast: 1.25, nozzle_diameter_mm: .4, quality_profile: "maximum", orientation: "landscape", border_width_mm: 0, border_widths_mm: null, border_height_mm: 4, mounting_flange: true, invert: false, mirror: false, rotation_degrees: 0, crop: {x: 0, y: 0, width: 1, height: 1}};
 
 export function resolvedBorders(p: Params): BorderWidths {
   if (p.mounting_flange) return {top: MOUNTING_FLANGE_WIDTH_MM, right: MOUNTING_FLANGE_WIDTH_MM, bottom: MOUNTING_FLANGE_WIDTH_MM, left: MOUNTING_FLANGE_WIDTH_MM};
@@ -168,9 +168,6 @@ function LithophaneGenerator({active, onSelectProduct}: {active: boolean; onSele
   const [view, setView] = useState<"photo" | "lithophane">("photo");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [customFormat, setCustomFormat] = useState(false);
-  const [customWidthInput, setCustomWidthInput] = useState(String(initial.width_mm));
-  const [customHeightInput, setCustomHeightInput] = useState(String(initial.height_mm));
   const [customRotationInput, setCustomRotationInput] = useState("0");
   const [customBorder, setCustomBorder] = useState(false);
   const [sourceSize, setSourceSize] = useState<{width: number; height: number} | null>(null);
@@ -191,12 +188,6 @@ function LithophaneGenerator({active, onSelectProduct}: {active: boolean; onSele
   const set = <K extends keyof Params>(key: K, value: Params[K]) => setParams(p => ({...p, [key]: value}));
   const setCrop = (key: keyof Params["crop"], value: number) => setParams(p => ({...p, crop: {...p.crop, [key]: value}}));
   const fitCrop = (width: number, height: number, border: number | BorderWidths = borders) => { const area = params.mounting_flange ? {width, height} : imageArea(width, height, border); return effectiveSourceSize ? automaticCrop(effectiveSourceSize.width, effectiveSourceSize.height, area.width, area.height) : params.crop; };
-  const setFormat = (short: number, long: number) => { setCustomFormat(false); setParams(p => {
-    const width = p.orientation === "landscape" ? long : short; const height = p.orientation === "landscape" ? short : long;
-    const area = imageAreaForParams({...p, width_mm: width, height_mm: height});
-    const size = sourceSize ? rotatedSize(sourceSize, p.rotation_degrees) : null;
-    return {...p, width_mm: width, height_mm: height, crop: size ? automaticCrop(size.width, size.height, area.width, area.height) : p.crop};
-  }); };
   const setOrientation = (orientation: Params["orientation"]) => setParams(p => {
     const shouldSwap = orientation === "portrait" ? p.width_mm > p.height_mm : p.height_mm > p.width_mm;
     const width = shouldSwap ? p.height_mm : p.width_mm; const height = shouldSwap ? p.width_mm : p.height_mm;
@@ -220,20 +211,6 @@ function LithophaneGenerator({active, onSelectProduct}: {active: boolean; onSele
     const area = imageAreaForParams(p);
       return {...p, rotation_degrees: rotation, crop: automaticCrop(size.width, size.height, area.width, area.height)};
     });
-  };
-  const setCustomDimension = (key: "width_mm" | "height_mm", value: number) => setParams(p => {
-    value = Math.max(20, Math.min(256, Number.isFinite(value) ? value : 20));
-    const width = key === "width_mm" ? value : p.width_mm;
-    const height = key === "height_mm" ? value : p.height_mm;
-    const orientation = width >= height ? "landscape" : "portrait";
-    const size = sourceSize ? rotatedSize(sourceSize, p.rotation_degrees) : null;
-    const area = imageAreaForParams({...p, width_mm: width, height_mm: height});
-    return {...p, [key]: value, orientation, crop: size && area.width > 0 && area.height > 0 ? automaticCrop(size.width, size.height, area.width, area.height) : p.crop};
-  });
-  const commitCustomDimension = (key: "width_mm" | "height_mm", raw: string) => {
-    const value = Math.max(20, Math.min(256, Number.isFinite(Number(raw)) ? Number(raw) : 20));
-    setCustomDimension(key, value);
-    if (key === "width_mm") setCustomWidthInput(String(value)); else setCustomHeightInput(String(value));
   };
   const setBorderSide = (key: keyof BorderWidths, value: number) => setParams(p => {
     const current = resolvedBorders(p);
@@ -386,9 +363,7 @@ function LithophaneGenerator({active, onSelectProduct}: {active: boolean; onSele
         <p className="interaction-hint">Na podglądzie: przeciągnij zdjęcie, aby je przesunąć · użyj kółka myszy, aby przybliżyć.</p>
         <h2><span>02</span> Model</h2>
         <div className="orientation"><button className={params.orientation === "landscape" ? "active" : ""} onClick={() => setOrientation("landscape")}>Pozioma</button><button className={params.orientation === "portrait" ? "active" : ""} onClick={() => setOrientation("portrait")}>Pionowa</button></div>
-        <h3>Format obrazu</h3>
-        <div className="formats format-options">{FORMATS.map(format => { const selected = !customFormat && Math.min(params.width_mm, params.height_mm) === format.short && Math.max(params.width_mm, params.height_mm) === format.long; return <button key={format.label} className={selected ? "active" : ""} onClick={() => setFormat(format.short, format.long)}>{format.label}</button>; })}<button className={customFormat ? "active" : ""} onClick={() => { setCustomWidthInput(String(params.width_mm)); setCustomHeightInput(String(params.height_mm)); setCustomFormat(true); }}>Custom</button></div>
-        {customFormat && <div className="custom-size"><label>Szerokość<input type="number" min="20" max="256" step="1" value={customWidthInput} onChange={e => setCustomWidthInput(e.target.value)} onBlur={e => commitCustomDimension("width_mm", e.target.value)} onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}/><span>mm</span></label><label>Wysokość<input type="number" min="20" max="256" step="1" value={customHeightInput} onChange={e => setCustomHeightInput(e.target.value)} onBlur={e => commitCustomDimension("height_mm", e.target.value)} onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}/><span>mm</span></label></div>}
+        <p className="quality-note">Stały maksymalny format: 15 × 20 cm. Zmień orientację powyżej, aby obrócić układ zdjęcia.</p>
         <Slider label="Minimalna grubość" value={params.min_thickness_mm} min={.4} max={4} step={.1} unit=" mm" onChange={n => set("min_thickness_mm", n)}/>
         <Slider label="Maksymalna grubość" value={params.max_thickness_mm} min={.5} max={10} step={.1} unit=" mm" onChange={n => {set("max_thickness_mm", n); if (params.border_height_mm < n) set("border_height_mm", n);}}/>
         <Slider label="Gamma" value={params.gamma} min={.1} max={5} step={.1} onChange={n => set("gamma", n)}/>

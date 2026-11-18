@@ -105,7 +105,7 @@ final class Litho_WC_Integration {
             <div class="litho-grid">
                 <div class="litho-controls">
                     <label class="litho-upload"><input type="file" accept="image/jpeg,image/png"><b><?php esc_html_e('Wybierz zdjęcie', 'litho-wc'); ?></b><small>JPG lub PNG · maks. 20 MB</small></label>
-                    <div class="litho-field"><label for="litho-size"><?php esc_html_e('Rozmiar', 'litho-wc'); ?></label><select id="litho-size"><option value="100x150">10 × 15 cm</option><option value="130x180">13 × 18 cm</option><option value="150x200">15 × 20 cm</option></select></div>
+                    <div class="litho-field litho-fixed-format"><label><?php esc_html_e('Format', 'litho-wc'); ?></label><p>Stały maksymalny format: <strong>15 × 20 cm</strong>.</p></div>
                     <div class="litho-field"><label><?php esc_html_e('Orientacja', 'litho-wc'); ?></label><div class="litho-segment"><button type="button" data-orientation="landscape" class="active"><?php esc_html_e('Pozioma', 'litho-wc'); ?></button><button type="button" data-orientation="portrait"><?php esc_html_e('Pionowa', 'litho-wc'); ?></button></div></div>
                     <div class="litho-field"><label for="litho-housing-color"><?php esc_html_e('Kolor obudowy', 'litho-wc'); ?></label><select id="litho-housing-color"></select></div>
                     <div class="litho-field"><label for="litho-led-color"><?php esc_html_e('Barwa LED', 'litho-wc'); ?></label><select id="litho-led-color"></select></div>

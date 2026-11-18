@@ -7,7 +7,7 @@
   const canvas = root.querySelector('#litho-preview');
   const ctx = canvas.getContext('2d');
   const fileInput = root.querySelector('input[type="file"]');
-  const sizeInput = root.querySelector('#litho-size');
+  const FIXED_SIZE = '150x200';
   const housingInput = root.querySelector('#litho-housing-color');
   const ledInput = root.querySelector('#litho-led-color');
   const zoomInput = root.querySelector('#litho-zoom');
@@ -71,7 +71,7 @@
   }
 
   function setCanvasAspect() {
-    const parts = sizeInput.value.split('x').map(Number);
+    const parts = FIXED_SIZE.split('x').map(Number);
     const shortSide = parts[0];
     const longSide = parts[1];
     const ratio = state.orientation === 'landscape' ? longSide / shortSide : shortSide / longSide;
@@ -131,9 +131,13 @@
       lookup[value] = Math.round(255 * light);
     }
     for (let index = 0; index < pixels.data.length; index += 4) {
-      pixels.data[index] = lookup[pixels.data[index]];
-      pixels.data[index + 1] = lookup[pixels.data[index + 1]];
-      pixels.data[index + 2] = lookup[pixels.data[index + 2]];
+      const luminance = (lookup[pixels.data[index]] * 0.299)
+        + (lookup[pixels.data[index + 1]] * 0.587)
+        + (lookup[pixels.data[index + 2]] * 0.114);
+      const dark = luminance < 128;
+      pixels.data[index] = dark ? 28 : 245;
+      pixels.data[index + 1] = dark ? 34 : 240;
+      pixels.data[index + 2] = dark ? 45 : 214;
     }
     ctx.putImageData(pixels, 0, 0);
   }
@@ -182,7 +186,6 @@
     image.src = url;
   });
 
-  sizeInput.addEventListener('change', () => { setCanvasAspect(); invalidate(); });
   housingInput.addEventListener('change', invalidate);
   ledInput.addEventListener('change', invalidate);
   zoomInput.addEventListener('input', () => { state.zoom = Number(zoomInput.value); clampPan(); draw(); invalidate(); });
@@ -259,7 +262,7 @@
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
           product_id: LithoConfig.productId,
-          size: sizeInput.value,
+          size: FIXED_SIZE,
           orientation: state.orientation,
           housing_color: housingInput.value,
           light_temperature: ledInput.value,
