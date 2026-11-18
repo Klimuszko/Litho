@@ -5,6 +5,7 @@
   if (!root || typeof LithoConfig === 'undefined') return;
 
   const canvas = root.querySelector('#litho-preview');
+  const previewWrap = root.querySelector('.litho-preview-wrap');
   const ctx = canvas.getContext('2d');
   const fileInput = root.querySelector('input[type="file"]');
   const FIXED_SIZE = '150x200';
@@ -79,8 +80,12 @@
     canvas.height = state.orientation === 'landscape' ? Math.round(900 / ratio) : 900;
     // Match the full generator: portrait uses a narrower stage instead of
     // stretching the same landscape-sized frame.
-    canvas.style.width = state.orientation === 'landscape' ? '100%' : '75%';
-    canvas.style.marginInline = state.orientation === 'landscape' ? '0' : 'auto';
+    const portrait = state.orientation === 'portrait';
+    const compact = window.matchMedia('(max-width: 720px)').matches;
+    previewWrap.style.width = portrait && !compact ? '75%' : '100%';
+    previewWrap.style.marginInline = portrait && !compact ? 'auto' : '0';
+    canvas.style.width = '100%';
+    canvas.style.marginInline = '0';
     clampPan();
     draw();
   }
