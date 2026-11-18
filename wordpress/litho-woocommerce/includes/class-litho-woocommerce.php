@@ -115,7 +115,7 @@ final class Litho_WC_Integration {
                     <div class="litho-field litho-adjustment"><label for="litho-contrast"><?php esc_html_e('Kontrast', 'litho-wc'); ?>: <output id="litho-contrast-value">1.25</output></label><input id="litho-contrast" type="range" min="0.5" max="2" value="1.25" step="0.05"></div>
                     <div class="litho-field litho-adjustment"><label for="litho-gamma"><?php esc_html_e('Gamma', 'litho-wc'); ?>: <output id="litho-gamma-value">1.00</output></label><input id="litho-gamma" type="range" min="0.5" max="2" value="1" step="0.05"></div>
                 </div>
-                <div class="litho-preview-wrap"><div class="litho-preview-modes"><button type="button" data-preview-mode="photo" class="active">Obraz</button><button type="button" data-preview-mode="lithophane">Litofania</button></div><div class="litho-preview-frame"><canvas id="litho-preview" width="900" height="675"></canvas></div></div>
+                <div class="litho-preview-wrap"><div class="litho-preview-modes"><button type="button" data-preview-mode="photo" class="active">Obraz</button><button type="button" data-preview-mode="lithophane">Litofania</button></div><div class="litho-preview-stage" data-orientation="landscape"><canvas id="litho-preview" width="900" height="675"></canvas></div></div>
             </div>
             <button class="litho-approve" id="litho-approve" type="button"><?php esc_html_e('Zatwierdź projekt', 'litho-wc'); ?></button>
             <div class="litho-status" id="litho-status" role="status" aria-live="polite"></div>
