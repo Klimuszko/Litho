@@ -15,7 +15,7 @@
 .puzzle-formats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin: 10px 0; }
 .puzzle-formats button { padding: 10px 4px; }
 .puzzle-formats button.active, .puzzle-counts button.active { border-color: #182337; background: #182337; color: #fff; }
-.puzzle-counts { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin: 7px 0 16px; }
+.puzzle-counts { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; margin: 7px 0 16px; }
 .puzzle-counts button { display: grid; gap: 2px; padding: 8px 2px; }
 .puzzle-counts button small { font-size: 7px; opacity: .7; }
 .puzzle-counts button:disabled { cursor: not-allowed; opacity: .28; }
