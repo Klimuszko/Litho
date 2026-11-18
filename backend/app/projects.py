@@ -25,6 +25,7 @@ class ProjectAlreadyAttached(RuntimeError):
 class CustomerProjectConfig(BaseModel):
     size: Literal["100x150", "130x180", "150x200"] = "150x200"
     orientation: Literal["landscape", "portrait"] = "landscape"
+    fit_mode: Literal["cover", "contain"] = "cover"
     housing_type: Literal["frame", "box"] = "frame"
     housing_color: str = Field("black-matte", min_length=1, max_length=64, pattern=r"^[a-z0-9][a-z0-9-]*$")
     power_source: Literal["wired", "battery"] = "wired"
@@ -46,6 +47,7 @@ class CustomerProjectConfig(BaseModel):
             width_mm=width,
             height_mm=height,
             orientation=self.orientation,
+            fit_mode=self.fit_mode,
             min_thickness_mm=1.0,
             max_thickness_mm=4.0,
             gamma=self.gamma,

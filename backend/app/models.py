@@ -39,6 +39,7 @@ class LithophaneParams(BaseModel):
     quality_profile: Literal["economic", "optimal", "maximum"] = "maximum"
     resolution: int | None = Field(None, ge=24, le=2000, description="Optional legacy override; UI profiles derive resolution from a physical XY sample pitch")
     orientation: Literal["portrait", "landscape"] = Field("landscape", description="Must match the final model dimensions")
+    fit_mode: Literal["cover", "contain"] = Field("cover", description="Fill the image area or preserve the complete image with margins")
     border_width_mm: float = Field(0, ge=0, le=20)
     border_widths_mm: BorderWidths | None = None
     border_height_mm: float | None = Field(None, ge=0.4, le=20)

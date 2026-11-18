@@ -28,6 +28,21 @@ def crop_to_aspect(image: Image.Image, target_aspect: float) -> Image.Image:
     return image
 
 
+def fit_to_aspect(image: Image.Image, target_aspect: float, fit_mode: str) -> Image.Image:
+    """Fit without stretching: crop for cover, white margins for contain."""
+    if fit_mode != "contain":
+        return crop_to_aspect(image, target_aspect)
+    if image.width / image.height > target_aspect:
+        canvas_width = image.width
+        canvas_height = max(image.height, round(image.width / target_aspect))
+    else:
+        canvas_height = image.height
+        canvas_width = max(image.width, round(image.height * target_aspect))
+    canvas = Image.new("RGB", (canvas_width, canvas_height), (255, 255, 255))
+    canvas.paste(image.convert("RGB"), ((canvas_width - image.width) // 2, (canvas_height - image.height) // 2))
+    return canvas
+
+
 def inscribed_size(width: float, height: float, angle_degrees: float) -> tuple[float, float]:
     """Largest axis-aligned rectangle fully covered by a rotated rectangle."""
     angle = math.radians(abs(angle_degrees) % 180)
@@ -110,7 +125,7 @@ def prepare_image(
     right = round((crop.x + crop.width) * image.width)
     bottom = round((crop.y + crop.height) * image.height)
     image = image.crop((left, top, max(left + 1, right), max(top + 1, bottom)))
-    image = crop_to_aspect(image, params.image_width_mm / params.image_height_mm)
+    image = fit_to_aspect(image, params.image_width_mm / params.image_height_mm, params.fit_mode)
     if params.mirror != for_mesh:
         image = ImageOps.mirror(image)
     image = ImageEnhance.Brightness(image).enhance(params.brightness)

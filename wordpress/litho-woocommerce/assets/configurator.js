@@ -16,6 +16,7 @@
   const brightnessInput = root.querySelector('#litho-brightness');
   const contrastInput = root.querySelector('#litho-contrast');
   const gammaInput = root.querySelector('#litho-gamma');
+  const fitModeInput = root.querySelector('#litho-fit-mode');
   const brightnessValue = root.querySelector('#litho-brightness-value');
   const contrastValue = root.querySelector('#litho-contrast-value');
   const gammaValue = root.querySelector('#litho-gamma-value');
@@ -25,7 +26,7 @@
   const signatureInput = root.querySelector('#litho-project-signature');
   const cartButton = document.querySelector('form.cart button.single_add_to_cart_button');
 
-  const state = {image: null, file: null, orientation: 'landscape', previewMode: 'photo', rotation: 0, zoom: 1, panX: 0, panY: 0, dragging: false, lastX: 0, lastY: 0, busy: false};
+  const state = {image: null, file: null, orientation: 'landscape', fitMode: 'cover', previewMode: 'photo', rotation: 0, zoom: 1, panX: 0, panY: 0, dragging: false, lastX: 0, lastY: 0, busy: false};
   const apiRoot = String(LithoConfig.restUrl).replace(/\/$/, '');
 
   function fillSelect(select, choices) {
@@ -90,7 +91,9 @@
 
   function geometry() {
     const dims = rotatedDimensions();
-    const baseScale = Math.max(canvas.width / dims.width, canvas.height / dims.height);
+    const baseScale = state.fitMode === 'contain'
+      ? Math.min(canvas.width / dims.width, canvas.height / dims.height)
+      : Math.max(canvas.width / dims.width, canvas.height / dims.height);
     return {width: dims.width, height: dims.height, scale: baseScale * state.zoom};
   }
 
@@ -104,7 +107,7 @@
   }
 
   function draw() {
-    ctx.fillStyle = '#161c26';
+    ctx.fillStyle = state.fitMode === 'contain' ? '#dfe4eb' : '#161c26';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     if (!state.image) {
       ctx.fillStyle = '#b9c1ce';
@@ -113,13 +116,43 @@
       ctx.fillText('Wybierz zdjęcie', canvas.width / 2, canvas.height / 2);
       return;
     }
+    const quarter = ((Math.round(state.rotation / 90) % 4) + 4) % 4;
+    const oriented = document.createElement('canvas');
+    const swapped = quarter % 2 === 1;
+    oriented.width = swapped ? state.image.height : state.image.width;
+    oriented.height = swapped ? state.image.width : state.image.height;
+    const orientedContext = oriented.getContext('2d');
+    orientedContext.translate(oriented.width / 2, oriented.height / 2);
+    orientedContext.rotate(quarter * Math.PI / 2);
+    orientedContext.drawImage(state.image, -state.image.width / 2, -state.image.height / 2);
+
     const g = geometry();
-    ctx.save();
-    ctx.translate(canvas.width / 2 + state.panX, canvas.height / 2 + state.panY);
-    ctx.rotate(state.rotation * Math.PI / 180);
-    ctx.scale(g.scale, g.scale);
-    ctx.drawImage(state.image, -state.image.width / 2, -state.image.height / 2);
-    ctx.restore();
+    if (state.fitMode === 'contain') {
+      const width = oriented.width * g.scale;
+      const height = oriented.height * g.scale;
+      const x = (canvas.width - width) / 2 + state.panX;
+      const y = (canvas.height - height) / 2 + state.panY;
+      ctx.drawImage(oriented, x, y, width, height);
+      if (state.zoom <= 1.001 && (width < canvas.width - 1 || height < canvas.height - 1)) {
+        ctx.save();
+        ctx.strokeStyle = '#8b98aa';
+        ctx.lineWidth = Math.max(1, canvas.width / 900);
+        ctx.setLineDash([8, 6]);
+        ctx.strokeRect(Math.max(0, x), Math.max(0, y), Math.min(width, canvas.width), Math.min(height, canvas.height));
+        ctx.restore();
+      }
+    } else {
+      // Cover crop: always fill the complete target canvas, never letterbox it.
+      const cropWidth = canvas.width / g.scale;
+      const cropHeight = canvas.height / g.scale;
+      const maxSourcePanX = Math.max(0, (oriented.width - cropWidth) / 2);
+      const maxSourcePanY = Math.max(0, (oriented.height - cropHeight) / 2);
+      const maxRenderedPanX = Math.max(1, (oriented.width * g.scale - canvas.width) / 2);
+      const maxRenderedPanY = Math.max(1, (oriented.height * g.scale - canvas.height) / 2);
+      const sourceX = Math.max(0, Math.min(oriented.width - cropWidth, (oriented.width - cropWidth) / 2 - (state.panX / maxRenderedPanX) * maxSourcePanX));
+      const sourceY = Math.max(0, Math.min(oriented.height - cropHeight, (oriented.height - cropHeight) / 2 - (state.panY / maxRenderedPanY) * maxSourcePanY));
+      ctx.drawImage(oriented, sourceX, sourceY, cropWidth, cropHeight, 0, 0, canvas.width, canvas.height);
+    }
     applyImageAdjustments();
   }
 
@@ -158,6 +191,7 @@
   }
 
   function crop() {
+    if (state.fitMode === 'contain' && state.zoom <= 1.001) return {x: 0, y: 0, width: 1, height: 1};
     const g = geometry();
     const width = Math.min(1, canvas.width / (g.scale * g.width));
     const height = Math.min(1, canvas.height / (g.scale * g.height));
@@ -203,6 +237,15 @@
 
   housingInput.addEventListener('change', invalidate);
   ledInput.addEventListener('change', invalidate);
+  fitModeInput.addEventListener('change', () => {
+    state.fitMode = fitModeInput.value === 'contain' ? 'contain' : 'cover';
+    state.zoom = 1;
+    state.panX = 0;
+    state.panY = 0;
+    zoomInput.value = '1';
+    setCanvasAspect();
+    invalidate();
+  });
   zoomInput.addEventListener('input', () => { state.zoom = Number(zoomInput.value); clampPan(); draw(); invalidate(); });
   [
     [brightnessInput, brightnessValue],
@@ -289,6 +332,7 @@
           brightness: Number(brightnessInput.value),
           contrast: Number(contrastInput.value),
           gamma: Number(gammaInput.value),
+          fit_mode: state.fitMode,
           rotation_degrees: state.rotation,
           crop: crop(),
         }),
