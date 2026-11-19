@@ -58,8 +58,8 @@ final class Litho_WC_Integration {
             define('DONOTCACHEPAGE', true);
         }
         nocache_headers();
-        wp_enqueue_style('litho-configurator', LITHO_WC_URL . 'assets/configurator.css', array(), LITHO_WC_VERSION);
-        wp_enqueue_script('litho-configurator', LITHO_WC_URL . 'assets/configurator.js', array(), LITHO_WC_VERSION, true);
+        wp_enqueue_style('litho-configurator', LITHO_WC_URL . 'assets/react/configurator.css', array(), LITHO_WC_VERSION);
+        wp_enqueue_script('litho-configurator', LITHO_WC_URL . 'assets/react/configurator.js', array(), LITHO_WC_VERSION, true);
         $csrf = $this->csrf !== '' ? $this->csrf : $this->ensure_csrf_cookie();
         wp_localize_script('litho-configurator', 'LithoConfig', array(
             'restUrl' => esc_url_raw(rest_url(Litho_WC_REST::REST_NAMESPACE)),
@@ -99,6 +99,15 @@ final class Litho_WC_Integration {
         if (!$product || get_post_meta($product->get_id(), '_litho_enabled', true) !== 'yes') {
             return;
         }
+        return $this->render_react_configurator();
+        // Kept below for reference while older cached templates are retired.
+        global $product;
+        if (!is_a($product, 'WC_Product')) {
+            $product = wc_get_product(get_queried_object_id());
+        }
+        if (!$product || get_post_meta($product->get_id(), '_litho_enabled', true) !== 'yes') {
+            return;
+        }
         ?>
         <section class="litho-configurator" id="litho-configurator">
             <header><span>L</span><div><strong><?php esc_html_e('Zaprojektuj swoją litofanię', 'litho-wc'); ?></strong><small><?php esc_html_e('Zdjęcie pozostaje prywatne i jest używane wyłącznie do realizacji zamówienia.', 'litho-wc'); ?></small></div></header>
@@ -126,6 +135,15 @@ final class Litho_WC_Integration {
             <input type="hidden" name="litho_project_signature" id="litho-project-signature" value="">
         </section>
         <?php
+    }
+
+    private function render_react_configurator() {
+        return '<section class="litho-configurator" id="litho-configurator">'
+            . '<input type="hidden" name="litho_project_id" id="litho-project-id" value="">'
+            . '<input type="hidden" name="litho_project_signature" id="litho-project-signature" value="">'
+            . '<div id="litho-configurator-mount"></div>'
+            . '<div class="litho-status" id="litho-status" role="status" aria-live="polite"></div>'
+            . '</section>';
     }
 
     public function validate_add_to_cart($passed, $product_id, $quantity) {

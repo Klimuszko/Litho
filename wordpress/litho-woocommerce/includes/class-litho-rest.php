@@ -226,7 +226,7 @@ final class Litho_WC_REST {
         $normalized['width'] = min($normalized['width'], 1.0 - $normalized['x']);
         $normalized['height'] = min($normalized['height'], 1.0 - $normalized['y']);
         $rotation = (float) $request->get_param('rotation_degrees');
-        if (!in_array($rotation, array(-270.0, -180.0, -90.0, 0.0, 90.0, 180.0, 270.0), true)) {
+        if (!is_finite($rotation) || $rotation < -360 || $rotation > 360) {
             return new WP_Error('litho_rotation_invalid', __('Nieprawidłowy obrót zdjęcia.', 'litho-wc'), array('status' => 400));
         }
         $brightness_raw = $request->get_param('brightness');
@@ -238,9 +238,9 @@ final class Litho_WC_REST {
         $brightness = (float) $brightness_raw;
         $contrast = (float) $contrast_raw;
         $gamma = (float) $gamma_raw;
-        if (!is_finite($brightness) || $brightness < 0.5 || $brightness > 1.5
-            || !is_finite($contrast) || $contrast < 0.5 || $contrast > 2
-            || !is_finite($gamma) || $gamma < 0.5 || $gamma > 2) {
+        if (!is_finite($brightness) || $brightness < 0.25 || $brightness > 2
+            || !is_finite($contrast) || $contrast < 0.25 || $contrast > 3
+            || !is_finite($gamma) || $gamma < 0.1 || $gamma > 5) {
             return new WP_Error('litho_adjustment_invalid', __('Ustawienia obrazu są poza dozwolonym zakresem.', 'litho-wc'), array('status' => 400));
         }
         return array(

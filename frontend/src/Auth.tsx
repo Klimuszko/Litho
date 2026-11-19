@@ -13,6 +13,12 @@ export function useAuth() {
   return value;
 }
 
+// Embedded generator surfaces can reuse the React generator without the
+// login shell when they provide their own request function.
+export function useOptionalAuth() {
+  return useContext(AuthContext);
+}
+
 function Login({onLogin}: {onLogin: (username: string, password: string) => Promise<void>}) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");

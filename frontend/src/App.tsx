@@ -3,7 +3,7 @@ import "./formats.css";
 import HousingGenerator from "./HousingGenerator";
 import PuzzleGenerator from "./PuzzleGenerator";
 import GeneratorProductNav, {GeneratorProduct} from "./GeneratorProductNav";
-import {useAuth} from "./Auth";
+import {useAuth, useOptionalAuth} from "./Auth";
 
 const ScadModules = lazy(() => import("./ScadModules"));
 
@@ -167,11 +167,24 @@ function Slider({label, value, min, max, step, unit = "", onChange}: {label: str
   return <label className="control"><span>{label}<output>{value}{unit}</output></span><input type="range" value={value} min={min} max={max} step={step} onChange={e => onChange(Number(e.target.value))}/></label>;
 }
 
-function LithophaneGenerator({active, onSelectProduct}: {active: boolean; onSelectProduct: (product: GeneratorProduct) => void}) {
-  const {apiFetch} = useAuth();
+export type GeneratorRequest = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+export type LithophaneGenerateResult = {projectId?: string; signature?: string};
+export type LithophaneGeneratorProps = {
+  active: boolean;
+  onSelectProduct?: (product: GeneratorProduct) => void;
+  embedded?: boolean;
+  apiFetchOverride?: GeneratorRequest;
+  initialParams?: Params;
+  onGenerateOverride?: (file: File, params: Params) => Promise<LithophaneGenerateResult | void>;
+  onParamsChanged?: () => void;
+};
+
+export function LithophaneGenerator({active, onSelectProduct = () => undefined, embedded = false, apiFetchOverride, initialParams = initial, onGenerateOverride, onParamsChanged}: LithophaneGeneratorProps) {
+  const auth = useOptionalAuth();
+  const apiFetch = apiFetchOverride || auth?.apiFetch || fetch;
   const [file, setFile] = useState<File | null>(null);
   const [source, setSource] = useState<string>("");
-  const [params, setParams] = useState(initial);
+  const [params, setParams] = useState(initialParams);
   const [view, setView] = useState<"photo" | "lithophane">("photo");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -183,6 +196,7 @@ function LithophaneGenerator({active, onSelectProduct}: {active: boolean; onSele
   const canvas = useRef<HTMLCanvasElement>(null);
   const drag = useRef<{pointerId: number; x: number; y: number; crop: Crop} | null>(null);
   const busyRef = useRef(false);
+  useEffect(() => { onParamsChanged?.(); }, [params, onParamsChanged]);
   const effectiveSourceSize = sourceSize ? rotatedSize(sourceSize, params.rotation_degrees) : null;
   const quality = QUALITY[params.nozzle_diameter_mm][params.quality_profile];
   const borders = resolvedBorders(params);
@@ -403,19 +417,23 @@ function LithophaneGenerator({active, onSelectProduct}: {active: boolean; onSele
     drag.current = null;
     setBusy(true); setError("");
     try {
+      if (onGenerateOverride) {
+        await onGenerateOverride(file, params);
+      } else {
       const body = new FormData(); body.append("image", file); body.append("params", JSON.stringify(params));
       const response = await apiFetch("/api/generate", {method: "POST", body});
       if (!response.ok) { const problem = await response.json(); throw new Error(problem.detail?.message || "Generowanie nie powiodło się."); }
       const blob = await response.blob(); const url = URL.createObjectURL(blob);
       const link = document.createElement("a"); link.href = url; link.download = "lithophane.stl"; link.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
     } catch (e) { setError(e instanceof Error ? e.message : "Nieznany błąd"); } finally { busyRef.current = false; setBusy(false); }
   };
 
-  return <main className="app-shell" hidden={!active}>
+  return <main className={`app-shell${embedded ? " embedded-generator" : ""}`} hidden={!active}>
       <aside className="sidebar">
-      <div className="sidebar-brand"><span className="mark">L</span><div><strong>Litho</strong><small>Generator litofanii 3D</small></div><span className="version">V2</span></div>
-        <GeneratorProductNav active="lithophane" onSelect={onSelectProduct}/>
+      {!embedded && <><div className="sidebar-brand"><span className="mark">L</span><div><strong>Litho</strong><small>Generator litofanii 3D</small></div><span className="version">V2</span></div>
+        <GeneratorProductNav active="lithophane" onSelect={onSelectProduct}/></>}
         <fieldset className="sidebar-scroll generator-controls" disabled={busy} aria-busy={busy}>
         <h2><span>01</span> Obraz</h2>
         <label className="drop"><input ref={fileInput} type="file" accept="image/jpeg,image/png" onChange={choose}/><b>{file ? file.name : "Wybierz zdjęcie"}</b><small>JPG lub PNG · maks. 20 MB</small></label>

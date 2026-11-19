@@ -1,0 +1,491 @@
+import {ChangeEvent, PointerEvent as ReactPointerEvent, useEffect, useRef, useState} from "react";
+import GeneratorProductNav, {GeneratorProduct} from "./GeneratorProductNav";
+import {useOptionalAuth} from "./Auth";
+import "./formats.css";
+
+
+export type Params = {
+  width_mm: number; height_mm: number; min_thickness_mm: number; max_thickness_mm: number;
+  gamma: number; brightness: number; contrast: number;
+  nozzle_diameter_mm: 0.2 | 0.4; quality_profile: "economic" | "optimal" | "maximum";
+  orientation: "portrait" | "landscape"; fit_mode: "cover" | "contain"; border_width_mm: number; border_height_mm: number;
+  border_widths_mm: BorderWidths | null; mounting_flange: boolean;
+  invert: boolean; mirror: boolean; rotation_degrees: number;
+  crop: {x: number; y: number; width: number; height: number};
+};
+type Crop = Params["crop"];
+type BorderWidths = {top: number; right: number; bottom: number; left: number};
+export const MOUNTING_FLANGE_WIDTH_MM = 3;
+export const MOUNTING_FLANGE_HEIGHT_MM = 1.6;
+
+export function automaticCrop(imageWidth: number, imageHeight: number, modelWidth: number, modelHeight: number): Crop {
+  const sourceAspect = imageWidth / imageHeight;
+  const targetAspect = modelWidth / modelHeight;
+  if (sourceAspect > targetAspect) {
+    const width = targetAspect / sourceAspect;
+    return {x: (1 - width) / 2, y: 0, width, height: 1};
+  }
+  if (sourceAspect < targetAspect) {
+    const height = sourceAspect / targetAspect;
+    return {x: 0, y: (1 - height) / 2, width: 1, height};
+  }
+  return {x: 0, y: 0, width: 1, height: 1};
+}
+
+// Zooms into `base` (the "cover" crop for the current preset) around the pan
+// position already recorded in `current`. Width and height are always scaled
+// by the same factor, so the result keeps base's aspect ratio for any zoom.
+export function zoomCrop(base: Crop, current: Crop, zoom: number): Crop {
+  const width = base.width / zoom;
+  const height = base.height / zoom;
+  const centerX = current.x + current.width / 2;
+  const centerY = current.y + current.height / 2;
+  return {
+    x: Math.max(0, Math.min(1 - width, centerX - width / 2)),
+    y: Math.max(0, Math.min(1 - height, centerY - height / 2)),
+    width,
+    height,
+  };
+}
+
+export function zoomCropAt(base: Crop, current: Crop, zoom: number, focalX: number, focalY: number): Crop {
+  const width = base.width / zoom;
+  const height = base.height / zoom;
+  const sourceX = current.x + current.width * focalX;
+  const sourceY = current.y + current.height * focalY;
+  return {
+    x: Math.max(0, Math.min(1 - width, sourceX - width * focalX)),
+    y: Math.max(0, Math.min(1 - height, sourceY - height * focalY)),
+    width,
+    height,
+  };
+}
+
+export function panCrop(crop: Crop, deltaX: number, deltaY: number): Crop {
+  return {
+    ...crop,
+    x: Math.max(0, Math.min(1 - crop.width, crop.x + deltaX)),
+    y: Math.max(0, Math.min(1 - crop.height, crop.y + deltaY)),
+  };
+}
+
+function fullCrop(): Crop { return {x: 0, y: 0, width: 1, height: 1}; }
+
+function baseCropForFit(fitMode: Params["fit_mode"], size: {width: number; height: number} | null, width: number, height: number): Crop {
+  if (fitMode === "contain" || !size) return fullCrop();
+  return automaticCrop(size.width, size.height, width, height);
+}
+
+export function rotatedSize(size: {width: number; height: number}, rotation: number) {
+  return inscribedSize(size.width, size.height, rotation);
+}
+
+export function inscribedSize(width: number, height: number, angleDegrees: number) {
+  let angle = Math.abs(angleDegrees) % 180 * Math.PI / 180;
+  if (angle > Math.PI / 2) angle = Math.PI - angle;
+  if (angle < 1e-10) return {width, height};
+  const sin = Math.sin(angle); const cos = Math.cos(angle);
+  if (Math.abs(cos) < 1e-10) return {width: height, height: width};
+  const longSide = Math.max(width, height); const shortSide = Math.min(width, height);
+  let resultWidth: number; let resultHeight: number;
+  if (shortSide <= 2 * sin * cos * longSide) {
+    const halfShort = .5 * shortSide;
+    [resultWidth, resultHeight] = width >= height ? [halfShort / sin, halfShort / cos] : [halfShort / cos, halfShort / sin];
+  } else {
+    const cos2 = cos * cos - sin * sin;
+    resultWidth = (width * cos - height * sin) / cos2;
+    resultHeight = (height * cos - width * sin) / cos2;
+  }
+  return {width: Math.max(1, resultWidth), height: Math.max(1, resultHeight)};
+}
+
+export const FORMATS = [{label: "10 Ă— 15 cm", short: 100, long: 150}, {label: "13 Ă— 18 cm", short: 130, long: 180}, {label: "15 Ă— 20 cm", short: 150, long: 200}] as const;
+export const QUALITY = {
+  0.2: {economic: {pitch: .2, layer: .16, line: .22}, optimal: {pitch: .125, layer: .1, line: .22}, maximum: {pitch: .1, layer: .08, line: .22}},
+  0.4: {economic: {pitch: .4, layer: .2, line: .44}, optimal: {pitch: .25, layer: .12, line: .44}, maximum: {pitch: .2, layer: .08, line: .44}},
+} as const;
+const MAX_GRID_POINTS = 3_100_000;
+
+export function effectiveGrid(width: number, height: number, pitch: number, border: number | BorderWidths) {
+  const borders = typeof border === "number" ? {top: border, right: border, bottom: border, left: border} : border;
+  let scale = 1 / pitch;
+  let cols = 2; let rows = 2; let totalCols = 2; let totalRows = 2;
+  for (let i = 0; i < 8; i++) {
+    cols = Math.max(2, Math.round(width * scale) + 1);
+    rows = Math.max(2, Math.round(height * scale) + 1);
+    const dx = width / (cols - 1); const dy = height / (rows - 1);
+    totalCols = cols + Math.ceil(borders.left / dx) + Math.ceil(borders.right / dx);
+    totalRows = rows + Math.ceil(borders.top / dy) + Math.ceil(borders.bottom / dy);
+    const points = totalCols * totalRows;
+    if (points <= MAX_GRID_POINTS) break;
+    scale *= Math.sqrt(MAX_GRID_POINTS / points) * .999;
+  }
+  return {cols, rows, totalCols, totalRows, pitch: Math.max(width / (cols - 1), height / (rows - 1))};
+}
+export function imageArea(width: number, height: number, border: number | BorderWidths) {
+  const borders = typeof border === "number" ? {top: border, right: border, bottom: border, left: border} : border;
+  return {width: width - borders.left - borders.right, height: height - borders.top - borders.bottom};
+}
+
+export function modelSize(p: Params) {
+  const extra = p.mounting_flange ? 2 * MOUNTING_FLANGE_WIDTH_MM : 0;
+  return {width: p.width_mm + extra, height: p.height_mm + extra};
+}
+
+export function imageAreaForParams(p: Params, border: number | BorderWidths = resolvedBorders(p)) {
+  return p.mounting_flange ? {width: p.width_mm, height: p.height_mm} : imageArea(p.width_mm, p.height_mm, border);
+}
+export const initial: Params = {width_mm: 200, height_mm: 150, min_thickness_mm: 1, max_thickness_mm: 4, gamma: 1, brightness: 1, contrast: 1.25, nozzle_diameter_mm: .4, quality_profile: "maximum", orientation: "landscape", fit_mode: "cover", border_width_mm: 0, border_widths_mm: null, border_height_mm: 4, mounting_flange: true, invert: false, mirror: false, rotation_degrees: 0, crop: {x: 0, y: 0, width: 1, height: 1}};
+
+export function resolvedBorders(p: Params): BorderWidths {
+  if (p.mounting_flange) return {top: MOUNTING_FLANGE_WIDTH_MM, right: MOUNTING_FLANGE_WIDTH_MM, bottom: MOUNTING_FLANGE_WIDTH_MM, left: MOUNTING_FLANGE_WIDTH_MM};
+  return p.border_widths_mm || {top: p.border_width_mm, right: p.border_width_mm, bottom: p.border_width_mm, left: p.border_width_mm};
+}
+
+export function effectiveBorderHeight(p: Params): number {
+  return p.mounting_flange ? MOUNTING_FLANGE_HEIGHT_MM : p.border_height_mm;
+}
+
+export function validateParams(p: Params): string {
+  if (!Number.isFinite(p.width_mm) || !Number.isFinite(p.height_mm) || p.width_mm < 20 || p.height_mm < 20 || p.width_mm > 256 || p.height_mm > 256) return "Wymiary niestandardowe muszÄ… mieÄ‡ od 20 do 256 mm.";
+  if (p.width_mm !== p.height_mm && (p.orientation === "landscape") !== (p.width_mm > p.height_mm)) return "Orientacja musi odpowiadaÄ‡ wymiarom modelu.";
+  if (p.max_thickness_mm <= p.min_thickness_mm) return "Maksymalna gruboĹ›Ä‡ musi byÄ‡ wiÄ™ksza od minimalnej.";
+  if (p.max_thickness_mm - p.min_thickness_mm > 12) return "Zakres gruboĹ›ci nie moĹĽe przekraczaÄ‡ 12 mm.";
+  const borders = resolvedBorders(p);
+  const model = modelSize(p);
+  if (model.width > 256 || model.height > 256) return "Panel wraz z ukrytym koĹ‚nierzem musi zmieĹ›ciÄ‡ siÄ™ na stole 256 Ă— 256 mm.";
+  if (Object.values(borders).some(value => value < 0 || value > 20)) return "KaĹĽdy bok ramki musi mieÄ‡ od 0 do 20 mm.";
+  if (Object.values(borders).some(value => value > 0) && effectiveBorderHeight(p) < 2 * p.nozzle_diameter_mm) return `GruboĹ›Ä‡ ramki musi mieÄ‡ co najmniej ${(2 * p.nozzle_diameter_mm).toFixed(1)} mm dla wybranej dyszy.`;
+  if (!p.mounting_flange && (borders.left + borders.right >= p.width_mm || borders.top + borders.bottom >= p.height_mm)) return "Ramka nie moĹĽe zajmowaÄ‡ caĹ‚ego obszaru zdjÄ™cia.";
+  return "";
+}
+
+function Slider({label, value, min, max, step, unit = "", onChange}: {label: string; value: number; min: number; max: number; step: number; unit?: string; onChange: (n: number) => void}) {
+  return <label className="control"><span>{label}<output>{value}{unit}</output></span><input type="range" value={value} min={min} max={max} step={step} onChange={e => onChange(Number(e.target.value))}/></label>;
+}
+
+export type GeneratorRequest = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+export type LithophaneGenerateResult = {projectId?: string; signature?: string};
+export type LithophaneGeneratorProps = {
+  active: boolean;
+  onSelectProduct?: (product: GeneratorProduct) => void;
+  embedded?: boolean;
+  apiFetchOverride?: GeneratorRequest;
+  initialParams?: Params;
+  onGenerateOverride?: (file: File, params: Params) => Promise<LithophaneGenerateResult | void>;
+  onParamsChanged?: () => void;
+  embeddedOptions?: {housingColors: Record<string, string>; ledColors: Record<string, string>};
+};
+
+export function LithophaneGenerator({active, onSelectProduct = () => undefined, embedded = false, apiFetchOverride, initialParams = initial, onGenerateOverride, onParamsChanged, embeddedOptions}: LithophaneGeneratorProps) {
+  const auth = useOptionalAuth();
+  const apiFetch = apiFetchOverride || auth?.apiFetch || fetch;
+  const [file, setFile] = useState<File | null>(null);
+  const [source, setSource] = useState<string>("");
+  const [params, setParams] = useState(initialParams);
+  const [view, setView] = useState<"photo" | "lithophane">("photo");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [customRotationInput, setCustomRotationInput] = useState("0");
+  const [customBorder, setCustomBorder] = useState(false);
+  const [sourceSize, setSourceSize] = useState<{width: number; height: number} | null>(null);
+  const [rotatedPreview, setRotatedPreview] = useState<HTMLCanvasElement | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const drag = useRef<{pointerId: number; x: number; y: number; crop: Crop} | null>(null);
+  const busyRef = useRef(false);
+  useEffect(() => { onParamsChanged?.(); }, [params, onParamsChanged]);
+  const effectiveSourceSize = sourceSize ? rotatedSize(sourceSize, params.rotation_degrees) : null;
+  const quality = QUALITY[params.nozzle_diameter_mm][params.quality_profile];
+  const borders = resolvedBorders(params);
+  const model = modelSize(params);
+  const inner = imageAreaForParams(params, borders);
+  const grid = effectiveGrid(inner.width, inner.height, quality.pitch, borders);
+  const gridX = grid.cols;
+  const gridY = grid.rows;
+  const anyBorder = Object.values(borders).some(value => value > 0);
+  const set = <K extends keyof Params>(key: K, value: Params[K]) => setParams(p => ({...p, [key]: value}));
+  const setCrop = (key: keyof Params["crop"], value: number) => setParams(p => ({...p, crop: {...p.crop, [key]: value}}));
+  const fitCrop = (width: number, height: number, border: number | BorderWidths = borders) => { const area = params.mounting_flange ? {width, height} : imageArea(width, height, border); return baseCropForFit(params.fit_mode, effectiveSourceSize, area.width, area.height); };
+  const setOrientation = (orientation: Params["orientation"]) => setParams(p => {
+    const shouldSwap = orientation === "portrait" ? p.width_mm > p.height_mm : p.height_mm > p.width_mm;
+    const width = shouldSwap ? p.height_mm : p.width_mm; const height = shouldSwap ? p.width_mm : p.height_mm;
+    const area = imageAreaForParams({...p, width_mm: width, height_mm: height});
+    const size = sourceSize ? rotatedSize(sourceSize, p.rotation_degrees) : null;
+    return {...p, orientation, width_mm: width, height_mm: height, crop: size ? baseCropForFit(p.fit_mode, size, area.width, area.height) : p.crop};
+  });
+  const setZoom = (zoom: number) => setParams(p => {
+    if (!sourceSize) return p;
+    const area = imageAreaForParams(p);
+    const size = rotatedSize(sourceSize, p.rotation_degrees);
+    const base = baseCropForFit(p.fit_mode, size, area.width, area.height);
+    return {...p, crop: zoomCrop(base, p.crop, zoom)};
+  });
+  const setFitMode = (fitMode: Params["fit_mode"]) => setParams(p => {
+    const next = {...p, fit_mode: fitMode};
+    const size = sourceSize ? rotatedSize(sourceSize, p.rotation_degrees) : null;
+    const area = imageAreaForParams(next);
+    return {...next, crop: baseCropForFit(fitMode, size, area.width, area.height)};
+  });
+  const setRotation = (rotation: number) => {
+    rotation = ((rotation % 360) + 360) % 360;
+    setCustomRotationInput(String(Number(rotation.toFixed(1))));
+    setParams(p => {
+    if (!sourceSize) return {...p, rotation_degrees: rotation};
+    const size = rotatedSize(sourceSize, rotation);
+    const area = imageAreaForParams(p);
+      return {...p, rotation_degrees: rotation, crop: baseCropForFit(p.fit_mode, size, area.width, area.height)};
+    });
+  };
+  const setBorderSide = (key: keyof BorderWidths, value: number) => setParams(p => {
+    const current = resolvedBorders(p);
+    const next = {...current, [key]: value};
+    const size = sourceSize ? rotatedSize(sourceSize, p.rotation_degrees) : null;
+    const area = imageAreaForParams(p, next);
+    return {...p, border_widths_mm: next, crop: size && area.width > 0 && area.height > 0 ? baseCropForFit(p.fit_mode, size, area.width, area.height) : p.crop};
+  });
+  const setMountingFlange = (enabled: boolean) => setParams(p => {
+    const next = {...p, mounting_flange: enabled};
+    const nextBorders = resolvedBorders(next);
+    const size = sourceSize ? rotatedSize(sourceSize, p.rotation_degrees) : null;
+    const area = imageAreaForParams(next, nextBorders);
+    return {...next, crop: size ? baseCropForFit(next.fit_mode, size, area.width, area.height) : p.crop};
+  });
+
+  const beginDrag = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (busyRef.current) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    drag.current = {pointerId: event.pointerId, x: event.clientX, y: event.clientY, crop: params.crop};
+  };
+  const moveDrag = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (busyRef.current) return;
+    const start = drag.current;
+    if (!start || start.pointerId !== event.pointerId) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const innerWidth = rect.width * inner.width / model.width;
+    const innerHeight = rect.height * inner.height / model.height;
+    const directionX = params.mirror ? 1 : -1;
+    setParams(p => ({...p, crop: panCrop(start.crop, directionX * (event.clientX - start.x) / innerWidth * start.crop.width, -(event.clientY - start.y) / innerHeight * start.crop.height)}));
+  };
+  const endDrag = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (drag.current?.pointerId === event.pointerId) drag.current = null;
+  };
+  useEffect(() => () => { if (source) URL.revokeObjectURL(source); }, [source]);
+  useEffect(() => {
+    if (!source) { setRotatedPreview(null); return; }
+    let cancelled = false;
+    const image = new Image();
+    image.onload = () => {
+      const angle = params.rotation_degrees * Math.PI / 180;
+      const cosine = Math.abs(Math.cos(angle)) < 1e-10 ? 0 : Math.cos(angle);
+      const sine = Math.abs(Math.sin(angle)) < 1e-10 ? 0 : Math.sin(angle);
+      const expanded = document.createElement("canvas");
+      expanded.width = Math.ceil(Math.abs(image.width * cosine) + Math.abs(image.height * sine));
+      expanded.height = Math.ceil(Math.abs(image.width * sine) + Math.abs(image.height * cosine));
+      const expandedContext = expanded.getContext("2d")!;
+      expandedContext.translate(expanded.width / 2, expanded.height / 2);
+      expandedContext.rotate(angle);
+      expandedContext.drawImage(image, -image.width / 2, -image.height / 2);
+      const inscribed = inscribedSize(image.width, image.height, params.rotation_degrees);
+      const rotated = document.createElement("canvas");
+      rotated.width = Math.max(1, Math.round(inscribed.width));
+      rotated.height = Math.max(1, Math.round(inscribed.height));
+      const rotatedContext = rotated.getContext("2d")!;
+      rotatedContext.drawImage(expanded, (expanded.width - inscribed.width) / 2, (expanded.height - inscribed.height) / 2, inscribed.width, inscribed.height, 0, 0, rotated.width, rotated.height);
+      if (!cancelled) setRotatedPreview(rotated);
+    };
+    image.src = source;
+    return () => { cancelled = true; };
+  }, [source, params.rotation_degrees]);
+  useEffect(() => {
+    if (!rotatedPreview || !canvas.current) return;
+    const c = canvas.current; const ctx = c.getContext("2d")!;
+    const crop = params.crop; const w = 1200; const h = Math.max(320, Math.round(w * model.height / model.width));
+    c.width = w; c.height = h;
+    const bx = w * borders.left / model.width; const by = h * borders.top / model.height;
+    const right = w * borders.right / model.width; const bottom = h * borders.bottom / model.height;
+    const imageWidth = Math.max(1, w - bx - right);
+    const imageHeight = Math.max(1, h - by - bottom);
+    const imageFilter = `brightness(${params.brightness}) contrast(${params.contrast}) grayscale(1) ${view === "lithophane" ? "invert(1)" : ""}`;
+
+    ctx.filter = "none";
+    ctx.globalCompositeOperation = "source-over";
+    ctx.fillStyle = "#302b27";
+    ctx.fillRect(0, 0, w, h);
+
+    if (params.fit_mode === "contain") {
+      // Keep the complete image's aspect ratio at every zoom level.  The crop
+      // is a normalized viewport used only to calculate a uniform transform;
+      // it is never stretched into the panel rectangle.
+      ctx.save();
+      ctx.fillStyle = "#f5f7fa";
+      ctx.fillRect(bx, by, imageWidth, imageHeight);
+      ctx.strokeStyle = "rgba(119,132,151,.30)";
+      ctx.lineWidth = Math.max(1, w / 900);
+      ctx.beginPath();
+      const spacing = Math.max(16, w / 45);
+      for (let offset = bx - h; offset < bx + imageWidth + h; offset += spacing) {
+        ctx.moveTo(offset, by);
+        ctx.lineTo(offset + imageHeight, by + imageHeight);
+      }
+      ctx.stroke();
+      ctx.restore();
+
+      const zoom = 1 / Math.max(0.000001, crop.width);
+      const scale = Math.min(imageWidth / rotatedPreview.width, imageHeight / rotatedPreview.height) * zoom;
+      const drawnWidth = rotatedPreview.width * scale;
+      const drawnHeight = rotatedPreview.height * scale;
+      const centerX = crop.x + crop.width / 2;
+      const centerY = crop.y + crop.height / 2;
+      const drawnX = bx + imageWidth / 2 - centerX * drawnWidth;
+      const drawnY = by + imageHeight / 2 - centerY * drawnHeight;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(bx, by, imageWidth, imageHeight);
+      ctx.clip();
+      ctx.filter = imageFilter;
+      if (params.mirror) { ctx.translate(bx + imageWidth / 2, 0); ctx.scale(-1, 1); ctx.translate(-(bx + imageWidth / 2), 0); }
+      ctx.drawImage(rotatedPreview, drawnX, drawnY, drawnWidth, drawnHeight);
+      ctx.restore();
+      if (zoom <= 1.001) {
+        ctx.save();
+        ctx.strokeStyle = "#8b98aa";
+        ctx.lineWidth = Math.max(1, w / 900);
+        ctx.setLineDash([8, 6]);
+        ctx.strokeRect(drawnX, drawnY, drawnWidth, drawnHeight);
+        ctx.restore();
+      }
+    } else {
+      ctx.save();
+      if (params.mirror) { ctx.translate(w, 0); ctx.scale(-1, 1); }
+      ctx.filter = imageFilter;
+      ctx.drawImage(rotatedPreview, crop.x * rotatedPreview.width, crop.y * rotatedPreview.height, crop.width * rotatedPreview.width, crop.height * rotatedPreview.height, bx, by, imageWidth, imageHeight);
+      ctx.restore();
+    }
+    if (view === "lithophane") { ctx.globalCompositeOperation = "screen"; ctx.fillStyle = `rgba(255,177,82,${Math.min(.42, params.gamma / 10)})`; ctx.fillRect(0, 0, w, h); }
+  }, [rotatedPreview, params, view]);
+  useEffect(() => {
+    const element = canvas.current;
+    if (!element || !effectiveSourceSize) return;
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      if (busyRef.current) return;
+      const rect = element.getBoundingClientRect();
+      const borderX = rect.width * borders.left / model.width;
+      const borderY = rect.height * borders.top / model.height;
+      const right = rect.width * borders.right / model.width;
+      const bottom = rect.height * borders.bottom / model.height;
+      const screenFocalX = Math.max(0, Math.min(1, (event.clientX - rect.left - borderX) / Math.max(1, rect.width - borderX - right)));
+      const focalX = params.mirror ? 1 - screenFocalX : screenFocalX;
+      const focalY = Math.max(0, Math.min(1, (event.clientY - rect.top - borderY) / Math.max(1, rect.height - borderY - bottom)));
+      const base = baseCropForFit(params.fit_mode, effectiveSourceSize, inner.width, inner.height);
+      const zoom = Math.max(1, Math.min(5, base.width / params.crop.width * Math.exp(-event.deltaY * .0015)));
+      setParams(p => ({...p, crop: zoomCropAt(base, p.crop, zoom, focalX, focalY)}));
+    };
+    element.addEventListener("wheel", onWheel, {passive: false});
+    return () => element.removeEventListener("wheel", onWheel);
+  }, [effectiveSourceSize?.width, effectiveSourceSize?.height, inner.width, inner.height, borders.top, borders.right, borders.bottom, borders.left, model.width, model.height, params.crop.width, params.fit_mode, params.mirror]);
+
+  const choose = (e: ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0] || null;
+    if (!selected) return;
+    if (!/^image\/(jpeg|png)$/.test(selected.type)) { setError("ObsĹ‚ugiwane sÄ… wyĹ‚Ä…cznie pliki JPG i PNG."); return; }
+    if (source) URL.revokeObjectURL(source);
+    const url = URL.createObjectURL(selected);
+    setFile(selected); setSource(url); setError("");
+    const image = new Image();
+    image.onload = () => {
+      setSourceSize({width: image.width, height: image.height});
+      setParams(p => {
+        const orientation = image.height > image.width ? "portrait" : "landscape";
+        const short = Math.min(p.width_mm, p.height_mm); const long = Math.max(p.width_mm, p.height_mm);
+        const width = orientation === "landscape" ? long : short; const height = orientation === "landscape" ? short : long;
+        const area = imageAreaForParams({...p, width_mm: width, height_mm: height});
+        return {...p, orientation, width_mm: width, height_mm: height, crop: baseCropForFit(p.fit_mode, {width: image.width, height: image.height}, area.width, area.height)};
+      });
+    };
+    image.src = url;
+  };
+
+  const generate = async () => {
+    if (busyRef.current) return;
+    if (!file) { setError("Najpierw wybierz zdjÄ™cie."); return; }
+    const invalid = validateParams(params); if (invalid) { setError(invalid); return; }
+    busyRef.current = true;
+    drag.current = null;
+    setBusy(true); setError("");
+    try {
+      if (onGenerateOverride) {
+        await onGenerateOverride(file, params);
+      } else {
+      const body = new FormData(); body.append("image", file); body.append("params", JSON.stringify(params));
+      const response = await apiFetch("/api/generate", {method: "POST", body});
+      if (!response.ok) { const problem = await response.json(); throw new Error(problem.detail?.message || "Generowanie nie powiodĹ‚o siÄ™."); }
+      const blob = await response.blob(); const url = URL.createObjectURL(blob);
+      const link = document.createElement("a"); link.href = url; link.download = "lithophane.stl"; link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+    } catch (e) { setError(e instanceof Error ? e.message : "Nieznany bĹ‚Ä…d"); } finally { busyRef.current = false; setBusy(false); }
+  };
+
+  return <main className={`app-shell${embedded ? " embedded-generator" : ""}`} hidden={!active}>
+      <aside className="sidebar">
+      {!embedded && <><div className="sidebar-brand"><span className="mark">L</span><div><strong>Litho</strong><small>Generator litofanii 3D</small></div><span className="version">V2</span></div>
+        <GeneratorProductNav active="lithophane" onSelect={onSelectProduct}/></>}
+        <fieldset className="sidebar-scroll generator-controls" disabled={busy} aria-busy={busy}>
+        <h2><span>01</span> Obraz</h2>
+        <label className="drop"><input ref={fileInput} type="file" accept="image/jpeg,image/png" onChange={choose}/><b>{file ? file.name : "Wybierz zdjÄ™cie"}</b><small>JPG lub PNG Â· maks. 20 MB</small></label>
+        <h3>Kadrowanie</h3>
+        <button className="auto-crop" disabled={!sourceSize} onClick={() => setParams(p => ({...p, crop: fitCrop(p.width_mm, p.height_mm)}))}>Dopasuj automatycznie</button>
+        <label className="control"><span>Dopasowanie zdjÄ™cia</span><select value={params.fit_mode} onChange={e => setFitMode(e.target.value === "contain" ? "contain" : "cover")}><option value="cover">WypeĹ‚nij kadr â€” bez marginesĂłw</option><option value="contain">CaĹ‚e zdjÄ™cie â€” pokaĹĽ marginesy</option></select></label>
+        <p className="quality-note">WypeĹ‚nij kadr przycina nadmiar. CaĹ‚e zdjÄ™cie zachowuje proporcje i pokazuje wolne marginesy.</p>
+        <Slider label="Pozycja X" value={params.crop.x} min={0} max={1 - params.crop.width} step={.01} onChange={n => setCrop("x", n)}/>
+        <Slider label="Pozycja Y" value={params.crop.y} min={0} max={1 - params.crop.height} step={.01} onChange={n => setCrop("y", n)}/>
+        <Slider label="PowiÄ™kszenie" value={effectiveSourceSize ? Number((baseCropForFit(params.fit_mode, effectiveSourceSize, inner.width, inner.height).width / params.crop.width).toFixed(2)) : 1} min={1} max={5} step={.05} unit="Ă—" onChange={setZoom}/>
+        <div className="rotate-row"><span>ObrĂłt zdjÄ™cia</span><div className="rotate-actions"><button onClick={() => setRotation(params.rotation_degrees - 90)}>â†¶ 90Â°</button><label><input type="number" min="0" max="359.9" step="0.1" value={customRotationInput} onChange={e => setCustomRotationInput(e.target.value)} onBlur={e => setRotation(Number.isFinite(Number(e.target.value)) ? Number(e.target.value) : 0)} onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}/><span>Â°</span></label><button onClick={() => setRotation(params.rotation_degrees + 90)}>90Â° â†·</button></div></div>
+        <p className="interaction-hint">Na podglÄ…dzie: przeciÄ…gnij zdjÄ™cie, aby je przesunÄ…Ä‡ Â· uĹĽyj kĂłĹ‚ka myszy, aby przybliĹĽyÄ‡.</p>
+        <h2><span>02</span> Model</h2>
+        <div className="orientation"><button className={params.orientation === "landscape" ? "active" : ""} onClick={() => setOrientation("landscape")}>Pozioma</button><button className={params.orientation === "portrait" ? "active" : ""} onClick={() => setOrientation("portrait")}>Pionowa</button></div>
+        <p className="quality-note">StaĹ‚y maksymalny format: 15 Ă— 20 cm. ZmieĹ„ orientacjÄ™ powyĹĽej, aby obrĂłciÄ‡ ukĹ‚ad zdjÄ™cia.</p>
+        <Slider label="Minimalna gruboĹ›Ä‡" value={params.min_thickness_mm} min={.4} max={4} step={.1} unit=" mm" onChange={n => set("min_thickness_mm", n)}/>
+        <Slider label="Maksymalna gruboĹ›Ä‡" value={params.max_thickness_mm} min={.5} max={10} step={.1} unit=" mm" onChange={n => {set("max_thickness_mm", n); if (params.border_height_mm < n) set("border_height_mm", n);}}/>
+        {embedded && embeddedOptions && <>
+          <label className="control"><span>Kolor obudowy</span><select id="litho-housing-color" defaultValue={Object.keys(embeddedOptions.housingColors)[0] || ""}>{Object.entries(embeddedOptions.housingColors).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+          <label className="control"><span>Barwa LED</span><select id="litho-led-color" defaultValue={Object.keys(embeddedOptions.ledColors)[0] || "warm"}>{Object.entries(embeddedOptions.ledColors).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+        </>}
+        <Slider label="Gamma" value={params.gamma} min={.1} max={5} step={.1} onChange={n => set("gamma", n)}/>
+        <Slider label="JasnoĹ›Ä‡" value={params.brightness} min={.25} max={2} step={.05} onChange={n => set("brightness", n)}/>
+        <Slider label="Kontrast" value={params.contrast} min={.25} max={3} step={.05} onChange={n => set("contrast", n)}/>
+        <h3>Ĺšrednica dyszy</h3>
+        <div className="orientation"><button className={params.nozzle_diameter_mm === .2 ? "active" : ""} onClick={() => setParams(p => ({...p, nozzle_diameter_mm: .2}))}>0,2 mm Â· detal</button><button className={params.nozzle_diameter_mm === .4 ? "active" : ""} onClick={() => setParams(p => ({...p, nozzle_diameter_mm: .4, border_height_mm: p.border_height_mm < .8 ? .8 : p.border_height_mm}))}>0,4 mm Â· standard</button></div>
+        <h3>JakoĹ›Ä‡ geometrii</h3>
+        <div className="formats"><button className={params.quality_profile === "economic" ? "active" : ""} onClick={() => set("quality_profile", "economic")}>Ekonomiczna</button><button className={params.quality_profile === "optimal" ? "active" : ""} onClick={() => set("quality_profile", "optimal")}>Optymalna</button><button className={params.quality_profile === "maximum" ? "active" : ""} onClick={() => set("quality_profile", "maximum")}>Maksymalna</button></div>
+        <p className="quality-note">PrĂłbka XY: {grid.pitch.toFixed(3)} mm Â· linia: {quality.line} mm Â· warstwa: {quality.layer} mm Â· siatka obrazu: {gridX} Ă— {gridY}{anyBorder ? ` Â· z ramkÄ…: ${grid.totalCols} Ă— ${grid.totalRows}` : ""}</p>
+        <h3>KrawÄ™dĹş panelu</h3>
+        <label className="check"><input type="checkbox" checked={params.mounting_flange} onChange={e => setMountingFlange(e.target.checked)}/><span>KoĹ‚nierz montaĹĽowy Litho Mount V2</span></label>
+        {params.mounting_flange && <p className="quality-note flange-note">Ukryty koĹ‚nierz 3,0 mm jest dodawany na zewnÄ…trz wybranego formatu Â· gruboĹ›Ä‡ 1,6 mm. Wybrany wymiar pozostaje wymiarem widocznego obrazu.</p>}
+        {params.mounting_flange && params.max_thickness_mm > MOUNTING_FLANGE_HEIGHT_MM && <p className="quality-note warning-note">Relief obrazu bÄ™dzie wystawaĹ‚ ponad koĹ‚nierz montaĹĽowy. Jest to zamierzone: strefa mocowana w obudowie zachowuje staĹ‚Ä… gruboĹ›Ä‡ 1,6 mm.</p>}
+        {!params.mounting_flange && <>
+          {!customBorder && <Slider label="SzerokoĹ›Ä‡ ramki (wewnÄ…trz formatu)" value={params.border_width_mm} min={0} max={20} step={.5} unit=" mm" onChange={n => setParams(p => ({...p, border_width_mm: n, border_widths_mm: null, crop: fitCrop(p.width_mm, p.height_mm, n)}))}/>}
+          <label className="check compact-check"><input type="checkbox" checked={customBorder} onChange={e => { const enabled = e.target.checked; setCustomBorder(enabled); setParams(p => { const current = resolvedBorders(p); const next = enabled ? current : {top: current.top, right: current.top, bottom: current.top, left: current.top}; const size = sourceSize ? rotatedSize(sourceSize, p.rotation_degrees) : null; const area = imageAreaForParams(p, next); return {...p, border_width_mm: next.top, border_widths_mm: enabled ? current : null, crop: size ? baseCropForFit(p.fit_mode, size, area.width, area.height) : p.crop}; }); }}/><span>Ustaw kaĹĽdy bok ramki osobno</span></label>
+          {customBorder && <div className="border-grid"><Slider label="GĂłra" value={borders.top} min={0} max={20} step={.5} unit=" mm" onChange={n => setBorderSide("top", n)}/><Slider label="Prawo" value={borders.right} min={0} max={20} step={.5} unit=" mm" onChange={n => setBorderSide("right", n)}/><Slider label="DĂłĹ‚" value={borders.bottom} min={0} max={20} step={.5} unit=" mm" onChange={n => setBorderSide("bottom", n)}/><Slider label="Lewo" value={borders.left} min={0} max={20} step={.5} unit=" mm" onChange={n => setBorderSide("left", n)}/></div>}
+          {anyBorder && <Slider label="GruboĹ›Ä‡ ramki" value={params.border_height_mm} min={params.nozzle_diameter_mm * 2} max={10} step={.1} unit=" mm" onChange={n => set("border_height_mm", n)}/>}
+          {anyBorder && params.border_height_mm < params.max_thickness_mm && <p className="quality-note warning-note">Cienka ramka: ciemne fragmenty reliefu bÄ™dÄ… wystawaĹ‚y ponad jej powierzchniÄ™. Do ramki ochronnej zalecamy gruboĹ›Ä‡ co najmniej rĂłwnÄ… maksymalnej gruboĹ›ci obrazu.</p>}
+        </>}
+        <label className="check"><input type="checkbox" checked={params.invert} onChange={e => set("invert", e.target.checked)}/><span>OdwrĂłÄ‡ obraz</span></label>
+        <label className="check"><input type="checkbox" checked={params.mirror} onChange={e => set("mirror", e.target.checked)}/><span>Odbij zdjÄ™cie lustrzanie</span></label>
+        </fieldset>
+        <div className="sidebar-foot">Lokalne przetwarzanie Â· STL manifold</div>
+      </aside>
+      <section className="workbench">
+      <article className="preview">
+        <div className="preview-head"><div><p className="eyebrow">PODGLÄ„D NA Ĺ»YWO</p><h2>{view === "photo" ? "Przygotowane zdjÄ™cie" : "Symulacja Ĺ›wiatĹ‚a"}</h2></div><div className="tabs"><button className={view === "photo" ? "active" : ""} onClick={() => setView("photo")}>Obraz</button><button className={view === "lithophane" ? "active" : ""} onClick={() => setView("lithophane")}>Litofania</button></div></div>
+        <div className={`stage crop-stage${busy ? " interaction-locked" : ""}`} aria-busy={busy} style={{aspectRatio: `${model.width} / ${model.height}`, width: `min(100%, ${720 * model.width / model.height}px)`}}>{source ? <canvas ref={canvas} aria-disabled={busy} onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}/> : <button type="button" className="empty empty-upload" onClick={() => fileInput.current?.click()} aria-label="Dodaj fotografiÄ™"><span>ďĽ‹</span><b>Dodaj fotografiÄ™</b><small>Kliknij tutaj, aby wybraÄ‡ plik</small></button>}{busy && <div className="interaction-lock" role="status">Generowanie STL â€” kadr zablokowany</div>}</div>
+        <div className="stats"><span><small>{params.mounting_flange ? "PANEL / OBRAZ" : "WYMIAR"}</small><b>{params.mounting_flange ? `${model.width} Ă— ${model.height} / ${params.width_mm} Ă— ${params.height_mm}` : `${params.width_mm} Ă— ${params.height_mm}`} mm</b></span><span><small>GRUBOĹšÄ†</small><b>{params.min_thickness_mm}â€“{params.max_thickness_mm} mm</b></span><span><small>SIATKA</small><b>{gridX} Ă— {gridY}</b></span></div>
+        {(error || validateParams(params)) && <p className="error">{error || validateParams(params)}</p>}
+        <button className="generate" disabled={busy || !file || Boolean(validateParams(params))} onClick={generate}>{busy ? "Generowanieâ€¦" : "Generuj i pobierz STL"}<span>â†’</span></button>
+      </article>
+      <footer>Pliki sÄ… przetwarzane w pamiÄ™ci i nie sÄ… przechowywane na serwerze.</footer>
+      </section>
+  </main>;
+}
