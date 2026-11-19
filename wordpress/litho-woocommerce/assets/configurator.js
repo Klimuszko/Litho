@@ -111,8 +111,11 @@
     const centerX = current.x + current.width / 2;
     const centerY = current.y + current.height / 2;
     return {
-      x: Math.max(base.x, Math.min(base.x + base.width - width, centerX - width / 2)),
-      y: Math.max(base.y, Math.min(base.y + base.height - height, centerY - height / 2)),
+      // Match the full Litho generator: the automatic crop defines the
+      // initial viewport only. After zooming, the user may pan through the
+      // complete source image instead of being pulled back to that crop.
+      x: Math.max(0, Math.min(1 - width, centerX - width / 2)),
+      y: Math.max(0, Math.min(1 - height, centerY - height / 2)),
       width,
       height,
     };
@@ -125,8 +128,8 @@
     const sourceX = current.x + current.width * focalX;
     const sourceY = current.y + current.height * focalY;
     return {
-      x: Math.max(base.x, Math.min(base.x + base.width - width, sourceX - width * focalX)),
-      y: Math.max(base.y, Math.min(base.y + base.height - height, sourceY - height * focalY)),
+      x: Math.max(0, Math.min(1 - width, sourceX - width * focalX)),
+      y: Math.max(0, Math.min(1 - height, sourceY - height * focalY)),
       width,
       height,
     };
@@ -144,8 +147,11 @@
       height = base.height;
       width = height * ratio;
     }
-    const x = Math.max(base.x, Math.min(base.x + base.width - width, Number.isFinite(crop.x) ? crop.x : base.x));
-    const y = Math.max(base.y, Math.min(base.y + base.height - height, Number.isFinite(crop.y) ? crop.y : base.y));
+    // Match the full Litho generator: after zooming, the viewport may be
+    // panned anywhere inside the source image.  The automatic crop is only a
+    // starting position, not a second boundary that recentres the image.
+    const x = Math.max(0, Math.min(1 - width, Number.isFinite(crop.x) ? crop.x : base.x));
+    const y = Math.max(0, Math.min(1 - height, Number.isFinite(crop.y) ? crop.y : base.y));
     return {x, y, width, height};
   }
 
@@ -178,8 +184,8 @@
     const height = crop.height;
     const next = {
       ...crop,
-      x: Math.max(base.x, Math.min(base.x + base.width - width, crop.x)),
-      y: Math.max(base.y, Math.min(base.y + base.height - height, crop.y)),
+      x: Math.max(0, Math.min(1 - width, crop.x)),
+      y: Math.max(0, Math.min(1 - height, crop.y)),
       width,
       height,
     };
