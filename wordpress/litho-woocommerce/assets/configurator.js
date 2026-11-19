@@ -12,6 +12,10 @@
   const housingInput = root.querySelector('#litho-housing-color');
   const ledInput = root.querySelector('#litho-led-color');
   const zoomInput = root.querySelector('#litho-zoom');
+  const positionXInput = root.querySelector('#litho-position-x');
+  const positionYInput = root.querySelector('#litho-position-y');
+  const positionXValue = root.querySelector('#litho-position-x-value');
+  const positionYValue = root.querySelector('#litho-position-y-value');
   const brightnessInput = root.querySelector('#litho-brightness');
   const contrastInput = root.querySelector('#litho-contrast');
   const gammaInput = root.querySelector('#litho-gamma');
@@ -69,6 +73,18 @@
     signatureInput.value = '';
     lockCart(true);
     setStatus('');
+  }
+
+  function syncPositionControls() {
+    if (!positionXInput || !positionYInput || !positionXValue || !positionYValue) return;
+    const maxX = Math.max(0, 1 - state.crop.width);
+    const maxY = Math.max(0, 1 - state.crop.height);
+    positionXInput.max = String(maxX);
+    positionYInput.max = String(maxY);
+    positionXInput.value = String(Math.max(0, Math.min(maxX, state.crop.x)));
+    positionYInput.value = String(Math.max(0, Math.min(maxY, state.crop.y)));
+    positionXValue.textContent = Number(state.crop.x).toFixed(3);
+    positionYValue.textContent = Number(state.crop.y).toFixed(3);
   }
 
   function rotatedDimensions() {
@@ -233,6 +249,7 @@
     canvas.style.setProperty('max-width', 'none', 'important');
     canvas.style.setProperty('max-height', 'none', 'important');
     clampCrop();
+    syncPositionControls();
     draw();
   }
 
@@ -422,7 +439,20 @@
     state.zoom = nextZoom;
     state.crop = zoomCrop(base, state.crop, nextZoom);
     clampCrop();
+    syncPositionControls();
     draw(); invalidate();
+  });
+  [
+    [positionXInput, positionXValue, 'x'],
+    [positionYInput, positionYValue, 'y'],
+  ].forEach(([input, output, axis]) => {
+    if (!input || !output) return;
+    input.addEventListener('input', () => {
+      state.crop = {...state.crop, [axis]: Number(input.value)};
+      state.crop = clampCropPosition(state.crop);
+      syncPositionControls();
+      draw(); invalidate();
+    });
   });
   [
     [brightnessInput, brightnessValue],
@@ -473,6 +503,7 @@
       y: start.crop.y - (event.clientY - start.y) / Math.max(1, innerHeight) * start.crop.height,
     };
     state.crop = clampCropPosition(state.crop);
+    syncPositionControls();
     draw(); invalidate();
   });
   dragSurface.addEventListener('pointerup', event => {
@@ -497,7 +528,7 @@
     clampCrop();
     state.crop = zoomCropAt(baseCrop(), state.crop, state.zoom, focalX, focalY);
     zoomInput.value = String(state.zoom);
-    clampCrop(); draw(); invalidate();
+    clampCrop(); syncPositionControls(); draw(); invalidate();
   }, {passive: false});
 
   async function request(path, options, browserToken) {
