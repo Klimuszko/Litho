@@ -151,6 +151,16 @@
     };
   }
 
+  // Keep this identical to the full Litho generator: panning changes only
+  // the crop origin and never recalculates its width or height.
+  function panCrop(crop, deltaX, deltaY) {
+    return {
+      ...crop,
+      x: Math.max(0, Math.min(1 - crop.width, crop.x + deltaX)),
+      y: Math.max(0, Math.min(1 - crop.height, crop.y + deltaY)),
+    };
+  }
+
   // A crop is stored in normalized image coordinates.  Its width and height
   // must always keep the same normalized ratio as the base crop; otherwise a
   // tiny pointer movement can make drawImage stretch one axis of the photo.
@@ -484,7 +494,7 @@
     event.preventDefault();
     const rect = dragSurface.getBoundingClientRect();
     state.dragging = true;
-    state.dragStart = {pointerId: event.pointerId, x: event.clientX, y: event.clientY, crop: {...state.crop}, zoom: state.zoom, rectWidth: rect.width, rectHeight: rect.height};
+    state.dragStart = {pointerId: event.pointerId, x: event.clientX, y: event.clientY, crop: {...state.crop}};
     dragSurface.setPointerCapture(event.pointerId);
   });
   dragSurface.addEventListener('pointermove', event => {
@@ -494,19 +504,15 @@
     event.preventDefault();
     const area = imageAreaDimensions();
     const model = modelDimensions();
-    const innerWidth = start.rectWidth * area.width / model.width;
-    const innerHeight = start.rectHeight * area.height / model.height;
+    const rect = dragSurface.getBoundingClientRect();
+    const innerWidth = rect.width * area.width / model.width;
+    const innerHeight = rect.height * area.height / model.height;
     const directionX = -1;
-    // A drag is a pure pan. Preserve the zoom value captured at pointerdown;
-    // only the normalized X/Y coordinates are allowed to change.
-    state.zoom = start.zoom;
-    zoomInput.value = String(start.zoom);
-    state.crop = {
-      ...start.crop,
-      x: start.crop.x + directionX * (event.clientX - start.x) / Math.max(1, innerWidth) * start.crop.width,
-      y: start.crop.y - (event.clientY - start.y) / Math.max(1, innerHeight) * start.crop.height,
-    };
-    state.crop = clampCropPosition(state.crop);
+    state.crop = panCrop(
+      start.crop,
+      directionX * (event.clientX - start.x) / Math.max(1, innerWidth) * start.crop.width,
+      -(event.clientY - start.y) / Math.max(1, innerHeight) * start.crop.height,
+    );
     syncPositionControls();
     draw(); invalidate();
   });
