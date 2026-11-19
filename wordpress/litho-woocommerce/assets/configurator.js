@@ -168,6 +168,22 @@
     state.crop = fitCropToBase(state.crop, base);
   }
 
+  // Dragging is a pan operation only.  Keep the zoomed viewport dimensions
+  // byte-for-byte from pointerdown; recalculating them during a drag makes the
+  // photo appear to snap back to the panel's width/height.
+  function clampCropPosition(crop) {
+    const base = baseCrop();
+    const width = crop.width;
+    const height = crop.height;
+    return {
+      ...crop,
+      x: Math.max(base.x, Math.min(base.x + base.width - width, crop.x)),
+      y: Math.max(base.y, Math.min(base.y + base.height - height, crop.y)),
+      width,
+      height,
+    };
+  }
+
   function setCanvasAspect() {
     const model = modelDimensions();
     const ratio = model.width / model.height;
@@ -375,7 +391,8 @@
     clampCrop();
     state.zoom = nextZoom;
     state.crop = zoomCrop(base, state.crop, nextZoom);
-    clampCrop(); draw(); invalidate();
+    clampCrop();
+    draw(); invalidate();
   });
   [
     [brightnessInput, brightnessValue],
@@ -425,7 +442,8 @@
       x: start.crop.x + directionX * (event.clientX - start.x) / Math.max(1, innerWidth) * start.crop.width,
       y: start.crop.y - (event.clientY - start.y) / Math.max(1, innerHeight) * start.crop.height,
     };
-    clampCrop(); draw(); invalidate();
+    state.crop = clampCropPosition(state.crop);
+    draw(); invalidate();
   });
   dragSurface.addEventListener('pointerup', event => {
     state.dragging = false;
