@@ -149,16 +149,14 @@
         ctx.restore();
       }
     } else {
-      // Cover crop: always fill the complete target canvas, never letterbox it.
-      const cropWidth = canvas.width / g.scale;
-      const cropHeight = canvas.height / g.scale;
-      const maxSourcePanX = Math.max(0, (oriented.width - cropWidth) / 2);
-      const maxSourcePanY = Math.max(0, (oriented.height - cropHeight) / 2);
-      const maxRenderedPanX = Math.max(1, (oriented.width * g.scale - canvas.width) / 2);
-      const maxRenderedPanY = Math.max(1, (oriented.height * g.scale - canvas.height) / 2);
-      const sourceX = Math.max(0, Math.min(oriented.width - cropWidth, (oriented.width - cropWidth) / 2 - (state.panX / maxRenderedPanX) * maxSourcePanX));
-      const sourceY = Math.max(0, Math.min(oriented.height - cropHeight, (oriented.height - cropHeight) / 2 - (state.panY / maxRenderedPanY) * maxSourcePanY));
-      ctx.drawImage(oriented, sourceX, sourceY, cropWidth, cropHeight, 0, 0, canvas.width, canvas.height);
+      // Cover crop: draw the whole rotated image at its cover scale and use
+      // the clamped translation for the user's drag. This keeps the image
+      // movable at the native zoom instead of re-centering it on every draw.
+      const width = oriented.width * g.scale;
+      const height = oriented.height * g.scale;
+      const x = (canvas.width - width) / 2 + state.panX;
+      const y = (canvas.height - height) / 2 + state.panY;
+      ctx.drawImage(oriented, x, y, width, height);
     }
     applyImageAdjustments();
   }
