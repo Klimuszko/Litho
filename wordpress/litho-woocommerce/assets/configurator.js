@@ -484,7 +484,7 @@
     event.preventDefault();
     const rect = dragSurface.getBoundingClientRect();
     state.dragging = true;
-    state.dragStart = {pointerId: event.pointerId, x: event.clientX, y: event.clientY, crop: {...state.crop}, rectWidth: rect.width, rectHeight: rect.height};
+    state.dragStart = {pointerId: event.pointerId, x: event.clientX, y: event.clientY, crop: {...state.crop}, zoom: state.zoom, rectWidth: rect.width, rectHeight: rect.height};
     dragSurface.setPointerCapture(event.pointerId);
   });
   dragSurface.addEventListener('pointermove', event => {
@@ -497,6 +497,10 @@
     const innerWidth = start.rectWidth * area.width / model.width;
     const innerHeight = start.rectHeight * area.height / model.height;
     const directionX = -1;
+    // A drag is a pure pan. Preserve the zoom value captured at pointerdown;
+    // only the normalized X/Y coordinates are allowed to change.
+    state.zoom = start.zoom;
+    zoomInput.value = String(start.zoom);
     state.crop = {
       ...start.crop,
       x: start.crop.x + directionX * (event.clientX - start.x) / Math.max(1, innerWidth) * start.crop.width,
