@@ -5,7 +5,6 @@
   if (!root || typeof LithoConfig === 'undefined') return;
 
   const canvas = root.querySelector('#litho-preview');
-  const previewWrap = root.querySelector('.litho-preview-wrap');
   const previewStage = root.querySelector('.litho-preview-stage');
   const ctx = canvas.getContext('2d');
   const fileInput = root.querySelector('input[type="file"]');
@@ -26,7 +25,9 @@
   const signatureInput = root.querySelector('#litho-project-signature');
   const cartButton = document.querySelector('form.cart button.single_add_to_cart_button');
 
-  const state = {image: null, file: null, orientation: 'landscape', fitMode: 'cover', previewMode: 'photo', rotation: 0, zoom: 1, panX: 0, panY: 0, dragging: false, lastX: 0, lastY: 0, busy: false};
+  const state = {image: null, file: null, orientation: 'landscape', fitMode: 'cover', previewMode: 'photo', rotation: 0, zoom: 1, crop: {x: 0, y: 0, width: 1, height: 1}, dragging: false, dragStart: null, busy: false};
+  const dragSurface = previewStage || canvas;
+  const PANEL = {width: 200, height: 150, flange: 3};
   const apiRoot = String(LithoConfig.restUrl).replace(/\/$/, '');
 
   function fillSelect(select, choices) {
@@ -73,48 +74,109 @@
     return quarter ? {width: state.image.height, height: state.image.width} : {width: state.image.width, height: state.image.height};
   }
 
+  function modelDimensions() {
+    const landscape = state.orientation === 'landscape';
+    const width = PANEL.width + PANEL.flange * 2;
+    const height = PANEL.height + PANEL.flange * 2;
+    return landscape ? {width, height} : {width: height, height: width};
+  }
+
+  function imageAreaDimensions() {
+    return state.orientation === 'landscape'
+      ? {width: PANEL.width, height: PANEL.height}
+      : {width: PANEL.height, height: PANEL.width};
+  }
+
+  function automaticCrop(width, height, targetWidth, targetHeight) {
+    const sourceAspect = width / height;
+    const targetAspect = targetWidth / targetHeight;
+    if (sourceAspect > targetAspect) {
+      const cropWidth = targetAspect / sourceAspect;
+      return {x: (1 - cropWidth) / 2, y: 0, width: cropWidth, height: 1};
+    }
+    if (sourceAspect < targetAspect) {
+      const cropHeight = sourceAspect / targetAspect;
+      return {x: 0, y: (1 - cropHeight) / 2, width: 1, height: cropHeight};
+    }
+    return {x: 0, y: 0, width: 1, height: 1};
+  }
+
+  function zoomCrop(base, current, zoom) {
+    const width = base.width / zoom;
+    const height = base.height / zoom;
+    const centerX = current.x + current.width / 2;
+    const centerY = current.y + current.height / 2;
+    return {
+      x: Math.max(base.x, Math.min(base.x + base.width - width, centerX - width / 2)),
+      y: Math.max(base.y, Math.min(base.y + base.height - height, centerY - height / 2)),
+      width,
+      height,
+    };
+  }
+
+  function zoomCropAt(base, current, zoom, focalX, focalY) {
+    const width = base.width / zoom;
+    const height = base.height / zoom;
+    const sourceX = current.x + current.width * focalX;
+    const sourceY = current.y + current.height * focalY;
+    return {
+      x: Math.max(base.x, Math.min(base.x + base.width - width, sourceX - width * focalX)),
+      y: Math.max(base.y, Math.min(base.y + base.height - height, sourceY - height * focalY)),
+      width,
+      height,
+    };
+  }
+
+  function baseCrop() {
+    if (!state.image) return {x: 0, y: 0, width: 1, height: 1};
+    if (state.fitMode === 'contain') return {x: 0, y: 0, width: 1, height: 1};
+    const dims = rotatedDimensions();
+    const area = imageAreaDimensions();
+    return automaticCrop(dims.width, dims.height, area.width, area.height);
+  }
+
+  function clampCrop() {
+    const base = baseCrop();
+    const width = Math.min(base.width, Math.max(0.000001, state.crop.width));
+    const height = Math.min(base.height, Math.max(0.000001, state.crop.height));
+    state.crop = {
+      x: Math.max(base.x, Math.min(base.x + base.width - width, state.crop.x)),
+      y: Math.max(base.y, Math.min(base.y + base.height - height, state.crop.y)),
+      width,
+      height,
+    };
+  }
+
   function setCanvasAspect() {
-    const parts = FIXED_SIZE.split('x').map(Number);
-    const shortSide = parts[0];
-    const longSide = parts[1];
-    const ratio = state.orientation === 'landscape' ? longSide / shortSide : shortSide / longSide;
-    canvas.width = state.orientation === 'landscape' ? 900 : Math.round(900 * ratio);
-    canvas.height = state.orientation === 'landscape' ? Math.round(900 / ratio) : 900;
-    // Match the full generator: portrait uses a narrower stage instead of
-    // stretching the same landscape-sized frame.
+    const model = modelDimensions();
+    const ratio = model.width / model.height;
+    canvas.width = 1200;
+    canvas.height = Math.max(320, Math.round(canvas.width / ratio));
     const portrait = state.orientation === 'portrait';
     root.classList.toggle('is-portrait', portrait);
     root.classList.toggle('is-fit-contain', state.fitMode === 'contain');
     previewStage.dataset.orientation = portrait ? 'portrait' : 'landscape';
+    previewStage.style.setProperty('aspect-ratio', `${model.width} / ${model.height}`, 'important');
+    previewStage.style.setProperty('width', `min(100%, ${Math.round(720 * ratio)}px)`, 'important');
+    previewStage.style.setProperty('margin-inline', 'auto', 'important');
     canvas.style.setProperty('position', 'absolute', 'important');
     canvas.style.setProperty('inset', '0', 'important');
     canvas.style.setProperty('width', '100%', 'important');
     canvas.style.setProperty('height', '100%', 'important');
     canvas.style.setProperty('max-width', 'none', 'important');
     canvas.style.setProperty('max-height', 'none', 'important');
-    clampPan();
+    clampCrop();
     draw();
   }
 
-  function geometry() {
-    const dims = rotatedDimensions();
-    const baseScale = state.fitMode === 'contain'
-      ? Math.min(canvas.width / dims.width, canvas.height / dims.height)
-      : Math.max(canvas.width / dims.width, canvas.height / dims.height);
-    return {width: dims.width, height: dims.height, scale: baseScale * state.zoom};
-  }
-
-  function clampPan() {
-    if (!state.image) return;
-    const g = geometry();
-    const maxX = Math.max(0, (g.width * g.scale - canvas.width) / 2);
-    const maxY = Math.max(0, (g.height * g.scale - canvas.height) / 2);
-    state.panX = Math.max(-maxX, Math.min(maxX, state.panX));
-    state.panY = Math.max(-maxY, Math.min(maxY, state.panY));
-  }
-
   function draw() {
-    ctx.fillStyle = state.fitMode === 'contain' ? '#dfe4eb' : '#161c26';
+    const model = modelDimensions();
+    const area = imageAreaDimensions();
+    const borderX = canvas.width * PANEL.flange / model.width;
+    const borderY = canvas.height * PANEL.flange / model.height;
+    const innerWidth = canvas.width - borderX * 2;
+    const innerHeight = canvas.height - borderY * 2;
+    ctx.fillStyle = state.fitMode === 'contain' ? '#dfe4eb' : '#302b27';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     if (!state.image) {
       ctx.fillStyle = '#b9c1ce';
@@ -133,39 +195,43 @@
     orientedContext.rotate(quarter * Math.PI / 2);
     orientedContext.drawImage(state.image, -state.image.width / 2, -state.image.height / 2);
 
-    const g = geometry();
+    const adjusted = makeAdjustedCanvas(oriented);
     if (state.fitMode === 'contain') {
-      const width = oriented.width * g.scale;
-      const height = oriented.height * g.scale;
-      const x = (canvas.width - width) / 2 + state.panX;
-      const y = (canvas.height - height) / 2 + state.panY;
-      ctx.drawImage(oriented, x, y, width, height);
-      if (state.zoom <= 1.001 && (width < canvas.width - 1 || height < canvas.height - 1)) {
+      if (state.zoom <= 1.001) {
+        const scale = Math.min(innerWidth / adjusted.width, innerHeight / adjusted.height);
+        const width = adjusted.width * scale;
+        const height = adjusted.height * scale;
+        const x = borderX + (innerWidth - width) / 2;
+        const y = borderY + (innerHeight - height) / 2;
+        ctx.drawImage(adjusted, x, y, width, height);
         ctx.save();
         ctx.strokeStyle = '#8b98aa';
         ctx.lineWidth = Math.max(1, canvas.width / 900);
         ctx.setLineDash([8, 6]);
-        ctx.strokeRect(Math.max(0, x), Math.max(0, y), Math.min(width, canvas.width), Math.min(height, canvas.height));
+        ctx.strokeRect(x, y, width, height);
         ctx.restore();
+      } else {
+        const crop = state.crop;
+        ctx.drawImage(adjusted, crop.x * adjusted.width, crop.y * adjusted.height, crop.width * adjusted.width, crop.height * adjusted.height, borderX, borderY, innerWidth, innerHeight);
       }
     } else {
-      // Cover crop: draw the whole rotated image at its cover scale and use
-      // the clamped translation for the user's drag. This keeps the image
-      // movable at the native zoom instead of re-centering it on every draw.
-      const width = oriented.width * g.scale;
-      const height = oriented.height * g.scale;
-      const x = (canvas.width - width) / 2 + state.panX;
-      const y = (canvas.height - height) / 2 + state.panY;
-      ctx.drawImage(oriented, x, y, width, height);
+      const crop = state.crop;
+      ctx.drawImage(adjusted, crop.x * adjusted.width, crop.y * adjusted.height, crop.width * adjusted.width, crop.height * adjusted.height, borderX, borderY, innerWidth, innerHeight);
     }
-    applyImageAdjustments();
   }
 
-  function applyImageAdjustments() {
+  function makeAdjustedCanvas(source) {
+    const adjusted = document.createElement('canvas');
+    const maxDimension = 1800;
+    const scale = Math.min(1, maxDimension / Math.max(source.width, source.height));
+    adjusted.width = Math.max(1, Math.round(source.width * scale));
+    adjusted.height = Math.max(1, Math.round(source.height * scale));
+    const adjustedContext = adjusted.getContext('2d');
+    adjustedContext.drawImage(source, 0, 0, adjusted.width, adjusted.height);
     const brightness = Number(brightnessInput.value);
     const contrast = Number(contrastInput.value);
     const gamma = Number(gammaInput.value);
-    const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const pixels = adjustedContext.getImageData(0, 0, adjusted.width, adjusted.height);
     const lookup = new Uint8ClampedArray(256);
     for (let value = 0; value < 256; value += 1) {
       let light = value / 255;
@@ -192,25 +258,26 @@
         pixels.data[index + 2] = Math.min(255, Math.round(tone + 255 * Math.min(0.42, gamma / 10) * 0.30));
       }
     }
-    ctx.putImageData(pixels, 0, 0);
+    adjustedContext.putImageData(pixels, 0, 0);
+    return adjusted;
   }
 
   function crop() {
-    if (state.fitMode === 'contain' && state.zoom <= 1.001) return {x: 0, y: 0, width: 1, height: 1};
-    const g = geometry();
-    const width = Math.min(1, canvas.width / (g.scale * g.width));
-    const height = Math.min(1, canvas.height / (g.scale * g.height));
-    const x = Number(Math.max(0, Math.min(1 - width, 0.5 - (canvas.width / 2 + state.panX) / (g.scale * g.width))).toFixed(6));
-    const y = Number(Math.max(0, Math.min(1 - height, 0.5 - (canvas.height / 2 + state.panY) / (g.scale * g.height))).toFixed(6));
-    const safeWidth = Number(Math.min(width, 1 - x).toFixed(6));
-    const safeHeight = Number(Math.min(height, 1 - y).toFixed(6));
-    return {x, y, width: safeWidth, height: safeHeight};
+    const current = state.fitMode === 'contain' && state.zoom <= 1.001
+      ? {x: 0, y: 0, width: 1, height: 1}
+      : state.crop;
+    return {
+      x: Number(current.x.toFixed(6)),
+      y: Number(current.y.toFixed(6)),
+      width: Number(current.width.toFixed(6)),
+      height: Number(current.height.toFixed(6)),
+    };
   }
 
   function resetView() {
     state.zoom = 1;
-    state.panX = 0;
-    state.panY = 0;
+    state.dragStart = null;
+    state.crop = baseCrop();
     zoomInput.value = '1';
     setCanvasAspect();
     invalidate();
@@ -231,6 +298,7 @@
       state.image = image;
       state.file = file;
       state.rotation = 0;
+      state.crop = automaticCrop(image.width, image.height, PANEL.width, PANEL.height);
       resetView();
     };
     image.onerror = () => {
@@ -245,13 +313,19 @@
   fitModeInput.addEventListener('change', () => {
     state.fitMode = fitModeInput.value === 'contain' ? 'contain' : 'cover';
     state.zoom = 1;
-    state.panX = 0;
-    state.panY = 0;
+    state.dragStart = null;
+    state.crop = baseCrop();
     zoomInput.value = '1';
     setCanvasAspect();
     invalidate();
   });
-  zoomInput.addEventListener('input', () => { state.zoom = Number(zoomInput.value); clampPan(); draw(); invalidate(); });
+  zoomInput.addEventListener('input', () => {
+    const nextZoom = Math.max(1, Math.min(3, Number(zoomInput.value)));
+    const base = baseCrop();
+    state.zoom = nextZoom;
+    state.crop = zoomCrop(base, state.crop, nextZoom);
+    clampCrop(); draw(); invalidate();
+  });
   [
     [brightnessInput, brightnessValue],
     [contrastInput, contrastValue],
@@ -277,27 +351,53 @@
     resetView();
   }));
 
-  canvas.addEventListener('pointerdown', event => {
-    if (!state.image || state.busy) return;
-    state.dragging = true; state.lastX = event.clientX; state.lastY = event.clientY;
-    canvas.setPointerCapture(event.pointerId);
-  });
-  canvas.addEventListener('pointermove', event => {
-    if (!state.dragging) return;
-    const rect = canvas.getBoundingClientRect();
-    state.panX += (event.clientX - state.lastX) * canvas.width / rect.width;
-    state.panY += (event.clientY - state.lastY) * canvas.height / rect.height;
-    state.lastX = event.clientX; state.lastY = event.clientY;
-    clampPan(); draw(); invalidate();
-  });
-  canvas.addEventListener('pointerup', () => { state.dragging = false; });
-  canvas.addEventListener('pointercancel', () => { state.dragging = false; });
-  canvas.addEventListener('wheel', event => {
+  dragSurface.addEventListener('pointerdown', event => {
     if (!state.image || state.busy) return;
     event.preventDefault();
+    const rect = dragSurface.getBoundingClientRect();
+    state.dragging = true;
+    state.dragStart = {pointerId: event.pointerId, x: event.clientX, y: event.clientY, crop: {...state.crop}, rectWidth: rect.width, rectHeight: rect.height};
+    dragSurface.setPointerCapture(event.pointerId);
+  });
+  dragSurface.addEventListener('pointermove', event => {
+    if (!state.dragging) return;
+    const start = state.dragStart;
+    if (!start || start.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    const area = imageAreaDimensions();
+    const model = modelDimensions();
+    const innerWidth = start.rectWidth * area.width / model.width;
+    const innerHeight = start.rectHeight * area.height / model.height;
+    const directionX = -1;
+    state.crop = {
+      ...start.crop,
+      x: start.crop.x + directionX * (event.clientX - start.x) / Math.max(1, innerWidth) * start.crop.width,
+      y: start.crop.y - (event.clientY - start.y) / Math.max(1, innerHeight) * start.crop.height,
+    };
+    clampCrop(); draw(); invalidate();
+  });
+  dragSurface.addEventListener('pointerup', event => {
+    state.dragging = false;
+    state.dragStart = null;
+    if (dragSurface.hasPointerCapture(event.pointerId)) dragSurface.releasePointerCapture(event.pointerId);
+  });
+  dragSurface.addEventListener('pointercancel', () => { state.dragging = false; state.dragStart = null; });
+  dragSurface.addEventListener('wheel', event => {
+    if (!state.image || state.busy) return;
+    event.preventDefault();
+    const rect = dragSurface.getBoundingClientRect();
+    const model = modelDimensions();
+    const area = imageAreaDimensions();
+    const borderX = rect.width * PANEL.flange / model.width;
+    const borderY = rect.height * PANEL.flange / model.height;
+    const innerWidth = Math.max(1, rect.width - borderX * 2);
+    const innerHeight = Math.max(1, rect.height - borderY * 2);
+    const focalX = Math.max(0, Math.min(1, (event.clientX - rect.left - borderX) / innerWidth));
+    const focalY = Math.max(0, Math.min(1, (event.clientY - rect.top - borderY) / innerHeight));
     state.zoom = Math.max(1, Math.min(3, state.zoom * (event.deltaY < 0 ? 1.08 : 0.92)));
+    state.crop = zoomCropAt(baseCrop(), state.crop, state.zoom, focalX, focalY);
     zoomInput.value = String(state.zoom);
-    clampPan(); draw(); invalidate();
+    clampCrop(); draw(); invalidate();
   }, {passive: false});
 
   async function request(path, options, browserToken) {
