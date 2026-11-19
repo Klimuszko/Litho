@@ -16,9 +16,14 @@ declare global {
   interface Window { LithoConfig?: WooConfig; }
 }
 
-const mount = document.getElementById("litho-configurator-mount");
-const config = window.LithoConfig;
-if (mount && config) {
+let mounted = false;
+
+function mountConfigurator() {
+  if (mounted) return;
+  const mount = document.getElementById("litho-configurator-mount");
+  const config = window.LithoConfig;
+  if (!mount || !config) return;
+  mounted = true;
   const apiRoot = config.restUrl.replace(/\/$/, "");
   const fixed = {width_mm: 200, height_mm: 150};
   const initial: Params = {
@@ -86,15 +91,28 @@ if (mount && config) {
   };
 
   setCart(false);
-  createRoot(mount).render(
-    <LithophaneGenerator
-      active
-      embedded
-      initialParams={initial}
-      embeddedOptions={{housingColors: config.housingColors, ledColors: config.ledColors}}
-      onGenerateOverride={generate}
-      onParamsChanged={clearProject}
-      apiFetchOverride={(input, init) => fetch(input, {...init, credentials: "same-origin"})}
-    />,
-  );
+  try {
+    createRoot(mount).render(
+      <LithophaneGenerator
+        active
+        embedded
+        initialParams={initial}
+        embeddedOptions={{housingColors: config.housingColors, ledColors: config.ledColors}}
+        onGenerateOverride={generate}
+        onParamsChanged={clearProject}
+        apiFetchOverride={(input, init) => fetch(input, {...init, credentials: "same-origin"})}
+      />,
+    );
+  } catch (reason) {
+    mounted = false;
+    mount.innerHTML = "<p class=\"litho-status error\">Nie udało się uruchomić konfiguratora. Odśwież stronę.</p>";
+    if (window.console) console.error("Litho React configurator failed to mount", reason);
+  }
 }
+
+// Themes, cache/minification plugins and WooCommerce templates can change the
+// order in which the mount element and the localized config become available.
+// Try immediately, then once after DOMContentLoaded so the bundle is reliable
+// regardless of where WordPress places the footer script.
+mountConfigurator();
+if (!mounted) document.addEventListener("DOMContentLoaded", mountConfigurator, {once: true});
