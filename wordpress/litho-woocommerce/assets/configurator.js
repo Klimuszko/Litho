@@ -420,8 +420,8 @@
     const rect = dragSurface.getBoundingClientRect();
     const model = modelDimensions();
     const area = imageAreaDimensions();
-    const borderX = rect.width * PANEL.flange / model.width;
-    const borderY = rect.height * PANEL.flange / model.height;
+    const borderX = 0;
+    const borderY = 0;
     const innerWidth = Math.max(1, rect.width - borderX * 2);
     const innerHeight = Math.max(1, rect.height - borderY * 2);
     const focalX = Math.max(0, Math.min(1, (event.clientX - rect.left - borderX) / innerWidth));
