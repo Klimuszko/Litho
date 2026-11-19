@@ -99,7 +99,8 @@ final class Litho_WC_Integration {
         if (!$product || get_post_meta($product->get_id(), '_litho_enabled', true) !== 'yes') {
             return;
         }
-        return $this->render_react_configurator();
+        echo $this->render_react_configurator();
+        return;
         // Kept below for reference while older cached templates are retired.
         global $product;
         if (!is_a($product, 'WC_Product')) {
