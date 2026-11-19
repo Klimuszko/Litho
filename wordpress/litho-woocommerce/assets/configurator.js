@@ -105,6 +105,7 @@
   }
 
   function zoomCrop(base, current, zoom) {
+    zoom = Number.isFinite(zoom) ? Math.max(1, zoom) : 1;
     const width = base.width / zoom;
     const height = base.height / zoom;
     const centerX = current.x + current.width / 2;
@@ -118,6 +119,7 @@
   }
 
   function zoomCropAt(base, current, zoom, focalX, focalY) {
+    zoom = Number.isFinite(zoom) ? Math.max(1, zoom) : 1;
     const width = base.width / zoom;
     const height = base.height / zoom;
     const sourceX = current.x + current.width * focalX;
@@ -140,6 +142,12 @@
 
   function clampCrop() {
     const base = baseCrop();
+    if (!state.crop || !Number.isFinite(state.crop.x) || !Number.isFinite(state.crop.y)
+      || !Number.isFinite(state.crop.width) || !Number.isFinite(state.crop.height)
+      || state.crop.width <= 0 || state.crop.height <= 0) {
+      state.crop = {...base};
+      return;
+    }
     const width = Math.min(base.width, Math.max(0.000001, state.crop.width));
     const height = Math.min(base.height, Math.max(0.000001, state.crop.height));
     state.crop = {
@@ -342,8 +350,10 @@
     invalidate();
   });
   zoomInput.addEventListener('input', () => {
-    const nextZoom = Math.max(1, Math.min(3, Number(zoomInput.value)));
+    const parsedZoom = Number(zoomInput.value);
+    const nextZoom = Number.isFinite(parsedZoom) ? Math.max(1, Math.min(3, parsedZoom)) : 1;
     const base = baseCrop();
+    clampCrop();
     state.zoom = nextZoom;
     state.crop = zoomCrop(base, state.crop, nextZoom);
     clampCrop(); draw(); invalidate();
@@ -417,6 +427,7 @@
     const focalX = Math.max(0, Math.min(1, (event.clientX - rect.left - borderX) / innerWidth));
     const focalY = Math.max(0, Math.min(1, (event.clientY - rect.top - borderY) / innerHeight));
     state.zoom = Math.max(1, Math.min(3, state.zoom * (event.deltaY < 0 ? 1.08 : 0.92)));
+    clampCrop();
     state.crop = zoomCropAt(baseCrop(), state.crop, state.zoom, focalX, focalY);
     zoomInput.value = String(state.zoom);
     clampCrop(); draw(); invalidate();
