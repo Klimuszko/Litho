@@ -16,6 +16,7 @@
   const positionYInput = root.querySelector('#litho-position-y');
   const positionXValue = root.querySelector('#litho-position-x-value');
   const positionYValue = root.querySelector('#litho-position-y-value');
+  const zoomValue = root.querySelector('#litho-zoom-value');
   const brightnessInput = root.querySelector('#litho-brightness');
   const contrastInput = root.querySelector('#litho-contrast');
   const gammaInput = root.querySelector('#litho-gamma');
@@ -87,7 +88,11 @@
     positionYInput.value = String(Math.max(0, Math.min(maxY, state.crop.y)));
     positionXValue.textContent = Number(state.crop.x).toFixed(3);
     positionYValue.textContent = Number(state.crop.y).toFixed(3);
-    if (zoomInput) zoomInput.value = currentZoom().toFixed(2);
+    if (zoomInput) {
+      const zoom = currentZoom();
+      zoomInput.value = zoom.toFixed(2);
+      if (zoomValue) zoomValue.textContent = zoom.toFixed(2);
+    }
   }
 
   // The full Litho generator derives the zoom from the crop viewport.  It
@@ -436,11 +441,27 @@
     const innerWidth = rect.width * area.width / model.width;
     const innerHeight = rect.height * area.height / model.height;
     const directionX = -1;
+    const deltaPixelsX = event.clientX - start.x;
+    const deltaPixelsY = event.clientY - start.y;
+    // Some Chromium pointer-capture paths can deliver one bogus event whose
+    // coordinates jump far outside the canvas. Applying that event makes the
+    // normalized crop hit the 0/1 clamp and looks like a zoom/position reset.
+    // Re-anchor only that event; ordinary movement remains the same pan math
+    // as the full Litho generator.
+    if (!Number.isFinite(deltaPixelsX) || !Number.isFinite(deltaPixelsY)
+      || Math.abs(deltaPixelsX) > rect.width * 1.5
+      || Math.abs(deltaPixelsY) > rect.height * 1.5) {
+      start.x = event.clientX;
+      start.y = event.clientY;
+      return;
+    }
     state.crop = panCrop(
-      start.crop,
-      directionX * (event.clientX - start.x) / Math.max(1, innerWidth) * start.crop.width,
-      -(event.clientY - start.y) / Math.max(1, innerHeight) * start.crop.height,
+      state.crop,
+      directionX * deltaPixelsX / Math.max(1, innerWidth) * state.crop.width,
+      -deltaPixelsY / Math.max(1, innerHeight) * state.crop.height,
     );
+    start.x = event.clientX;
+    start.y = event.clientY;
     syncPositionControls();
     draw(); invalidate();
   });
