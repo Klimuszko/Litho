@@ -29,7 +29,7 @@
   const signatureInput = root.querySelector('#litho-project-signature');
   const cartButton = document.querySelector('form.cart button.single_add_to_cart_button');
 
-  const state = {image: null, file: null, orientation: 'landscape', fitMode: 'cover', previewMode: 'photo', rotation: 0, zoom: 1, crop: {x: 0, y: 0, width: 1, height: 1}, dragging: false, dragStart: null, busy: false};
+  const state = {image: null, file: null, orientation: 'landscape', fitMode: 'cover', previewMode: 'photo', rotation: 0, crop: {x: 0, y: 0, width: 1, height: 1}, dragging: false, dragStart: null, busy: false};
   // Match the full Litho generator: pointer capture and coordinates belong
   // to the canvas itself, not to its layout wrapper.
   const dragSurface = canvas;
@@ -87,6 +87,15 @@
     positionYInput.value = String(Math.max(0, Math.min(maxY, state.crop.y)));
     positionXValue.textContent = Number(state.crop.x).toFixed(3);
     positionYValue.textContent = Number(state.crop.y).toFixed(3);
+    if (zoomInput) zoomInput.value = currentZoom().toFixed(2);
+  }
+
+  // The full Litho generator derives the zoom from the crop viewport.  It
+  // does not keep a second zoom state which could reset the crop while the
+  // pointer is moving.
+  function currentZoom() {
+    const base = baseCrop();
+    return Math.max(1, Math.min(5, base.width / Math.max(0.000001, state.crop.width)));
   }
 
   function rotatedDimensions() {
@@ -163,83 +172,12 @@
     };
   }
 
-  // A crop is stored in normalized image coordinates.  Its width and height
-  // must always keep the same normalized ratio as the base crop; otherwise a
-  // tiny pointer movement can make drawImage stretch one axis of the photo.
-  function fitCropToBase(crop, base) {
-    const ratio = base.width / Math.max(0.000001, base.height);
-    let width = Number.isFinite(crop.width) ? crop.width : base.width;
-    width = Math.max(0.000001, Math.min(base.width, width));
-    let height = width / ratio;
-    if (height > base.height) {
-      height = base.height;
-      width = height * ratio;
-    }
-    // Match the full Litho generator: after zooming, the viewport may be
-    // panned anywhere inside the source image.  The automatic crop is only a
-    // starting position, not a second boundary that recentres the image.
-    const x = Math.max(0, Math.min(1 - width, Number.isFinite(crop.x) ? crop.x : base.x));
-    const y = Math.max(0, Math.min(1 - height, Number.isFinite(crop.y) ? crop.y : base.y));
-    return {x, y, width, height};
-  }
-
   function baseCrop() {
     if (!state.image) return {x: 0, y: 0, width: 1, height: 1};
     if (state.fitMode === 'contain') return {x: 0, y: 0, width: 1, height: 1};
     const dims = rotatedDimensions();
     const area = imageAreaDimensions();
     return automaticCrop(dims.width, dims.height, area.width, area.height);
-  }
-
-  function clampCrop() {
-    const base = baseCrop();
-    if (!state.crop || !Number.isFinite(state.crop.x) || !Number.isFinite(state.crop.y)
-      || !Number.isFinite(state.crop.width) || !Number.isFinite(state.crop.height)
-      || state.crop.width <= 0 || state.crop.height <= 0) {
-      state.crop = {...base};
-      return;
-    }
-    state.crop = fitCropToBase(state.crop, base);
-    state.crop = clampCropPosition(state.crop);
-  }
-
-  // Dragging is a pan operation only.  Keep the zoomed viewport dimensions
-  // byte-for-byte from pointerdown; recalculating them during a drag makes the
-  // photo appear to snap back to the panel's width/height.
-  function clampCropPosition(crop) {
-    const base = baseCrop();
-    const width = crop.width;
-    const height = crop.height;
-    const next = {
-      ...crop,
-      x: Math.max(0, Math.min(1 - width, crop.x)),
-      y: Math.max(0, Math.min(1 - height, crop.y)),
-      width,
-      height,
-    };
-    if (state.fitMode !== 'contain' || !state.image) return next;
-
-    // In contain mode, once the uniformly scaled image is large enough to
-    // cover the panel, constrain its centre so neither edge can reveal the
-    // hatch/background.  Before that point the image is intentionally centred
-    // and margins remain visible.
-    const source = rotatedDimensions();
-    const area = imageAreaDimensions();
-    const zoom = 1 / Math.max(0.000001, width);
-    const baseScale = Math.min(area.width / source.width, area.height / source.height);
-    const drawnWidth = source.width * baseScale * zoom;
-    const drawnHeight = source.height * baseScale * zoom;
-    const centerX = drawnWidth >= area.width
-      ? Math.max(area.width / (2 * drawnWidth), Math.min(1 - area.width / (2 * drawnWidth), next.x + width / 2))
-      : 0.5;
-    const centerY = drawnHeight >= area.height
-      ? Math.max(area.height / (2 * drawnHeight), Math.min(1 - area.height / (2 * drawnHeight), next.y + height / 2))
-      : 0.5;
-    return {
-      ...next,
-      x: centerX - width / 2,
-      y: centerY - height / 2,
-    };
   }
 
   function setCanvasAspect() {
@@ -260,7 +198,6 @@
     canvas.style.setProperty('height', '100%', 'important');
     canvas.style.setProperty('max-width', 'none', 'important');
     canvas.style.setProperty('max-height', 'none', 'important');
-    clampCrop();
     syncPositionControls();
     draw();
   }
@@ -387,9 +324,7 @@
   }
 
   function crop() {
-    const current = state.fitMode === 'contain' && state.zoom <= 1.001
-      ? {x: 0, y: 0, width: 1, height: 1}
-      : state.crop;
+    const current = state.crop;
     return {
       x: Number(current.x.toFixed(6)),
       y: Number(current.y.toFixed(6)),
@@ -399,10 +334,8 @@
   }
 
   function resetView() {
-    state.zoom = 1;
     state.dragStart = null;
     state.crop = baseCrop();
-    zoomInput.value = '1';
     setCanvasAspect();
     invalidate();
   }
@@ -436,21 +369,16 @@
   ledInput.addEventListener('change', invalidate);
   fitModeInput.addEventListener('change', () => {
     state.fitMode = fitModeInput.value === 'contain' ? 'contain' : 'cover';
-    state.zoom = 1;
     state.dragStart = null;
     state.crop = baseCrop();
-    zoomInput.value = '1';
     setCanvasAspect();
     invalidate();
   });
   zoomInput.addEventListener('input', () => {
     const parsedZoom = Number(zoomInput.value);
-    const nextZoom = Number.isFinite(parsedZoom) ? Math.max(1, Math.min(3, parsedZoom)) : 1;
+    const nextZoom = Number.isFinite(parsedZoom) ? Math.max(1, Math.min(5, parsedZoom)) : 1;
     const base = baseCrop();
-    clampCrop();
-    state.zoom = nextZoom;
     state.crop = zoomCrop(base, state.crop, nextZoom);
-    clampCrop();
     syncPositionControls();
     draw(); invalidate();
   });
@@ -461,7 +389,6 @@
     if (!input || !output) return;
     input.addEventListener('input', () => {
       state.crop = {...state.crop, [axis]: Number(input.value)};
-      state.crop = clampCropPosition(state.crop);
       syncPositionControls();
       draw(); invalidate();
     });
@@ -509,16 +436,10 @@
     const innerWidth = rect.width * area.width / model.width;
     const innerHeight = rect.height * area.height / model.height;
     const directionX = -1;
-    // Apply only the movement since the previous pointer event. This avoids
-    // a large first delta when pointer capture is established by the browser.
-    const deltaX = event.clientX - start.x;
-    const deltaY = event.clientY - start.y;
-    start.x = event.clientX;
-    start.y = event.clientY;
     state.crop = panCrop(
-      state.crop,
-      directionX * deltaX / Math.max(1, innerWidth) * state.crop.width,
-      -deltaY / Math.max(1, innerHeight) * state.crop.height,
+      start.crop,
+      directionX * (event.clientX - start.x) / Math.max(1, innerWidth) * start.crop.width,
+      -(event.clientY - start.y) / Math.max(1, innerHeight) * start.crop.height,
     );
     syncPositionControls();
     draw(); invalidate();
@@ -533,19 +454,16 @@
     if (!state.image || state.busy) return;
     event.preventDefault();
     const rect = dragSurface.getBoundingClientRect();
-    const model = modelDimensions();
     const area = imageAreaDimensions();
-    const borderX = 0;
-    const borderY = 0;
-    const innerWidth = Math.max(1, rect.width - borderX * 2);
-    const innerHeight = Math.max(1, rect.height - borderY * 2);
-    const focalX = Math.max(0, Math.min(1, (event.clientX - rect.left - borderX) / innerWidth));
-    const focalY = Math.max(0, Math.min(1, (event.clientY - rect.top - borderY) / innerHeight));
-    state.zoom = Math.max(1, Math.min(3, state.zoom * (event.deltaY < 0 ? 1.08 : 0.92)));
-    clampCrop();
-    state.crop = zoomCropAt(baseCrop(), state.crop, state.zoom, focalX, focalY);
-    zoomInput.value = String(state.zoom);
-    clampCrop(); syncPositionControls(); draw(); invalidate();
+    const model = modelDimensions();
+    const innerWidth = Math.max(1, rect.width * area.width / model.width);
+    const innerHeight = Math.max(1, rect.height * area.height / model.height);
+    const focalX = Math.max(0, Math.min(1, (event.clientX - rect.left) / innerWidth));
+    const focalY = Math.max(0, Math.min(1, (event.clientY - rect.top) / innerHeight));
+    const base = baseCrop();
+    const nextZoom = Math.max(1, Math.min(5, base.width / state.crop.width * Math.exp(-event.deltaY * 0.0015)));
+    state.crop = zoomCropAt(base, state.crop, nextZoom, focalX, focalY);
+    syncPositionControls(); draw(); invalidate();
   }, {passive: false});
 
   async function request(path, options, browserToken) {
