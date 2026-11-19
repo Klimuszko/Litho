@@ -509,10 +509,16 @@
     const innerWidth = rect.width * area.width / model.width;
     const innerHeight = rect.height * area.height / model.height;
     const directionX = -1;
+    // Apply only the movement since the previous pointer event. This avoids
+    // a large first delta when pointer capture is established by the browser.
+    const deltaX = event.clientX - start.x;
+    const deltaY = event.clientY - start.y;
+    start.x = event.clientX;
+    start.y = event.clientY;
     state.crop = panCrop(
-      start.crop,
-      directionX * (event.clientX - start.x) / Math.max(1, innerWidth) * start.crop.width,
-      -(event.clientY - start.y) / Math.max(1, innerHeight) * start.crop.height,
+      state.crop,
+      directionX * deltaX / Math.max(1, innerWidth) * state.crop.width,
+      -deltaY / Math.max(1, innerHeight) * state.crop.height,
     );
     syncPositionControls();
     draw(); invalidate();
