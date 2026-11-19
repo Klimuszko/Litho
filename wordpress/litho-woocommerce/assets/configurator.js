@@ -3,6 +3,12 @@
 
   const root = document.getElementById('litho-configurator');
   if (!root || typeof LithoConfig === 'undefined') return;
+  // WordPress themes/page builders can enqueue the same footer asset more
+  // than once. Two closures would then attach two pointer handlers with two
+  // independent crop states; the second one would visibly snap back to its
+  // initial crop after every drag. Keep one controller per configurator DOM.
+  if (root.dataset.lithoConfiguratorInitialized === '1') return;
+  root.dataset.lithoConfiguratorInitialized = '1';
 
   const canvas = root.querySelector('#litho-preview');
   const previewStage = root.querySelector('.litho-preview-stage');
