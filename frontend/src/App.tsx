@@ -11,7 +11,7 @@ export type Params = {
   width_mm: number; height_mm: number; min_thickness_mm: number; max_thickness_mm: number;
   gamma: number; brightness: number; contrast: number;
   nozzle_diameter_mm: 0.2 | 0.4; quality_profile: "economic" | "optimal" | "maximum";
-  orientation: "portrait" | "landscape"; border_width_mm: number; border_height_mm: number;
+  orientation: "portrait" | "landscape"; fit_mode: "cover" | "contain"; border_width_mm: number; border_height_mm: number;
   border_widths_mm: BorderWidths | null; mounting_flange: boolean;
   invert: boolean; mirror: boolean; rotation_degrees: number;
   crop: {x: number; y: number; width: number; height: number};
@@ -70,6 +70,13 @@ export function panCrop(crop: Crop, deltaX: number, deltaY: number): Crop {
     x: Math.max(0, Math.min(1 - crop.width, crop.x + deltaX)),
     y: Math.max(0, Math.min(1 - crop.height, crop.y + deltaY)),
   };
+}
+
+function fullCrop(): Crop { return {x: 0, y: 0, width: 1, height: 1}; }
+
+function baseCropForFit(fitMode: Params["fit_mode"], size: {width: number; height: number} | null, width: number, height: number): Crop {
+  if (fitMode === "contain" || !size) return fullCrop();
+  return automaticCrop(size.width, size.height, width, height);
 }
 
 export function rotatedSize(size: {width: number; height: number}, rotation: number) {
@@ -131,7 +138,7 @@ export function modelSize(p: Params) {
 export function imageAreaForParams(p: Params, border: number | BorderWidths = resolvedBorders(p)) {
   return p.mounting_flange ? {width: p.width_mm, height: p.height_mm} : imageArea(p.width_mm, p.height_mm, border);
 }
-export const initial: Params = {width_mm: 200, height_mm: 150, min_thickness_mm: 1, max_thickness_mm: 4, gamma: 1, brightness: 1, contrast: 1.25, nozzle_diameter_mm: .4, quality_profile: "maximum", orientation: "landscape", border_width_mm: 0, border_widths_mm: null, border_height_mm: 4, mounting_flange: true, invert: false, mirror: false, rotation_degrees: 0, crop: {x: 0, y: 0, width: 1, height: 1}};
+export const initial: Params = {width_mm: 200, height_mm: 150, min_thickness_mm: 1, max_thickness_mm: 4, gamma: 1, brightness: 1, contrast: 1.25, nozzle_diameter_mm: .4, quality_profile: "maximum", orientation: "landscape", fit_mode: "cover", border_width_mm: 0, border_widths_mm: null, border_height_mm: 4, mounting_flange: true, invert: false, mirror: false, rotation_degrees: 0, crop: {x: 0, y: 0, width: 1, height: 1}};
 
 export function resolvedBorders(p: Params): BorderWidths {
   if (p.mounting_flange) return {top: MOUNTING_FLANGE_WIDTH_MM, right: MOUNTING_FLANGE_WIDTH_MM, bottom: MOUNTING_FLANGE_WIDTH_MM, left: MOUNTING_FLANGE_WIDTH_MM};
@@ -187,20 +194,26 @@ function LithophaneGenerator({active, onSelectProduct}: {active: boolean; onSele
   const anyBorder = Object.values(borders).some(value => value > 0);
   const set = <K extends keyof Params>(key: K, value: Params[K]) => setParams(p => ({...p, [key]: value}));
   const setCrop = (key: keyof Params["crop"], value: number) => setParams(p => ({...p, crop: {...p.crop, [key]: value}}));
-  const fitCrop = (width: number, height: number, border: number | BorderWidths = borders) => { const area = params.mounting_flange ? {width, height} : imageArea(width, height, border); return effectiveSourceSize ? automaticCrop(effectiveSourceSize.width, effectiveSourceSize.height, area.width, area.height) : params.crop; };
+  const fitCrop = (width: number, height: number, border: number | BorderWidths = borders) => { const area = params.mounting_flange ? {width, height} : imageArea(width, height, border); return baseCropForFit(params.fit_mode, effectiveSourceSize, area.width, area.height); };
   const setOrientation = (orientation: Params["orientation"]) => setParams(p => {
     const shouldSwap = orientation === "portrait" ? p.width_mm > p.height_mm : p.height_mm > p.width_mm;
     const width = shouldSwap ? p.height_mm : p.width_mm; const height = shouldSwap ? p.width_mm : p.height_mm;
     const area = imageAreaForParams({...p, width_mm: width, height_mm: height});
     const size = sourceSize ? rotatedSize(sourceSize, p.rotation_degrees) : null;
-    return {...p, orientation, width_mm: width, height_mm: height, crop: size ? automaticCrop(size.width, size.height, area.width, area.height) : p.crop};
+    return {...p, orientation, width_mm: width, height_mm: height, crop: size ? baseCropForFit(p.fit_mode, size, area.width, area.height) : p.crop};
   });
   const setZoom = (zoom: number) => setParams(p => {
     if (!sourceSize) return p;
     const area = imageAreaForParams(p);
     const size = rotatedSize(sourceSize, p.rotation_degrees);
-    const base = automaticCrop(size.width, size.height, area.width, area.height);
+    const base = baseCropForFit(p.fit_mode, size, area.width, area.height);
     return {...p, crop: zoomCrop(base, p.crop, zoom)};
+  });
+  const setFitMode = (fitMode: Params["fit_mode"]) => setParams(p => {
+    const next = {...p, fit_mode: fitMode};
+    const size = sourceSize ? rotatedSize(sourceSize, p.rotation_degrees) : null;
+    const area = imageAreaForParams(next);
+    return {...next, crop: baseCropForFit(fitMode, size, area.width, area.height)};
   });
   const setRotation = (rotation: number) => {
     rotation = ((rotation % 360) + 360) % 360;
@@ -209,7 +222,7 @@ function LithophaneGenerator({active, onSelectProduct}: {active: boolean; onSele
     if (!sourceSize) return {...p, rotation_degrees: rotation};
     const size = rotatedSize(sourceSize, rotation);
     const area = imageAreaForParams(p);
-      return {...p, rotation_degrees: rotation, crop: automaticCrop(size.width, size.height, area.width, area.height)};
+      return {...p, rotation_degrees: rotation, crop: baseCropForFit(p.fit_mode, size, area.width, area.height)};
     });
   };
   const setBorderSide = (key: keyof BorderWidths, value: number) => setParams(p => {
@@ -217,14 +230,14 @@ function LithophaneGenerator({active, onSelectProduct}: {active: boolean; onSele
     const next = {...current, [key]: value};
     const size = sourceSize ? rotatedSize(sourceSize, p.rotation_degrees) : null;
     const area = imageAreaForParams(p, next);
-    return {...p, border_widths_mm: next, crop: size && area.width > 0 && area.height > 0 ? automaticCrop(size.width, size.height, area.width, area.height) : p.crop};
+    return {...p, border_widths_mm: next, crop: size && area.width > 0 && area.height > 0 ? baseCropForFit(p.fit_mode, size, area.width, area.height) : p.crop};
   });
   const setMountingFlange = (enabled: boolean) => setParams(p => {
     const next = {...p, mounting_flange: enabled};
     const nextBorders = resolvedBorders(next);
     const size = sourceSize ? rotatedSize(sourceSize, p.rotation_degrees) : null;
     const area = imageAreaForParams(next, nextBorders);
-    return {...next, crop: size ? automaticCrop(size.width, size.height, area.width, area.height) : p.crop};
+    return {...next, crop: size ? baseCropForFit(next.fit_mode, size, area.width, area.height) : p.crop};
   });
 
   const beginDrag = (event: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -276,16 +289,68 @@ function LithophaneGenerator({active, onSelectProduct}: {active: boolean; onSele
     if (!rotatedPreview || !canvas.current) return;
     const c = canvas.current; const ctx = c.getContext("2d")!;
     const crop = params.crop; const w = 1200; const h = Math.max(320, Math.round(w * model.height / model.width));
-      c.width = w; c.height = h;
-      ctx.filter = `brightness(${params.brightness}) contrast(${params.contrast}) grayscale(1) ${view === "lithophane" ? "invert(1)" : ""}`;
+    c.width = w; c.height = h;
+    const bx = w * borders.left / model.width; const by = h * borders.top / model.height;
+    const right = w * borders.right / model.width; const bottom = h * borders.bottom / model.height;
+    const imageWidth = Math.max(1, w - bx - right);
+    const imageHeight = Math.max(1, h - by - bottom);
+    const imageFilter = `brightness(${params.brightness}) contrast(${params.contrast}) grayscale(1) ${view === "lithophane" ? "invert(1)" : ""}`;
+
+    ctx.filter = "none";
+    ctx.globalCompositeOperation = "source-over";
+    ctx.fillStyle = "#302b27";
+    ctx.fillRect(0, 0, w, h);
+
+    if (params.fit_mode === "contain") {
+      // Keep the complete image's aspect ratio at every zoom level.  The crop
+      // is a normalized viewport used only to calculate a uniform transform;
+      // it is never stretched into the panel rectangle.
+      ctx.save();
+      ctx.fillStyle = "#f5f7fa";
+      ctx.fillRect(bx, by, imageWidth, imageHeight);
+      ctx.strokeStyle = "rgba(119,132,151,.30)";
+      ctx.lineWidth = Math.max(1, w / 900);
+      ctx.beginPath();
+      const spacing = Math.max(16, w / 45);
+      for (let offset = bx - h; offset < bx + imageWidth + h; offset += spacing) {
+        ctx.moveTo(offset, by);
+        ctx.lineTo(offset + imageHeight, by + imageHeight);
+      }
+      ctx.stroke();
+      ctx.restore();
+
+      const zoom = 1 / Math.max(0.000001, crop.width);
+      const scale = Math.min(imageWidth / rotatedPreview.width, imageHeight / rotatedPreview.height) * zoom;
+      const drawnWidth = rotatedPreview.width * scale;
+      const drawnHeight = rotatedPreview.height * scale;
+      const centerX = crop.x + crop.width / 2;
+      const centerY = crop.y + crop.height / 2;
+      const drawnX = bx + imageWidth / 2 - centerX * drawnWidth;
+      const drawnY = by + imageHeight / 2 - centerY * drawnHeight;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(bx, by, imageWidth, imageHeight);
+      ctx.clip();
+      ctx.filter = imageFilter;
+      if (params.mirror) { ctx.translate(bx + imageWidth / 2, 0); ctx.scale(-1, 1); ctx.translate(-(bx + imageWidth / 2), 0); }
+      ctx.drawImage(rotatedPreview, drawnX, drawnY, drawnWidth, drawnHeight);
+      ctx.restore();
+      if (zoom <= 1.001) {
+        ctx.save();
+        ctx.strokeStyle = "#8b98aa";
+        ctx.lineWidth = Math.max(1, w / 900);
+        ctx.setLineDash([8, 6]);
+        ctx.strokeRect(drawnX, drawnY, drawnWidth, drawnHeight);
+        ctx.restore();
+      }
+    } else {
       ctx.save();
       if (params.mirror) { ctx.translate(w, 0); ctx.scale(-1, 1); }
-      const bx = w * borders.left / model.width; const by = h * borders.top / model.height;
-      const right = w * borders.right / model.width; const bottom = h * borders.bottom / model.height;
-      ctx.fillStyle = "#302b27"; ctx.fillRect(0, 0, w, h);
-      ctx.drawImage(rotatedPreview, crop.x * rotatedPreview.width, crop.y * rotatedPreview.height, crop.width * rotatedPreview.width, crop.height * rotatedPreview.height, bx, by, w - bx - right, h - by - bottom);
+      ctx.filter = imageFilter;
+      ctx.drawImage(rotatedPreview, crop.x * rotatedPreview.width, crop.y * rotatedPreview.height, crop.width * rotatedPreview.width, crop.height * rotatedPreview.height, bx, by, imageWidth, imageHeight);
       ctx.restore();
-      if (view === "lithophane") { ctx.globalCompositeOperation = "screen"; ctx.fillStyle = `rgba(255,177,82,${Math.min(.42, params.gamma / 10)})`; ctx.fillRect(0, 0, w, h); }
+    }
+    if (view === "lithophane") { ctx.globalCompositeOperation = "screen"; ctx.fillStyle = `rgba(255,177,82,${Math.min(.42, params.gamma / 10)})`; ctx.fillRect(0, 0, w, h); }
   }, [rotatedPreview, params, view]);
   useEffect(() => {
     const element = canvas.current;
@@ -301,13 +366,13 @@ function LithophaneGenerator({active, onSelectProduct}: {active: boolean; onSele
       const screenFocalX = Math.max(0, Math.min(1, (event.clientX - rect.left - borderX) / Math.max(1, rect.width - borderX - right)));
       const focalX = params.mirror ? 1 - screenFocalX : screenFocalX;
       const focalY = Math.max(0, Math.min(1, (event.clientY - rect.top - borderY) / Math.max(1, rect.height - borderY - bottom)));
-      const base = automaticCrop(effectiveSourceSize.width, effectiveSourceSize.height, inner.width, inner.height);
+      const base = baseCropForFit(params.fit_mode, effectiveSourceSize, inner.width, inner.height);
       const zoom = Math.max(1, Math.min(5, base.width / params.crop.width * Math.exp(-event.deltaY * .0015)));
       setParams(p => ({...p, crop: zoomCropAt(base, p.crop, zoom, focalX, focalY)}));
     };
     element.addEventListener("wheel", onWheel, {passive: false});
     return () => element.removeEventListener("wheel", onWheel);
-  }, [effectiveSourceSize?.width, effectiveSourceSize?.height, inner.width, inner.height, borders.top, borders.right, borders.bottom, borders.left, model.width, model.height, params.crop.width, params.mirror]);
+  }, [effectiveSourceSize?.width, effectiveSourceSize?.height, inner.width, inner.height, borders.top, borders.right, borders.bottom, borders.left, model.width, model.height, params.crop.width, params.fit_mode, params.mirror]);
 
   const choose = (e: ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0] || null;
@@ -324,7 +389,7 @@ function LithophaneGenerator({active, onSelectProduct}: {active: boolean; onSele
         const short = Math.min(p.width_mm, p.height_mm); const long = Math.max(p.width_mm, p.height_mm);
         const width = orientation === "landscape" ? long : short; const height = orientation === "landscape" ? short : long;
         const area = imageAreaForParams({...p, width_mm: width, height_mm: height});
-        return {...p, orientation, width_mm: width, height_mm: height, crop: automaticCrop(image.width, image.height, area.width, area.height)};
+        return {...p, orientation, width_mm: width, height_mm: height, crop: baseCropForFit(p.fit_mode, {width: image.width, height: image.height}, area.width, area.height)};
       });
     };
     image.src = url;
@@ -356,9 +421,11 @@ function LithophaneGenerator({active, onSelectProduct}: {active: boolean; onSele
         <label className="drop"><input ref={fileInput} type="file" accept="image/jpeg,image/png" onChange={choose}/><b>{file ? file.name : "Wybierz zdjęcie"}</b><small>JPG lub PNG · maks. 20 MB</small></label>
         <h3>Kadrowanie</h3>
         <button className="auto-crop" disabled={!sourceSize} onClick={() => setParams(p => ({...p, crop: fitCrop(p.width_mm, p.height_mm)}))}>Dopasuj automatycznie</button>
+        <label className="control"><span>Dopasowanie zdjęcia</span><select value={params.fit_mode} onChange={e => setFitMode(e.target.value === "contain" ? "contain" : "cover")}><option value="cover">Wypełnij kadr — bez marginesów</option><option value="contain">Całe zdjęcie — pokaż marginesy</option></select></label>
+        <p className="quality-note">Wypełnij kadr przycina nadmiar. Całe zdjęcie zachowuje proporcje i pokazuje wolne marginesy.</p>
         <Slider label="Pozycja X" value={params.crop.x} min={0} max={1 - params.crop.width} step={.01} onChange={n => setCrop("x", n)}/>
         <Slider label="Pozycja Y" value={params.crop.y} min={0} max={1 - params.crop.height} step={.01} onChange={n => setCrop("y", n)}/>
-        <Slider label="Powiększenie" value={effectiveSourceSize ? Number((automaticCrop(effectiveSourceSize.width, effectiveSourceSize.height, inner.width, inner.height).width / params.crop.width).toFixed(2)) : 1} min={1} max={5} step={.05} unit="×" onChange={setZoom}/>
+        <Slider label="Powiększenie" value={effectiveSourceSize ? Number((baseCropForFit(params.fit_mode, effectiveSourceSize, inner.width, inner.height).width / params.crop.width).toFixed(2)) : 1} min={1} max={5} step={.05} unit="×" onChange={setZoom}/>
         <div className="rotate-row"><span>Obrót zdjęcia</span><div className="rotate-actions"><button onClick={() => setRotation(params.rotation_degrees - 90)}>↶ 90°</button><label><input type="number" min="0" max="359.9" step="0.1" value={customRotationInput} onChange={e => setCustomRotationInput(e.target.value)} onBlur={e => setRotation(Number.isFinite(Number(e.target.value)) ? Number(e.target.value) : 0)} onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}/><span>°</span></label><button onClick={() => setRotation(params.rotation_degrees + 90)}>90° ↷</button></div></div>
         <p className="interaction-hint">Na podglądzie: przeciągnij zdjęcie, aby je przesunąć · użyj kółka myszy, aby przybliżyć.</p>
         <h2><span>02</span> Model</h2>
@@ -380,7 +447,7 @@ function LithophaneGenerator({active, onSelectProduct}: {active: boolean; onSele
         {params.mounting_flange && params.max_thickness_mm > MOUNTING_FLANGE_HEIGHT_MM && <p className="quality-note warning-note">Relief obrazu będzie wystawał ponad kołnierz montażowy. Jest to zamierzone: strefa mocowana w obudowie zachowuje stałą grubość 1,6 mm.</p>}
         {!params.mounting_flange && <>
           {!customBorder && <Slider label="Szerokość ramki (wewnątrz formatu)" value={params.border_width_mm} min={0} max={20} step={.5} unit=" mm" onChange={n => setParams(p => ({...p, border_width_mm: n, border_widths_mm: null, crop: fitCrop(p.width_mm, p.height_mm, n)}))}/>}
-          <label className="check compact-check"><input type="checkbox" checked={customBorder} onChange={e => { const enabled = e.target.checked; setCustomBorder(enabled); setParams(p => { const current = resolvedBorders(p); const next = enabled ? current : {top: current.top, right: current.top, bottom: current.top, left: current.top}; const size = sourceSize ? rotatedSize(sourceSize, p.rotation_degrees) : null; const area = imageAreaForParams(p, next); return {...p, border_width_mm: next.top, border_widths_mm: enabled ? current : null, crop: size ? automaticCrop(size.width, size.height, area.width, area.height) : p.crop}; }); }}/><span>Ustaw każdy bok ramki osobno</span></label>
+          <label className="check compact-check"><input type="checkbox" checked={customBorder} onChange={e => { const enabled = e.target.checked; setCustomBorder(enabled); setParams(p => { const current = resolvedBorders(p); const next = enabled ? current : {top: current.top, right: current.top, bottom: current.top, left: current.top}; const size = sourceSize ? rotatedSize(sourceSize, p.rotation_degrees) : null; const area = imageAreaForParams(p, next); return {...p, border_width_mm: next.top, border_widths_mm: enabled ? current : null, crop: size ? baseCropForFit(p.fit_mode, size, area.width, area.height) : p.crop}; }); }}/><span>Ustaw każdy bok ramki osobno</span></label>
           {customBorder && <div className="border-grid"><Slider label="Góra" value={borders.top} min={0} max={20} step={.5} unit=" mm" onChange={n => setBorderSide("top", n)}/><Slider label="Prawo" value={borders.right} min={0} max={20} step={.5} unit=" mm" onChange={n => setBorderSide("right", n)}/><Slider label="Dół" value={borders.bottom} min={0} max={20} step={.5} unit=" mm" onChange={n => setBorderSide("bottom", n)}/><Slider label="Lewo" value={borders.left} min={0} max={20} step={.5} unit=" mm" onChange={n => setBorderSide("left", n)}/></div>}
           {anyBorder && <Slider label="Grubość ramki" value={params.border_height_mm} min={params.nozzle_diameter_mm * 2} max={10} step={.1} unit=" mm" onChange={n => set("border_height_mm", n)}/>}
           {anyBorder && params.border_height_mm < params.max_thickness_mm && <p className="quality-note warning-note">Cienka ramka: ciemne fragmenty reliefu będą wystawały ponad jej powierzchnię. Do ramki ochronnej zalecamy grubość co najmniej równą maksymalnej grubości obrazu.</p>}

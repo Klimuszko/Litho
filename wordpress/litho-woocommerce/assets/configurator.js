@@ -132,6 +132,23 @@
     };
   }
 
+  // A crop is stored in normalized image coordinates.  Its width and height
+  // must always keep the same normalized ratio as the base crop; otherwise a
+  // tiny pointer movement can make drawImage stretch one axis of the photo.
+  function fitCropToBase(crop, base) {
+    const ratio = base.width / Math.max(0.000001, base.height);
+    let width = Number.isFinite(crop.width) ? crop.width : base.width;
+    width = Math.max(0.000001, Math.min(base.width, width));
+    let height = width / ratio;
+    if (height > base.height) {
+      height = base.height;
+      width = height * ratio;
+    }
+    const x = Math.max(base.x, Math.min(base.x + base.width - width, Number.isFinite(crop.x) ? crop.x : base.x));
+    const y = Math.max(base.y, Math.min(base.y + base.height - height, Number.isFinite(crop.y) ? crop.y : base.y));
+    return {x, y, width, height};
+  }
+
   function baseCrop() {
     if (!state.image) return {x: 0, y: 0, width: 1, height: 1};
     if (state.fitMode === 'contain') return {x: 0, y: 0, width: 1, height: 1};
@@ -148,14 +165,7 @@
       state.crop = {...base};
       return;
     }
-    const width = Math.min(base.width, Math.max(0.000001, state.crop.width));
-    const height = Math.min(base.height, Math.max(0.000001, state.crop.height));
-    state.crop = {
-      x: Math.max(base.x, Math.min(base.x + base.width - width, state.crop.x)),
-      y: Math.max(base.y, Math.min(base.y + base.height - height, state.crop.y)),
-      width,
-      height,
-    };
+    state.crop = fitCropToBase(state.crop, base);
   }
 
   function setCanvasAspect() {
@@ -208,23 +218,32 @@
 
     const adjusted = makeAdjustedCanvas(oriented);
     if (state.fitMode === 'contain') {
-      if (state.zoom <= 1.001) {
-        const scale = Math.min(innerWidth / adjusted.width, innerHeight / adjusted.height);
-        const width = adjusted.width * scale;
-        const height = adjusted.height * scale;
-        const x = borderX + (innerWidth - width) / 2;
-        const y = borderY + (innerHeight - height) / 2;
-        drawMarginHatch(x, y, width, height);
-        ctx.drawImage(adjusted, x, y, width, height);
+      // Contain is rendered as a uniform scale/translation of the complete
+      // image.  Never map an arbitrary source crop directly to the panel:
+      // that is what caused portrait images to stretch after a small pan.
+      const crop = state.crop;
+      const zoom = 1 / Math.max(0.000001, crop.width);
+      const scale = Math.min(innerWidth / adjusted.width, innerHeight / adjusted.height) * zoom;
+      const width = adjusted.width * scale;
+      const height = adjusted.height * scale;
+      const centerX = crop.x + crop.width / 2;
+      const centerY = crop.y + crop.height / 2;
+      const x = borderX + innerWidth / 2 - centerX * width;
+      const y = borderY + innerHeight / 2 - centerY * height;
+      drawMarginHatch(x, y, width, height);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(borderX, borderY, innerWidth, innerHeight);
+      ctx.clip();
+      ctx.drawImage(adjusted, x, y, width, height);
+      ctx.restore();
+      if (zoom <= 1.001) {
         ctx.save();
         ctx.strokeStyle = '#8b98aa';
         ctx.lineWidth = Math.max(1, canvas.width / 900);
         ctx.setLineDash([8, 6]);
         ctx.strokeRect(x, y, width, height);
         ctx.restore();
-      } else {
-        const crop = state.crop;
-        ctx.drawImage(adjusted, crop.x * adjusted.width, crop.y * adjusted.height, crop.width * adjusted.width, crop.height * adjusted.height, borderX, borderY, innerWidth, innerHeight);
       }
     } else {
       const crop = state.crop;
