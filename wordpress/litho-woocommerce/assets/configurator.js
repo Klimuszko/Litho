@@ -166,6 +166,7 @@
       return;
     }
     state.crop = fitCropToBase(state.crop, base);
+    state.crop = clampCropPosition(state.crop);
   }
 
   // Dragging is a pan operation only.  Keep the zoomed viewport dimensions
@@ -175,12 +176,35 @@
     const base = baseCrop();
     const width = crop.width;
     const height = crop.height;
-    return {
+    const next = {
       ...crop,
       x: Math.max(base.x, Math.min(base.x + base.width - width, crop.x)),
       y: Math.max(base.y, Math.min(base.y + base.height - height, crop.y)),
       width,
       height,
+    };
+    if (state.fitMode !== 'contain' || !state.image) return next;
+
+    // In contain mode, once the uniformly scaled image is large enough to
+    // cover the panel, constrain its centre so neither edge can reveal the
+    // hatch/background.  Before that point the image is intentionally centred
+    // and margins remain visible.
+    const source = rotatedDimensions();
+    const area = imageAreaDimensions();
+    const zoom = 1 / Math.max(0.000001, width);
+    const baseScale = Math.min(area.width / source.width, area.height / source.height);
+    const drawnWidth = source.width * baseScale * zoom;
+    const drawnHeight = source.height * baseScale * zoom;
+    const centerX = drawnWidth >= area.width
+      ? Math.max(area.width / (2 * drawnWidth), Math.min(1 - area.width / (2 * drawnWidth), next.x + width / 2))
+      : 0.5;
+    const centerY = drawnHeight >= area.height
+      ? Math.max(area.height / (2 * drawnHeight), Math.min(1 - area.height / (2 * drawnHeight), next.y + height / 2))
+      : 0.5;
+    return {
+      ...next,
+      x: centerX - width / 2,
+      y: centerY - height / 2,
     };
   }
 
