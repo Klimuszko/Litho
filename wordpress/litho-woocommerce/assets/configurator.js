@@ -431,10 +431,9 @@
 
   dragSurface.addEventListener('pointerdown', event => {
     if (!state.image || state.busy) return;
-    event.preventDefault();
+    dragSurface.setPointerCapture(event.pointerId);
     state.dragging = true;
     state.dragStart = {pointerId: event.pointerId, x: event.clientX, y: event.clientY, crop: {...state.crop}};
-    dragSurface.setPointerCapture(event.pointerId);
   });
   dragSurface.addEventListener('pointermove', event => {
     if (!state.dragging) return;
@@ -461,22 +460,31 @@
       start.y = event.clientY;
       return;
     }
+    // This is intentionally the same operation as frontend/src/App.tsx:
+    // the crop viewport captured on pointerdown is the anchor for the whole
+    // drag. Panning never changes its width or height (therefore never
+    // changes zoom).
     state.crop = panCrop(
-      state.crop,
-      directionX * deltaPixelsX / Math.max(1, innerWidth) * state.crop.width,
-      -deltaPixelsY / Math.max(1, innerHeight) * state.crop.height,
+      start.crop,
+      directionX * deltaPixelsX / Math.max(1, innerWidth) * start.crop.width,
+      -deltaPixelsY / Math.max(1, innerHeight) * start.crop.height,
     );
-    start.x = event.clientX;
-    start.y = event.clientY;
     syncPositionControls();
     draw(); invalidate();
   });
   dragSurface.addEventListener('pointerup', event => {
-    state.dragging = false;
-    state.dragStart = null;
+    if (state.dragStart && state.dragStart.pointerId === event.pointerId) {
+      state.dragging = false;
+      state.dragStart = null;
+    }
     if (dragSurface.hasPointerCapture(event.pointerId)) dragSurface.releasePointerCapture(event.pointerId);
   });
-  dragSurface.addEventListener('pointercancel', () => { state.dragging = false; state.dragStart = null; });
+  dragSurface.addEventListener('pointercancel', event => {
+    if (!state.dragStart || state.dragStart.pointerId === event.pointerId) {
+      state.dragging = false;
+      state.dragStart = null;
+    }
+  });
   dragSurface.addEventListener('wheel', event => {
     if (!state.image || state.busy) return;
     event.preventDefault();
