@@ -30,7 +30,9 @@
   const cartButton = document.querySelector('form.cart button.single_add_to_cart_button');
 
   const state = {image: null, file: null, orientation: 'landscape', fitMode: 'cover', previewMode: 'photo', rotation: 0, zoom: 1, crop: {x: 0, y: 0, width: 1, height: 1}, dragging: false, dragStart: null, busy: false};
-  const dragSurface = previewStage || canvas;
+  // Match the full Litho generator: pointer capture and coordinates belong
+  // to the canvas itself, not to its layout wrapper.
+  const dragSurface = canvas;
   // The customer preview shows only the visible image field. The hidden
   // mounting flange is part of the generated mesh, but must not change the
   // preview aspect ratio or create an apparent margin around the photograph.
@@ -492,7 +494,6 @@
   dragSurface.addEventListener('pointerdown', event => {
     if (!state.image || state.busy) return;
     event.preventDefault();
-    const rect = dragSurface.getBoundingClientRect();
     state.dragging = true;
     state.dragStart = {pointerId: event.pointerId, x: event.clientX, y: event.clientY, crop: {...state.crop}};
     dragSurface.setPointerCapture(event.pointerId);
@@ -504,7 +505,7 @@
     event.preventDefault();
     const area = imageAreaDimensions();
     const model = modelDimensions();
-    const rect = dragSurface.getBoundingClientRect();
+    const rect = event.currentTarget.getBoundingClientRect();
     const innerWidth = rect.width * area.width / model.width;
     const innerHeight = rect.height * area.height / model.height;
     const directionX = -1;
