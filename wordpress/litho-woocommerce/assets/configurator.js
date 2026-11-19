@@ -27,7 +27,10 @@
 
   const state = {image: null, file: null, orientation: 'landscape', fitMode: 'cover', previewMode: 'photo', rotation: 0, zoom: 1, crop: {x: 0, y: 0, width: 1, height: 1}, dragging: false, dragStart: null, busy: false};
   const dragSurface = previewStage || canvas;
-  const PANEL = {width: 200, height: 150, flange: 3};
+  // The customer preview shows only the visible image field. The hidden
+  // mounting flange is part of the generated mesh, but must not change the
+  // preview aspect ratio or create an apparent margin around the photograph.
+  const PANEL = {width: 200, height: 150};
   const apiRoot = String(LithoConfig.restUrl).replace(/\/$/, '');
 
   function fillSelect(select, choices) {
@@ -76,8 +79,8 @@
 
   function modelDimensions() {
     const landscape = state.orientation === 'landscape';
-    const width = PANEL.width + PANEL.flange * 2;
-    const height = PANEL.height + PANEL.flange * 2;
+    const width = PANEL.width;
+    const height = PANEL.height;
     return landscape ? {width, height} : {width: height, height: width};
   }
 
@@ -172,10 +175,10 @@
   function draw() {
     const model = modelDimensions();
     const area = imageAreaDimensions();
-    const borderX = canvas.width * PANEL.flange / model.width;
-    const borderY = canvas.height * PANEL.flange / model.height;
-    const innerWidth = canvas.width - borderX * 2;
-    const innerHeight = canvas.height - borderY * 2;
+    const borderX = 0;
+    const borderY = 0;
+    const innerWidth = canvas.width;
+    const innerHeight = canvas.height;
     ctx.fillStyle = state.fitMode === 'contain' ? '#dfe4eb' : '#302b27';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     if (!state.image) {
@@ -203,6 +206,7 @@
         const height = adjusted.height * scale;
         const x = borderX + (innerWidth - width) / 2;
         const y = borderY + (innerHeight - height) / 2;
+        drawMarginHatch(x, y, width, height);
         ctx.drawImage(adjusted, x, y, width, height);
         ctx.save();
         ctx.strokeStyle = '#8b98aa';
@@ -218,6 +222,24 @@
       const crop = state.crop;
       ctx.drawImage(adjusted, crop.x * adjusted.width, crop.y * adjusted.height, crop.width * adjusted.width, crop.height * adjusted.height, borderX, borderY, innerWidth, innerHeight);
     }
+  }
+
+  function drawMarginHatch(imageX, imageY, imageWidth, imageHeight) {
+    // Start with a clearly visible hatch layer. The image is drawn over it,
+    // leaving the hatch only in the blank areas caused by "contain" fitting.
+    ctx.save();
+    ctx.fillStyle = '#f5f7fa';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = 'rgba(119, 132, 151, .30)';
+    ctx.lineWidth = Math.max(1, canvas.width / 900);
+    ctx.beginPath();
+    const spacing = Math.max(12, canvas.width / 45);
+    for (let offset = -canvas.height; offset < canvas.width + canvas.height; offset += spacing) {
+      ctx.moveTo(offset, 0);
+      ctx.lineTo(offset + canvas.height, canvas.height);
+    }
+    ctx.stroke();
+    ctx.restore();
   }
 
   function makeAdjustedCanvas(source) {
