@@ -47,6 +47,21 @@ function mountConfigurator() {
     if (signatureInput) signatureInput.value = "";
     setCart(false);
   };
+  const readWooChoice = (kind: "housing" | "led") => {
+    const directSelectors = kind === "housing"
+      ? ["#litho-housing-color", 'form.cart select[name="housing_color"]', 'form.cart select[name="attribute_housing-color"]', 'form.cart select[name="attribute_pa_housing-color"]', 'form.cart select[id*="housing"]']
+      : ["#litho-led-color", 'form.cart select[name="light_temperature"]', 'form.cart select[name="attribute_led-color"]', 'form.cart select[name="attribute_pa_led-color"]', 'form.cart select[id*="led"]'];
+    for (const selector of directSelectors) {
+      const select = document.querySelector<HTMLSelectElement>(selector);
+      if (select?.value) return select.value;
+    }
+    const terms = kind === "housing" ? /kolor|obudow|housing|case/i : /led|barw|temper|light/i;
+    const select = Array.from(document.querySelectorAll<HTMLSelectElement>("form.cart select")).find((candidate) => {
+      const context = `${candidate.name} ${candidate.id} ${candidate.closest(".variations, .woocommerce-variation-add-to-cart, .value")?.textContent || ""}`;
+      return terms.test(context) && Boolean(candidate.value);
+    });
+    return select?.value || "";
+  };
   const request = async (path: string, init: RequestInit = {}, browserToken = "") => {
     const headers = new Headers(init.headers);
     headers.set("X-Litho-Nonce", config.nonce);
@@ -69,12 +84,14 @@ function mountConfigurator() {
   const generate = async (file: File, params: Params): Promise<LithophaneGenerateResult> => {
     setStatus(config.messages.working || "Przygotowujemy projekt…", "working");
     const orientation = params.orientation === "portrait" ? "portrait" : "landscape";
+    const housingColor = readWooChoice("housing") || Object.keys(config.housingColors || {})[0] || "";
+    const ledColor = readWooChoice("led") || Object.keys(config.ledColors || {})[0] || "warm";
     const created = await request("/projects", {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({
         product_id: config.productId, size: "150x200", orientation,
-        housing_color: (document.querySelector<HTMLSelectElement>("#litho-housing-color")?.value || ""),
-        light_temperature: (document.querySelector<HTMLSelectElement>("#litho-led-color")?.value || ""),
+        housing_color: housingColor,
+        light_temperature: ledColor,
         brightness: params.brightness, contrast: params.contrast, gamma: params.gamma,
         fit_mode: params.fit_mode, rotation_degrees: params.rotation_degrees, crop: params.crop,
       }),
@@ -97,7 +114,6 @@ function mountConfigurator() {
         active
         embedded
         initialParams={initial}
-        embeddedOptions={{housingColors: config.housingColors, ledColors: config.ledColors}}
         onGenerateOverride={generate}
         onParamsChanged={clearProject}
         apiFetchOverride={(input, init) => fetch(input, {...init, credentials: "same-origin"})}
