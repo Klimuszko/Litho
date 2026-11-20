@@ -99,7 +99,7 @@ export function inscribedSize(width: number, height: number, angleDegrees: numbe
   return {width: Math.max(1, resultWidth), height: Math.max(1, resultHeight)};
 }
 
-export const FORMATS = [{label: "10 Ă— 15 cm", short: 100, long: 150}, {label: "13 Ă— 18 cm", short: 130, long: 180}, {label: "15 Ă— 20 cm", short: 150, long: 200}] as const;
+export const FORMATS = [{label: "10 × 15 cm", short: 100, long: 150}, {label: "13 × 18 cm", short: 130, long: 180}, {label: "15 × 20 cm", short: 150, long: 200}] as const;
 export const QUALITY = {
   0.2: {economic: {pitch: .2, layer: .16, line: .22}, optimal: {pitch: .125, layer: .1, line: .22}, maximum: {pitch: .1, layer: .08, line: .22}},
   0.4: {economic: {pitch: .4, layer: .2, line: .44}, optimal: {pitch: .25, layer: .12, line: .44}, maximum: {pitch: .2, layer: .08, line: .44}},
@@ -147,16 +147,16 @@ export function effectiveBorderHeight(p: Params): number {
 }
 
 export function validateParams(p: Params): string {
-  if (!Number.isFinite(p.width_mm) || !Number.isFinite(p.height_mm) || p.width_mm < 20 || p.height_mm < 20 || p.width_mm > 256 || p.height_mm > 256) return "Wymiary niestandardowe muszÄ… mieÄ‡ od 20 do 256 mm.";
-  if (p.width_mm !== p.height_mm && (p.orientation === "landscape") !== (p.width_mm > p.height_mm)) return "Orientacja musi odpowiadaÄ‡ wymiarom modelu.";
-  if (p.max_thickness_mm <= p.min_thickness_mm) return "Maksymalna gruboĹ›Ä‡ musi byÄ‡ wiÄ™ksza od minimalnej.";
-  if (p.max_thickness_mm - p.min_thickness_mm > 12) return "Zakres gruboĹ›ci nie moĹĽe przekraczaÄ‡ 12 mm.";
+  if (!Number.isFinite(p.width_mm) || !Number.isFinite(p.height_mm) || p.width_mm < 20 || p.height_mm < 20 || p.width_mm > 256 || p.height_mm > 256) return "Wymiary niestandardowe muszą mieć od 20 do 256 mm.";
+  if (p.width_mm !== p.height_mm && (p.orientation === "landscape") !== (p.width_mm > p.height_mm)) return "Orientacja musi odpowiadać wymiarom modelu.";
+  if (p.max_thickness_mm <= p.min_thickness_mm) return "Maksymalna grubość musi być większa od minimalnej.";
+  if (p.max_thickness_mm - p.min_thickness_mm > 12) return "Zakres grubości nie może przekraczać 12 mm.";
   const borders = resolvedBorders(p);
   const model = modelSize(p);
-  if (model.width > 256 || model.height > 256) return "Panel wraz z ukrytym koĹ‚nierzem musi zmieĹ›ciÄ‡ siÄ™ na stole 256 Ă— 256 mm.";
-  if (Object.values(borders).some(value => value < 0 || value > 20)) return "KaĹĽdy bok ramki musi mieÄ‡ od 0 do 20 mm.";
-  if (Object.values(borders).some(value => value > 0) && effectiveBorderHeight(p) < 2 * p.nozzle_diameter_mm) return `GruboĹ›Ä‡ ramki musi mieÄ‡ co najmniej ${(2 * p.nozzle_diameter_mm).toFixed(1)} mm dla wybranej dyszy.`;
-  if (!p.mounting_flange && (borders.left + borders.right >= p.width_mm || borders.top + borders.bottom >= p.height_mm)) return "Ramka nie moĹĽe zajmowaÄ‡ caĹ‚ego obszaru zdjÄ™cia.";
+  if (model.width > 256 || model.height > 256) return "Panel wraz z ukrytym kołnierzem musi zmieścić się na stole 256 × 256 mm.";
+  if (Object.values(borders).some(value => value < 0 || value > 20)) return "Każdy bok ramki musi mieć od 0 do 20 mm.";
+  if (Object.values(borders).some(value => value > 0) && effectiveBorderHeight(p) < 2 * p.nozzle_diameter_mm) return `Grubość ramki musi mieć co najmniej ${(2 * p.nozzle_diameter_mm).toFixed(1)} mm dla wybranej dyszy.`;
+  if (!p.mounting_flange && (borders.left + borders.right >= p.width_mm || borders.top + borders.bottom >= p.height_mm)) return "Ramka nie może zajmować całego obszaru zdjęcia.";
   return "";
 }
 
@@ -389,7 +389,7 @@ export function LithophaneGenerator({active, onSelectProduct = () => undefined, 
   const choose = (e: ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0] || null;
     if (!selected) return;
-    if (!/^image\/(jpeg|png)$/.test(selected.type)) { setError("ObsĹ‚ugiwane sÄ… wyĹ‚Ä…cznie pliki JPG i PNG."); return; }
+    if (!/^image\/(jpeg|png)$/.test(selected.type)) { setError("Obsługiwane są wyłącznie pliki JPG i PNG."); return; }
     if (source) URL.revokeObjectURL(source);
     const url = URL.createObjectURL(selected);
     setFile(selected); setSource(url); setError("");
@@ -409,7 +409,7 @@ export function LithophaneGenerator({active, onSelectProduct = () => undefined, 
 
   const generate = async () => {
     if (busyRef.current) return;
-    if (!file) { setError("Najpierw wybierz zdjÄ™cie."); return; }
+    if (!file) { setError("Najpierw wybierz zdjęcie."); return; }
     const invalid = validateParams(params); if (invalid) { setError(invalid); return; }
     busyRef.current = true;
     drag.current = null;
@@ -420,12 +420,12 @@ export function LithophaneGenerator({active, onSelectProduct = () => undefined, 
       } else {
       const body = new FormData(); body.append("image", file); body.append("params", JSON.stringify(params));
       const response = await apiFetch("/api/generate", {method: "POST", body});
-      if (!response.ok) { const problem = await response.json(); throw new Error(problem.detail?.message || "Generowanie nie powiodĹ‚o siÄ™."); }
+      if (!response.ok) { const problem = await response.json(); throw new Error(problem.detail?.message || "Generowanie nie powiodło się."); }
       const blob = await response.blob(); const url = URL.createObjectURL(blob);
       const link = document.createElement("a"); link.href = url; link.download = "lithophane.stl"; link.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       }
-    } catch (e) { setError(e instanceof Error ? e.message : "Nieznany bĹ‚Ä…d"); } finally { busyRef.current = false; setBusy(false); }
+    } catch (e) { setError(e instanceof Error ? e.message : "Nieznany błąd"); } finally { busyRef.current = false; setBusy(false); }
   };
 
   return <main className={`app-shell${embedded ? " embedded-generator" : ""}`} hidden={!active}>
@@ -434,58 +434,60 @@ export function LithophaneGenerator({active, onSelectProduct = () => undefined, 
         <GeneratorProductNav active="lithophane" onSelect={onSelectProduct}/></>}
         <fieldset className="sidebar-scroll generator-controls" disabled={busy} aria-busy={busy}>
         <h2><span>01</span> Obraz</h2>
-        <label className="drop"><input ref={fileInput} type="file" accept="image/jpeg,image/png" onChange={choose}/><b>{file ? file.name : "Wybierz zdjÄ™cie"}</b><small>JPG lub PNG Â· maks. 20 MB</small></label>
+        <label className="drop"><input ref={fileInput} type="file" accept="image/jpeg,image/png" onChange={choose}/><b>{file ? file.name : "Wybierz zdjęcie"}</b><small>JPG lub PNG · maks. 20 MB</small></label>
         <h3>Kadrowanie</h3>
         <button className="auto-crop" disabled={!sourceSize} onClick={() => setParams(p => ({...p, crop: fitCrop(p.width_mm, p.height_mm)}))}>Dopasuj automatycznie</button>
-        <label className="control"><span>Dopasowanie zdjÄ™cia</span><select value={params.fit_mode} onChange={e => setFitMode(e.target.value === "contain" ? "contain" : "cover")}><option value="cover">WypeĹ‚nij kadr â€” bez marginesĂłw</option><option value="contain">CaĹ‚e zdjÄ™cie â€” pokaĹĽ marginesy</option></select></label>
-        <p className="quality-note">WypeĹ‚nij kadr przycina nadmiar. CaĹ‚e zdjÄ™cie zachowuje proporcje i pokazuje wolne marginesy.</p>
+        <label className="control"><span>Dopasowanie zdjęcia</span><select value={params.fit_mode} onChange={e => setFitMode(e.target.value === "contain" ? "contain" : "cover")}><option value="cover">Wypełnij kadr — bez marginesów</option><option value="contain">Całe zdjęcie — pokaż marginesy</option></select></label>
+        <p className="quality-note">Wypełnij kadr przycina nadmiar. Całe zdjęcie zachowuje proporcje i pokazuje wolne marginesy.</p>
         <Slider label="Pozycja X" value={params.crop.x} min={0} max={1 - params.crop.width} step={.01} onChange={n => setCrop("x", n)}/>
         <Slider label="Pozycja Y" value={params.crop.y} min={0} max={1 - params.crop.height} step={.01} onChange={n => setCrop("y", n)}/>
-        <Slider label="PowiÄ™kszenie" value={effectiveSourceSize ? Number((baseCropForFit(params.fit_mode, effectiveSourceSize, inner.width, inner.height).width / params.crop.width).toFixed(2)) : 1} min={1} max={5} step={.05} unit="Ă—" onChange={setZoom}/>
-        <div className="rotate-row"><span>ObrĂłt zdjÄ™cia</span><div className="rotate-actions"><button onClick={() => setRotation(params.rotation_degrees - 90)}>â†¶ 90Â°</button><label><input type="number" min="0" max="359.9" step="0.1" value={customRotationInput} onChange={e => setCustomRotationInput(e.target.value)} onBlur={e => setRotation(Number.isFinite(Number(e.target.value)) ? Number(e.target.value) : 0)} onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}/><span>Â°</span></label><button onClick={() => setRotation(params.rotation_degrees + 90)}>90Â° â†·</button></div></div>
-        <p className="interaction-hint">Na podglÄ…dzie: przeciÄ…gnij zdjÄ™cie, aby je przesunÄ…Ä‡ Â· uĹĽyj kĂłĹ‚ka myszy, aby przybliĹĽyÄ‡.</p>
+        <Slider label="Powiększenie" value={effectiveSourceSize ? Number((baseCropForFit(params.fit_mode, effectiveSourceSize, inner.width, inner.height).width / params.crop.width).toFixed(2)) : 1} min={1} max={5} step={.05} unit="×" onChange={setZoom}/>
+        <div className="rotate-row"><span>Obrót zdjęcia</span><div className="rotate-actions"><button onClick={() => setRotation(params.rotation_degrees - 90)}>↶ 90°</button><label><input type="number" min="0" max="359.9" step="0.1" value={customRotationInput} onChange={e => setCustomRotationInput(e.target.value)} onBlur={e => setRotation(Number.isFinite(Number(e.target.value)) ? Number(e.target.value) : 0)} onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}/><span>°</span></label><button onClick={() => setRotation(params.rotation_degrees + 90)}>90° ↷</button></div></div>
+        <p className="interaction-hint">Na podglądzie: przeciągnij zdjęcie, aby je przesunąć · użyj kółka myszy, aby przybliżyć.</p>
         <h2><span>02</span> Model</h2>
         <div className="orientation"><button className={params.orientation === "landscape" ? "active" : ""} onClick={() => setOrientation("landscape")}>Pozioma</button><button className={params.orientation === "portrait" ? "active" : ""} onClick={() => setOrientation("portrait")}>Pionowa</button></div>
-        <p className="quality-note">StaĹ‚y maksymalny format: 15 Ă— 20 cm. ZmieĹ„ orientacjÄ™ powyĹĽej, aby obrĂłciÄ‡ ukĹ‚ad zdjÄ™cia.</p>
-        <Slider label="Minimalna gruboĹ›Ä‡" value={params.min_thickness_mm} min={.4} max={4} step={.1} unit=" mm" onChange={n => set("min_thickness_mm", n)}/>
-        <Slider label="Maksymalna gruboĹ›Ä‡" value={params.max_thickness_mm} min={.5} max={10} step={.1} unit=" mm" onChange={n => {set("max_thickness_mm", n); if (params.border_height_mm < n) set("border_height_mm", n);}}/>
-        {embedded && embeddedOptions && <>
+        {embedded && embeddedOptions && <div className="embedded-product-controls">
           <label className="control"><span>Kolor obudowy</span><select id="litho-housing-color" defaultValue={Object.keys(embeddedOptions.housingColors)[0] || ""}>{Object.entries(embeddedOptions.housingColors).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
           <label className="control"><span>Barwa LED</span><select id="litho-led-color" defaultValue={Object.keys(embeddedOptions.ledColors)[0] || "warm"}>{Object.entries(embeddedOptions.ledColors).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-        </>}
+        </div>}
+        {!embedded && <>
+        <p className="quality-note">Stały maksymalny format: 15 × 20 cm. Zmień orientację powyżej, aby obrócić układ zdjęcia.</p>
+        <Slider label="Minimalna grubość" value={params.min_thickness_mm} min={.4} max={4} step={.1} unit=" mm" onChange={n => set("min_thickness_mm", n)}/>
+        <Slider label="Maksymalna grubość" value={params.max_thickness_mm} min={.5} max={10} step={.1} unit=" mm" onChange={n => {set("max_thickness_mm", n); if (params.border_height_mm < n) set("border_height_mm", n);}}/>
         <Slider label="Gamma" value={params.gamma} min={.1} max={5} step={.1} onChange={n => set("gamma", n)}/>
-        <Slider label="JasnoĹ›Ä‡" value={params.brightness} min={.25} max={2} step={.05} onChange={n => set("brightness", n)}/>
+        <Slider label="Jasność" value={params.brightness} min={.25} max={2} step={.05} onChange={n => set("brightness", n)}/>
         <Slider label="Kontrast" value={params.contrast} min={.25} max={3} step={.05} onChange={n => set("contrast", n)}/>
-        <h3>Ĺšrednica dyszy</h3>
-        <div className="orientation"><button className={params.nozzle_diameter_mm === .2 ? "active" : ""} onClick={() => setParams(p => ({...p, nozzle_diameter_mm: .2}))}>0,2 mm Â· detal</button><button className={params.nozzle_diameter_mm === .4 ? "active" : ""} onClick={() => setParams(p => ({...p, nozzle_diameter_mm: .4, border_height_mm: p.border_height_mm < .8 ? .8 : p.border_height_mm}))}>0,4 mm Â· standard</button></div>
-        <h3>JakoĹ›Ä‡ geometrii</h3>
+        <h3>Średnica dyszy</h3>
+        <div className="orientation"><button className={params.nozzle_diameter_mm === .2 ? "active" : ""} onClick={() => setParams(p => ({...p, nozzle_diameter_mm: .2}))}>0,2 mm · detal</button><button className={params.nozzle_diameter_mm === .4 ? "active" : ""} onClick={() => setParams(p => ({...p, nozzle_diameter_mm: .4, border_height_mm: p.border_height_mm < .8 ? .8 : p.border_height_mm}))}>0,4 mm · standard</button></div>
+        <h3>Jakość geometrii</h3>
         <div className="formats"><button className={params.quality_profile === "economic" ? "active" : ""} onClick={() => set("quality_profile", "economic")}>Ekonomiczna</button><button className={params.quality_profile === "optimal" ? "active" : ""} onClick={() => set("quality_profile", "optimal")}>Optymalna</button><button className={params.quality_profile === "maximum" ? "active" : ""} onClick={() => set("quality_profile", "maximum")}>Maksymalna</button></div>
-        <p className="quality-note">PrĂłbka XY: {grid.pitch.toFixed(3)} mm Â· linia: {quality.line} mm Â· warstwa: {quality.layer} mm Â· siatka obrazu: {gridX} Ă— {gridY}{anyBorder ? ` Â· z ramkÄ…: ${grid.totalCols} Ă— ${grid.totalRows}` : ""}</p>
-        <h3>KrawÄ™dĹş panelu</h3>
-        <label className="check"><input type="checkbox" checked={params.mounting_flange} onChange={e => setMountingFlange(e.target.checked)}/><span>KoĹ‚nierz montaĹĽowy Litho Mount V2</span></label>
-        {params.mounting_flange && <p className="quality-note flange-note">Ukryty koĹ‚nierz 3,0 mm jest dodawany na zewnÄ…trz wybranego formatu Â· gruboĹ›Ä‡ 1,6 mm. Wybrany wymiar pozostaje wymiarem widocznego obrazu.</p>}
-        {params.mounting_flange && params.max_thickness_mm > MOUNTING_FLANGE_HEIGHT_MM && <p className="quality-note warning-note">Relief obrazu bÄ™dzie wystawaĹ‚ ponad koĹ‚nierz montaĹĽowy. Jest to zamierzone: strefa mocowana w obudowie zachowuje staĹ‚Ä… gruboĹ›Ä‡ 1,6 mm.</p>}
+        <p className="quality-note">Próbka XY: {grid.pitch.toFixed(3)} mm · linia: {quality.line} mm · warstwa: {quality.layer} mm · siatka obrazu: {gridX} × {gridY}{anyBorder ? ` · z ramką: ${grid.totalCols} × ${grid.totalRows}` : ""}</p>
+        <h3>Krawędź panelu</h3>
+        <label className="check"><input type="checkbox" checked={params.mounting_flange} onChange={e => setMountingFlange(e.target.checked)}/><span>Kołnierz montażowy Litho Mount V2</span></label>
+        {params.mounting_flange && <p className="quality-note flange-note">Ukryty kołnierz 3,0 mm jest dodawany na zewnątrz wybranego formatu · grubość 1,6 mm. Wybrany wymiar pozostaje wymiarem widocznego obrazu.</p>}
+        {params.mounting_flange && params.max_thickness_mm > MOUNTING_FLANGE_HEIGHT_MM && <p className="quality-note warning-note">Relief obrazu będzie wystawał ponad kołnierz montażowy. Jest to zamierzone: strefa mocowana w obudowie zachowuje stałą grubość 1,6 mm.</p>}
         {!params.mounting_flange && <>
-          {!customBorder && <Slider label="SzerokoĹ›Ä‡ ramki (wewnÄ…trz formatu)" value={params.border_width_mm} min={0} max={20} step={.5} unit=" mm" onChange={n => setParams(p => ({...p, border_width_mm: n, border_widths_mm: null, crop: fitCrop(p.width_mm, p.height_mm, n)}))}/>}
-          <label className="check compact-check"><input type="checkbox" checked={customBorder} onChange={e => { const enabled = e.target.checked; setCustomBorder(enabled); setParams(p => { const current = resolvedBorders(p); const next = enabled ? current : {top: current.top, right: current.top, bottom: current.top, left: current.top}; const size = sourceSize ? rotatedSize(sourceSize, p.rotation_degrees) : null; const area = imageAreaForParams(p, next); return {...p, border_width_mm: next.top, border_widths_mm: enabled ? current : null, crop: size ? baseCropForFit(p.fit_mode, size, area.width, area.height) : p.crop}; }); }}/><span>Ustaw kaĹĽdy bok ramki osobno</span></label>
-          {customBorder && <div className="border-grid"><Slider label="GĂłra" value={borders.top} min={0} max={20} step={.5} unit=" mm" onChange={n => setBorderSide("top", n)}/><Slider label="Prawo" value={borders.right} min={0} max={20} step={.5} unit=" mm" onChange={n => setBorderSide("right", n)}/><Slider label="DĂłĹ‚" value={borders.bottom} min={0} max={20} step={.5} unit=" mm" onChange={n => setBorderSide("bottom", n)}/><Slider label="Lewo" value={borders.left} min={0} max={20} step={.5} unit=" mm" onChange={n => setBorderSide("left", n)}/></div>}
-          {anyBorder && <Slider label="GruboĹ›Ä‡ ramki" value={params.border_height_mm} min={params.nozzle_diameter_mm * 2} max={10} step={.1} unit=" mm" onChange={n => set("border_height_mm", n)}/>}
-          {anyBorder && params.border_height_mm < params.max_thickness_mm && <p className="quality-note warning-note">Cienka ramka: ciemne fragmenty reliefu bÄ™dÄ… wystawaĹ‚y ponad jej powierzchniÄ™. Do ramki ochronnej zalecamy gruboĹ›Ä‡ co najmniej rĂłwnÄ… maksymalnej gruboĹ›ci obrazu.</p>}
+          {!customBorder && <Slider label="Szerokość ramki (wewnątrz formatu)" value={params.border_width_mm} min={0} max={20} step={.5} unit=" mm" onChange={n => setParams(p => ({...p, border_width_mm: n, border_widths_mm: null, crop: fitCrop(p.width_mm, p.height_mm, n)}))}/>}
+          <label className="check compact-check"><input type="checkbox" checked={customBorder} onChange={e => { const enabled = e.target.checked; setCustomBorder(enabled); setParams(p => { const current = resolvedBorders(p); const next = enabled ? current : {top: current.top, right: current.top, bottom: current.top, left: current.top}; const size = sourceSize ? rotatedSize(sourceSize, p.rotation_degrees) : null; const area = imageAreaForParams(p, next); return {...p, border_width_mm: next.top, border_widths_mm: enabled ? current : null, crop: size ? baseCropForFit(p.fit_mode, size, area.width, area.height) : p.crop}; }); }}/><span>Ustaw każdy bok ramki osobno</span></label>
+          {customBorder && <div className="border-grid"><Slider label="Góra" value={borders.top} min={0} max={20} step={.5} unit=" mm" onChange={n => setBorderSide("top", n)}/><Slider label="Prawo" value={borders.right} min={0} max={20} step={.5} unit=" mm" onChange={n => setBorderSide("right", n)}/><Slider label="Dół" value={borders.bottom} min={0} max={20} step={.5} unit=" mm" onChange={n => setBorderSide("bottom", n)}/><Slider label="Lewo" value={borders.left} min={0} max={20} step={.5} unit=" mm" onChange={n => setBorderSide("left", n)}/></div>}
+          {anyBorder && <Slider label="Grubość ramki" value={params.border_height_mm} min={params.nozzle_diameter_mm * 2} max={10} step={.1} unit=" mm" onChange={n => set("border_height_mm", n)}/>}
+          {anyBorder && params.border_height_mm < params.max_thickness_mm && <p className="quality-note warning-note">Cienka ramka: ciemne fragmenty reliefu będą wystawały ponad jej powierzchnię. Do ramki ochronnej zalecamy grubość co najmniej równą maksymalnej grubości obrazu.</p>}
         </>}
-        <label className="check"><input type="checkbox" checked={params.invert} onChange={e => set("invert", e.target.checked)}/><span>OdwrĂłÄ‡ obraz</span></label>
-        <label className="check"><input type="checkbox" checked={params.mirror} onChange={e => set("mirror", e.target.checked)}/><span>Odbij zdjÄ™cie lustrzanie</span></label>
+        <label className="check"><input type="checkbox" checked={params.invert} onChange={e => set("invert", e.target.checked)}/><span>Odwróć obraz</span></label>
+        <label className="check"><input type="checkbox" checked={params.mirror} onChange={e => set("mirror", e.target.checked)}/><span>Odbij zdjęcie lustrzanie</span></label>
+        </>}
         </fieldset>
-        <div className="sidebar-foot">Lokalne przetwarzanie Â· STL manifold</div>
+        <div className="sidebar-foot">Lokalne przetwarzanie · STL manifold</div>
       </aside>
       <section className="workbench">
       <article className="preview">
-        <div className="preview-head"><div><p className="eyebrow">PODGLÄ„D NA Ĺ»YWO</p><h2>{view === "photo" ? "Przygotowane zdjÄ™cie" : "Symulacja Ĺ›wiatĹ‚a"}</h2></div><div className="tabs"><button className={view === "photo" ? "active" : ""} onClick={() => setView("photo")}>Obraz</button><button className={view === "lithophane" ? "active" : ""} onClick={() => setView("lithophane")}>Litofania</button></div></div>
-        <div className={`stage crop-stage${busy ? " interaction-locked" : ""}`} aria-busy={busy} style={{aspectRatio: `${model.width} / ${model.height}`, width: `min(100%, ${720 * model.width / model.height}px)`}}>{source ? <canvas ref={canvas} aria-disabled={busy} onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}/> : <button type="button" className="empty empty-upload" onClick={() => fileInput.current?.click()} aria-label="Dodaj fotografiÄ™"><span>ďĽ‹</span><b>Dodaj fotografiÄ™</b><small>Kliknij tutaj, aby wybraÄ‡ plik</small></button>}{busy && <div className="interaction-lock" role="status">Generowanie STL â€” kadr zablokowany</div>}</div>
-        <div className="stats"><span><small>{params.mounting_flange ? "PANEL / OBRAZ" : "WYMIAR"}</small><b>{params.mounting_flange ? `${model.width} Ă— ${model.height} / ${params.width_mm} Ă— ${params.height_mm}` : `${params.width_mm} Ă— ${params.height_mm}`} mm</b></span><span><small>GRUBOĹšÄ†</small><b>{params.min_thickness_mm}â€“{params.max_thickness_mm} mm</b></span><span><small>SIATKA</small><b>{gridX} Ă— {gridY}</b></span></div>
+        <div className="preview-head"><div><p className="eyebrow">PODGLĄD NA ŻYWO</p><h2>{view === "photo" ? "Przygotowane zdjęcie" : "Symulacja światła"}</h2></div><div className="tabs"><button className={view === "photo" ? "active" : ""} onClick={() => setView("photo")}>Obraz</button><button className={view === "lithophane" ? "active" : ""} onClick={() => setView("lithophane")}>Litofania</button></div></div>
+        <div className={`stage crop-stage${busy ? " interaction-locked" : ""}`} aria-busy={busy} style={{aspectRatio: `${model.width} / ${model.height}`, width: `min(100%, ${720 * model.width / model.height}px)`}}>{source ? <canvas ref={canvas} aria-disabled={busy} onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}/> : <button type="button" className="empty empty-upload" onClick={() => fileInput.current?.click()} aria-label="Dodaj fotografię"><span>＋</span><b>Dodaj fotografię</b><small>Kliknij tutaj, aby wybrać plik</small></button>}{busy && <div className="interaction-lock" role="status">Generowanie STL — kadr zablokowany</div>}</div>
+        <div className="stats"><span><small>{params.mounting_flange ? "PANEL / OBRAZ" : "WYMIAR"}</small><b>{params.mounting_flange ? `${model.width} × ${model.height} / ${params.width_mm} × ${params.height_mm}` : `${params.width_mm} × ${params.height_mm}`} mm</b></span><span><small>GRUBOŚĆ</small><b>{params.min_thickness_mm}–{params.max_thickness_mm} mm</b></span><span><small>SIATKA</small><b>{gridX} × {gridY}</b></span></div>
         {(error || validateParams(params)) && <p className="error">{error || validateParams(params)}</p>}
-        <button className="generate" disabled={busy || !file || Boolean(validateParams(params))} onClick={generate}>{busy ? "Generowanieâ€¦" : "Generuj i pobierz STL"}<span>â†’</span></button>
+        <button className="generate" disabled={busy || !file || Boolean(validateParams(params))} onClick={generate}>{busy ? "Generowanie…" : "Generuj i pobierz STL"}<span>→</span></button>
       </article>
-      <footer>Pliki sÄ… przetwarzane w pamiÄ™ci i nie sÄ… przechowywane na serwerze.</footer>
+      <footer>Pliki są przetwarzane w pamięci i nie są przechowywane na serwerze.</footer>
       </section>
   </main>;
 }
