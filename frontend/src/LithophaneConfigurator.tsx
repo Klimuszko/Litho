@@ -444,15 +444,11 @@ export function LithophaneGenerator({active, onSelectProduct = () => undefined, 
         <Slider label="Poziom" value={params.crop.x} min={0} max={1 - params.crop.width} step={.01} onChange={n => setCrop("x", n)}/>
         <Slider label="Pion" value={params.crop.y} min={0} max={1 - params.crop.height} step={.01} onChange={n => setCrop("y", n)}/>
         <Slider label="Powiększenie" value={effectiveSourceSize ? Number((baseCropForFit(params.fit_mode, effectiveSourceSize, inner.width, inner.height).width / params.crop.width).toFixed(2)) : 1} min={1} max={5} step={.05} unit="×" onChange={setZoom}/>
+        {embedded && <><Slider label="Jasność" value={params.brightness} min={.25} max={2} step={.05} onChange={n => set("brightness", n)}/><Slider label="Kontrast" value={params.contrast} min={.25} max={3} step={.05} onChange={n => set("contrast", n)}/></>}
         <div className="rotate-row"><span>Obrót zdjęcia</span><div className="rotate-actions"><button type="button" onClick={() => setRotation(params.rotation_degrees - 90)}>↶ 90°</button><label><input type="number" min="0" max="359.9" step="0.1" value={customRotationInput} onChange={e => setCustomRotationInput(e.target.value)} onBlur={e => setRotation(Number.isFinite(Number(e.target.value)) ? Number(e.target.value) : 0)} onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}/><span>°</span></label><button type="button" onClick={() => setRotation(params.rotation_degrees + 90)}>90° ↷</button></div></div>
         <p className="interaction-hint">Na podglądzie: przeciągnij zdjęcie, aby je przesunąć · użyj kółka myszy, aby przybliżyć.</p>
         <h2><span>02</span> ORIENTACJA RAMKI</h2>
         <div className="orientation"><button type="button" className={params.orientation === "landscape" ? "active" : ""} onClick={() => setOrientation("landscape")}>Pozioma</button><button type="button" className={params.orientation === "portrait" ? "active" : ""} onClick={() => setOrientation("portrait")}>Pionowa</button></div>
-        {embedded && <>
-        <h2><span>03</span> DOSTOSOWANIE OBRAZU</h2>
-        <Slider label="Jasność" value={params.brightness} min={.25} max={2} step={.05} onChange={n => set("brightness", n)}/>
-        <Slider label="Kontrast" value={params.contrast} min={.25} max={3} step={.05} onChange={n => set("contrast", n)}/>
-        </>}
         {!embedded && <>
         <p className="quality-note">Stały maksymalny format: 15 × 20 cm. Zmień orientację powyżej, aby obrócić układ zdjęcia.</p>
         <Slider label="Minimalna grubość" value={params.min_thickness_mm} min={.4} max={4} step={.1} unit=" mm" onChange={n => set("min_thickness_mm", n)}/>
