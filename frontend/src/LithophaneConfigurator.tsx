@@ -396,9 +396,12 @@ export function LithophaneGenerator({active, onSelectProduct = () => undefined, 
     image.onload = () => {
       setSourceSize({width: image.width, height: image.height});
       setParams(p => {
-        const orientation = image.height > image.width ? "portrait" : "landscape";
+        // The frame starts in the product's default landscape orientation. The
+        // customer can explicitly switch to portrait; the source image's
+        // aspect ratio must not silently change the selected frame orientation.
+        const orientation = "landscape";
         const short = Math.min(p.width_mm, p.height_mm); const long = Math.max(p.width_mm, p.height_mm);
-        const width = orientation === "landscape" ? long : short; const height = orientation === "landscape" ? short : long;
+        const width = long; const height = short;
         const area = imageAreaForParams({...p, width_mm: width, height_mm: height});
         return {...p, orientation, width_mm: width, height_mm: height, crop: baseCropForFit(p.fit_mode, {width: image.width, height: image.height}, area.width, area.height)};
       });
@@ -443,7 +446,7 @@ export function LithophaneGenerator({active, onSelectProduct = () => undefined, 
         <Slider label="Powiększenie" value={effectiveSourceSize ? Number((baseCropForFit(params.fit_mode, effectiveSourceSize, inner.width, inner.height).width / params.crop.width).toFixed(2)) : 1} min={1} max={5} step={.05} unit="×" onChange={setZoom}/>
         <div className="rotate-row"><span>Obrót zdjęcia</span><div className="rotate-actions"><button type="button" onClick={() => setRotation(params.rotation_degrees - 90)}>↶ 90°</button><label><input type="number" min="0" max="359.9" step="0.1" value={customRotationInput} onChange={e => setCustomRotationInput(e.target.value)} onBlur={e => setRotation(Number.isFinite(Number(e.target.value)) ? Number(e.target.value) : 0)} onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}/><span>°</span></label><button type="button" onClick={() => setRotation(params.rotation_degrees + 90)}>90° ↷</button></div></div>
         <p className="interaction-hint">Na podglądzie: przeciągnij zdjęcie, aby je przesunąć · użyj kółka myszy, aby przybliżyć.</p>
-        <h2><span>02</span> Model</h2>
+        <h2><span>02</span> ORIENTACJA RAMKI</h2>
         <div className="orientation"><button type="button" className={params.orientation === "landscape" ? "active" : ""} onClick={() => setOrientation("landscape")}>Pozioma</button><button type="button" className={params.orientation === "portrait" ? "active" : ""} onClick={() => setOrientation("portrait")}>Pionowa</button></div>
         {!embedded && <>
         <p className="quality-note">Stały maksymalny format: 15 × 20 cm. Zmień orientację powyżej, aby obrócić układ zdjęcia.</p>

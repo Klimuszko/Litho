@@ -49,8 +49,8 @@ function mountConfigurator() {
   };
   const readWooChoice = (kind: "housing" | "led") => {
     const directSelectors = kind === "housing"
-      ? ["#litho-housing-color", 'form.cart select[name="housing_color"]', 'form.cart select[name="attribute_housing-color"]', 'form.cart select[name="attribute_pa_housing-color"]', 'form.cart select[id*="housing"]']
-      : ["#litho-led-color", 'form.cart select[name="light_temperature"]', 'form.cart select[name="attribute_led-color"]', 'form.cart select[name="attribute_pa_led-color"]', 'form.cart select[id*="led"]'];
+      ? ["#litho-housing-color", 'form.cart select[name="housing_color"]', 'form.cart select[name="attribute_housing-color"]', 'form.cart select[name="attribute_pa_housing-color"]', 'form.cart select[name*="kolor"]', 'form.cart select[name*="color"]', 'form.cart select[id*="housing"]', 'form.cart select[id*="kolor"]', 'form.cart select[id*="color"]']
+      : ["#litho-led-color", 'form.cart select[name="light_temperature"]', 'form.cart select[name="attribute_led-color"]', 'form.cart select[name="attribute_pa_led-color"]', 'form.cart select[name*="barwa"]', 'form.cart select[name*="led"]', 'form.cart select[name*="temper"]', 'form.cart select[id*="led"]', 'form.cart select[id*="barwa"]', 'form.cart select[id*="temper"]'];
     for (const selector of directSelectors) {
       const select = document.querySelector<HTMLSelectElement>(selector);
       if (select?.value) return select.value;
@@ -61,6 +61,12 @@ function mountConfigurator() {
       return terms.test(context) && Boolean(candidate.value);
     });
     return select?.value || "";
+  };
+  const normalizeChoice = (value: string, choices: Record<string, string>, fallback: string) => {
+    const slug = (input: string) => input.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const valueSlug = slug(value);
+    const match = Object.entries(choices || {}).find(([key, label]) => slug(key) === valueSlug || slug(label) === valueSlug);
+    return match?.[0] || fallback;
   };
   const request = async (path: string, init: RequestInit = {}, browserToken = "") => {
     const headers = new Headers(init.headers);
@@ -84,8 +90,10 @@ function mountConfigurator() {
   const generate = async (file: File, params: Params): Promise<LithophaneGenerateResult> => {
     setStatus(config.messages.working || "Przygotowujemy projekt…", "working");
     const orientation = params.orientation === "portrait" ? "portrait" : "landscape";
-    const housingColor = readWooChoice("housing") || Object.keys(config.housingColors || {})[0] || "";
-    const ledColor = readWooChoice("led") || Object.keys(config.ledColors || {})[0] || "warm";
+    const housingDefault = Object.keys(config.housingColors || {})[0] || "black-matte";
+    const ledDefault = Object.keys(config.ledColors || {})[0] || "warm";
+    const housingColor = normalizeChoice(readWooChoice("housing"), config.housingColors, housingDefault);
+    const ledColor = normalizeChoice(readWooChoice("led"), config.ledColors, ledDefault);
     const created = await request("/projects", {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({
