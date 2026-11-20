@@ -448,6 +448,11 @@ export function LithophaneGenerator({active, onSelectProduct = () => undefined, 
         <p className="interaction-hint">Na podglądzie: przeciągnij zdjęcie, aby je przesunąć · użyj kółka myszy, aby przybliżyć.</p>
         <h2><span>02</span> ORIENTACJA RAMKI</h2>
         <div className="orientation"><button type="button" className={params.orientation === "landscape" ? "active" : ""} onClick={() => setOrientation("landscape")}>Pozioma</button><button type="button" className={params.orientation === "portrait" ? "active" : ""} onClick={() => setOrientation("portrait")}>Pionowa</button></div>
+        {embedded && <>
+        <h2><span>03</span> DOSTOSOWANIE OBRAZU</h2>
+        <Slider label="Jasność" value={params.brightness} min={.25} max={2} step={.05} onChange={n => set("brightness", n)}/>
+        <Slider label="Kontrast" value={params.contrast} min={.25} max={3} step={.05} onChange={n => set("contrast", n)}/>
+        </>}
         {!embedded && <>
         <p className="quality-note">Stały maksymalny format: 15 × 20 cm. Zmień orientację powyżej, aby obrócić układ zdjęcia.</p>
         <Slider label="Minimalna grubość" value={params.min_thickness_mm} min={.4} max={4} step={.1} unit=" mm" onChange={n => set("min_thickness_mm", n)}/>
