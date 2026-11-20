@@ -142,6 +142,7 @@ button { cursor: pointer; }
 .orientation button { flex: 1; }
 .orientation button { min-width: 0; }
 .orientation button:hover, .tabs button:hover { border-color: #b9c1ce; color: #273248; }
+.orientation button:disabled, .tabs button:disabled { cursor: wait; opacity: .58; }
 .orientation .active, .tabs .active { border-color: #20293a; background: #20293a; color: #fff; box-shadow: 0 5px 12px rgba(32, 41, 58, .13); }
 
 .check { display: flex; align-items: flex-start; gap: 9px; margin-top: 15px; color: #525e72; font-size: 11px; line-height: 1.4; }
