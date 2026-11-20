@@ -172,6 +172,7 @@ button { cursor: pointer; }
   min-height: 420px;
   display: grid;
   place-items: center;
+  position: relative;
   overflow: hidden;
   border: 1px solid #252c38;
   border-radius: 12px;
@@ -179,6 +180,24 @@ button { cursor: pointer; }
   box-shadow: inset 0 0 80px rgba(0, 0, 0, .35);
 }
 .stage canvas { width: 100%; height: auto; max-height: 650px; object-fit: contain; }
+.dimension-label {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+  padding: 5px 9px;
+  border: 1px solid rgba(255,255,255,.38);
+  border-radius: 999px;
+  background: rgba(15,23,42,.82);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .04em;
+  line-height: 1;
+  text-shadow: 0 1px 2px rgba(0,0,0,.3);
+  white-space: nowrap;
+}
+.dimension-label-horizontal { left: 50%; bottom: 10px; transform: translateX(-50%); }
+.dimension-label-vertical { top: 50%; right: 10px; transform: translateY(-50%) rotate(-90deg); }
 .empty { display: flex; flex-direction: column; gap: 7px; color: #8992a1; text-align: center; }
 .empty-upload { align-items: center; justify-content: center; width: 100%; height: 100%; padding: 0; border: 0; background: transparent; font: inherit; cursor: pointer; }
 .empty-upload:hover b, .empty-upload:focus-visible b { color: #fff; }
