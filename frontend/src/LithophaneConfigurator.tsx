@@ -436,7 +436,7 @@ export function LithophaneGenerator({active, onSelectProduct = () => undefined, 
         <GeneratorProductNav active="lithophane" onSelect={onSelectProduct}/></>}
         <fieldset className="sidebar-scroll generator-controls" disabled={busy} aria-busy={busy}>
         <h2><span>01</span> Obraz</h2>
-        <label className="drop"><input ref={fileInput} type="file" accept="image/jpeg,image/png" onChange={choose}/><b>{file ? file.name : "Wybierz zdjęcie"}</b><small>JPG lub PNG · maks. 20 MB</small></label>
+        <label className="drop"><input ref={fileInput} type="file" accept="image/jpeg,image/png" onChange={choose}/><b>{file ? file.name : "Wybierz zdjęcie"}</b><small>JPG lub PNG · maks. 20 MB<br/>Zalecane: min. 2000 × 1500 px (lub odwrotnie), ostre i dobrze oświetlone zdjęcie</small></label>
         <h3>Kadrowanie</h3>
         <button type="button" className="auto-crop" disabled={!sourceSize} onClick={() => setParams(p => ({...p, crop: fitCrop(p.width_mm, p.height_mm)}))}>Dopasuj automatycznie</button>
         <label className="control"><span>Dopasowanie zdjęcia</span><select value={params.fit_mode} onChange={e => setFitMode(e.target.value === "contain" ? "contain" : "cover")}><option value="cover">Wypełnij kadr — bez marginesów</option><option value="contain">Całe zdjęcie — pokaż marginesy</option></select></label>

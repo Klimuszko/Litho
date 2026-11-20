@@ -120,7 +120,7 @@ button { cursor: pointer; }
 .drop:hover { border-color: #6d8cf0; background: #f3f7ff; transform: translateY(-1px); }
 .drop input { display: none; }
 .drop b { max-width: 280px; overflow: hidden; color: #293449; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.drop small { margin-top: 6px; color: #929aaa; font-size: 10px; }
+.drop small { margin-top: 6px; color: #929aaa; font-size: 10px; line-height: 1.45; text-align: center; }
 
 .control { display: block; margin: 14px 0; }
 .control > span { display: flex; justify-content: space-between; gap: 10px; color: #687386; font-size: 11px; }
