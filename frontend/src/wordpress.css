@@ -40,6 +40,9 @@
 #litho-configurator-mount .embedded-generator .stage.crop-stage{min-height:0;margin-inline:auto}
 #litho-configurator-mount .embedded-generator .stage canvas{display:block;width:100%;height:100%;max-height:none;cursor:grab;touch-action:none;user-select:none}
 #litho-configurator-mount .embedded-generator .stage canvas:active{cursor:grabbing}
+#litho-configurator-mount .embedded-generator .image-loading{position:absolute;inset:0;z-index:3;display:grid;place-items:center;align-content:center;gap:10px;background:rgba(15,23,42,.34);color:#fff;font-size:12px;font-weight:700;text-align:center;cursor:wait}
+#litho-configurator-mount .embedded-generator .loading-spinner{width:28px;height:28px;border:3px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:litho-spin .8s linear infinite}
+@keyframes litho-spin{to{transform:rotate(360deg)}}
 #litho-configurator-mount .embedded-generator .dimensioned-stage{display:grid;grid-template-columns:30px minmax(0,1fr);grid-template-rows:minmax(0,auto) auto;align-items:center;column-gap:8px;margin-top:0;width:100%!important}
 #litho-configurator-mount .embedded-generator .dimensioned-stage>.stage{grid-column:2;grid-row:1;width:100%!important;margin:0}
 #litho-configurator-mount .embedded-generator .dimension-label{position:static;z-index:2;pointer-events:none;padding:5px 9px;border:1px solid rgba(255,255,255,.38);border-radius:999px;background:rgba(15,23,42,.82);color:#fff;font-size:10px;font-weight:750;letter-spacing:.04em;line-height:1;text-shadow:0 1px 2px rgba(0,0,0,.3);white-space:nowrap}
@@ -52,8 +55,9 @@
 #litho-configurator-mount .embedded-generator .stats{display:none}
 #litho-configurator-mount .embedded-generator .generate{width:100%;margin-top:14px;padding:13px 18px;border:0;border-radius:9px;background:linear-gradient(135deg,#315cf4,#244cda);color:#fff;font-weight:800;cursor:pointer}
 #litho-configurator-mount .embedded-generator .generate:disabled{opacity:.55;cursor:wait}
+#litho-configurator-mount .embedded-generator .generate.saved:disabled{opacity:1;background:linear-gradient(135deg,#2f9e63,#20804d);color:#fff;box-shadow:0 10px 22px rgba(47,158,99,.22);cursor:default}
 #litho-configurator-mount .embedded-generator .error{margin:12px 0 0;padding:10px;border:1px solid #f0c6bf;border-radius:8px;background:#fff2f0;color:#a63d32;font-size:11px}
 #litho-configurator-mount .embedded-generator .workbench>footer{display:none}
 #litho-configurator-mount .embedded-generator .generator-controls:disabled{opacity:.62}
-#litho-configurator-mount .embedded-generator .interaction-lock{position:absolute;inset:0;display:grid;place-items:center;background:rgba(15,23,42,.22);color:#fff;font-size:12px;font-weight:700;cursor:wait}
+#litho-configurator-mount .embedded-generator .interaction-lock{position:absolute;inset:0;z-index:3;display:grid;place-items:center;background:rgba(15,23,42,.22);color:#fff;font-size:12px;font-weight:700;cursor:wait}
 @media(max-width:720px){#litho-configurator-mount .embedded-generator{display:flex;flex-direction:column}#litho-configurator-mount .embedded-generator .workbench{order:-1}}

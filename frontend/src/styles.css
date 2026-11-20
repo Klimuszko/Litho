@@ -180,6 +180,30 @@ button { cursor: pointer; }
   box-shadow: inset 0 0 80px rgba(0, 0, 0, .35);
 }
 .stage canvas { width: 100%; height: auto; max-height: 650px; object-fit: contain; }
+.image-loading,
+.interaction-lock {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  background: rgba(15, 23, 42, .34);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: wait;
+}
+.image-loading { align-content: center; text-align: center; }
+.loading-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid rgba(255,255,255,.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: litho-spin .8s linear infinite;
+}
+@keyframes litho-spin { to { transform: rotate(360deg); } }
 .dimensioned-stage {
   display: grid;
   grid-template-columns: 30px minmax(0, 1fr);
@@ -242,6 +266,7 @@ button { cursor: pointer; }
 }
 .generate:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 13px 26px rgba(49, 92, 244, .28); }
 .generate:disabled { cursor: not-allowed; opacity: .42; box-shadow: none; }
+.generate.saved:disabled { opacity: 1; background: linear-gradient(135deg, #2f9e63, #20804d); color: #fff; box-shadow: 0 10px 22px rgba(47, 158, 99, .22); }
 .error { margin: 15px 0 0; padding: 11px 12px; border: 1px solid #f0c6bf; border-radius: 9px; background: #fff2f0; color: #a63d32; font-size: 11px; }
 .workbench footer { padding: 16px 4px 0; color: #919aaa; font-size: 10px; text-align: center; }
 

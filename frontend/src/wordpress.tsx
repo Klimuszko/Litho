@@ -112,6 +112,7 @@ function mountConfigurator() {
     if (signatureInput) signatureInput.value = created.cart_signature;
     setStatus(config.messages.ready || "Projekt jest gotowy.", "success");
     setCart(true);
+    setStatus("");
     return {projectId: created.project_id, signature: created.cart_signature};
   };
 

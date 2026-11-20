@@ -184,6 +184,8 @@ export function LithophaneGenerator({active, onSelectProduct = () => undefined, 
   const [params, setParams] = useState(initialParams);
   const [view, setView] = useState<"photo" | "lithophane">("photo");
   const [busy, setBusy] = useState(false);
+  const [imageLoading, setImageLoading] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [customRotationInput, setCustomRotationInput] = useState("0");
   const [customBorder, setCustomBorder] = useState(false);
@@ -193,7 +195,7 @@ export function LithophaneGenerator({active, onSelectProduct = () => undefined, 
   const canvas = useRef<HTMLCanvasElement>(null);
   const drag = useRef<{pointerId: number; x: number; y: number; crop: Crop} | null>(null);
   const busyRef = useRef(false);
-  useEffect(() => { onParamsChanged?.(); }, [params, onParamsChanged]);
+  useEffect(() => { onParamsChanged?.(); setSaved(false); }, [params, onParamsChanged]);
   const effectiveSourceSize = sourceSize ? rotatedSize(sourceSize, params.rotation_degrees) : null;
   const quality = QUALITY[params.nozzle_diameter_mm][params.quality_profile];
   const borders = resolvedBorders(params);
@@ -271,7 +273,7 @@ export function LithophaneGenerator({active, onSelectProduct = () => undefined, 
   };
   useEffect(() => () => { if (source) URL.revokeObjectURL(source); }, [source]);
   useEffect(() => {
-    if (!source) { setRotatedPreview(null); return; }
+    if (!source) { setRotatedPreview(null); setImageLoading(false); return; }
     let cancelled = false;
     const image = new Image();
     image.onload = () => {
@@ -291,8 +293,9 @@ export function LithophaneGenerator({active, onSelectProduct = () => undefined, 
       rotated.height = Math.max(1, Math.round(inscribed.height));
       const rotatedContext = rotated.getContext("2d")!;
       rotatedContext.drawImage(expanded, (expanded.width - inscribed.width) / 2, (expanded.height - inscribed.height) / 2, inscribed.width, inscribed.height, 0, 0, rotated.width, rotated.height);
-      if (!cancelled) setRotatedPreview(rotated);
+      if (!cancelled) { setRotatedPreview(rotated); setImageLoading(false); }
     };
+    image.onerror = () => { if (!cancelled) { setImageLoading(false); setError("Nie udało się wczytać zdjęcia."); } };
     image.src = source;
     return () => { cancelled = true; };
   }, [source, params.rotation_degrees]);
@@ -389,6 +392,7 @@ export function LithophaneGenerator({active, onSelectProduct = () => undefined, 
     const selected = e.target.files?.[0] || null;
     if (!selected) return;
     if (!/^image\/(jpeg|png)$/.test(selected.type)) { setError("Obsługiwane są wyłącznie pliki JPG i PNG."); return; }
+    setImageLoading(true); setSaved(false); setError("");
     if (source) URL.revokeObjectURL(source);
     const url = URL.createObjectURL(selected);
     setFile(selected); setSource(url); setError("");
@@ -406,6 +410,7 @@ export function LithophaneGenerator({active, onSelectProduct = () => undefined, 
         return {...p, orientation, width_mm: width, height_mm: height, crop: baseCropForFit(p.fit_mode, {width: image.width, height: image.height}, area.width, area.height)};
       });
     };
+    image.onerror = () => { setImageLoading(false); setError("Nie udało się wczytać zdjęcia."); };
     image.src = url;
   };
 
@@ -415,10 +420,12 @@ export function LithophaneGenerator({active, onSelectProduct = () => undefined, 
     const invalid = validateParams(params); if (invalid) { setError(invalid); return; }
     busyRef.current = true;
     drag.current = null;
+    setSaved(false);
     setBusy(true); setError("");
     try {
       if (onGenerateOverride) {
         await onGenerateOverride(file, params);
+        if (embedded) setSaved(true);
       } else {
       const body = new FormData(); body.append("image", file); body.append("params", JSON.stringify(params));
       const response = await apiFetch("/api/generate", {method: "POST", body});
@@ -434,7 +441,7 @@ export function LithophaneGenerator({active, onSelectProduct = () => undefined, 
       <aside className="sidebar">
       {!embedded && <><div className="sidebar-brand"><span className="mark">L</span><div><strong>Litho</strong><small>Generator litofanii 3D</small></div><span className="version">V2</span></div>
         <GeneratorProductNav active="lithophane" onSelect={onSelectProduct}/></>}
-        <fieldset className="sidebar-scroll generator-controls" disabled={busy} aria-busy={busy}>
+        <fieldset className="sidebar-scroll generator-controls" disabled={busy || imageLoading} aria-busy={busy || imageLoading}>
         <h2><span>01</span> Obraz</h2>
         <label className="drop"><input ref={fileInput} type="file" accept="image/jpeg,image/png" onChange={choose}/><b>{file ? file.name : "Wybierz zdjęcie"}</b><small>JPG lub PNG · maks. 20 MB<br/>Zalecane: min. 2000 × 1500 px (lub odwrotnie), ostre i dobrze oświetlone zdjęcie</small></label>
         <h3>Kadrowanie</h3>
@@ -481,10 +488,10 @@ export function LithophaneGenerator({active, onSelectProduct = () => undefined, 
       <section className="workbench">
       <article className="preview">
         <div className="preview-head"><div><p className="eyebrow">PODGLĄD NA ŻYWO</p><h2>{view === "photo" ? "Przygotowane zdjęcie" : "Symulacja światła"}</h2></div><div className="tabs"><button type="button" className={view === "photo" ? "active" : ""} onClick={() => setView("photo")}>Obraz</button><button type="button" className={view === "lithophane" ? "active" : ""} onClick={() => setView("lithophane")}>Litofania</button></div></div>
-        <div className="dimensioned-stage" style={{width: `min(100%, ${720 * model.width / model.height}px)`}}><span className="dimension-label dimension-label-vertical" aria-hidden="true">{params.height_mm} mm</span><div className={`stage crop-stage${busy ? " interaction-locked" : ""}`} aria-busy={busy} style={{aspectRatio: `${model.width} / ${model.height}`}}>{source ? <canvas ref={canvas} aria-disabled={busy} onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}/> : <button type="button" className="empty empty-upload" onClick={() => fileInput.current?.click()} aria-label="Dodaj fotografię"><span>＋</span><b>Dodaj fotografię</b><small>Kliknij tutaj, aby wybrać plik</small></button>}{busy && <div className="interaction-lock" role="status">Generowanie STL — kadr zablokowany</div>}</div><span className="dimension-label dimension-label-horizontal" aria-hidden="true">{params.width_mm} mm</span></div>
+        <div className="dimensioned-stage" style={{width: `min(100%, ${720 * model.width / model.height}px)`}}><span className="dimension-label dimension-label-vertical" aria-hidden="true">{params.height_mm} mm</span><div className={`stage crop-stage${busy || imageLoading ? " interaction-locked" : ""}`} aria-busy={busy || imageLoading} style={{aspectRatio: `${model.width} / ${model.height}`}}>{source ? <canvas ref={canvas} aria-disabled={busy || imageLoading} onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}/> : <button type="button" className="empty empty-upload" onClick={() => fileInput.current?.click()} aria-label="Dodaj fotografię"><span>＋</span><b>Dodaj fotografię</b><small>Kliknij tutaj, aby wybrać plik</small></button>}{imageLoading && <div className="image-loading" role="status"><span className="loading-spinner" aria-hidden="true"/><span>Wczytywanie zdjęcia…</span></div>}{busy && <div className="interaction-lock" role="status">Generowanie STL — kadr zablokowany</div>}</div><span className="dimension-label dimension-label-horizontal" aria-hidden="true">{params.width_mm} mm</span></div>
         <div className="stats"><span><small>{params.mounting_flange ? "PANEL / OBRAZ" : "WYMIAR"}</small><b>{params.mounting_flange ? `${model.width} × ${model.height} / ${params.width_mm} × ${params.height_mm}` : `${params.width_mm} × ${params.height_mm}`} mm</b></span><span><small>GRUBOŚĆ</small><b>{params.min_thickness_mm}–{params.max_thickness_mm} mm</b></span><span><small>SIATKA</small><b>{gridX} × {gridY}</b></span></div>
         {(error || validateParams(params)) && <p className="error">{error || validateParams(params)}</p>}
-        <button type="button" className="generate" disabled={busy || !file || Boolean(validateParams(params))} onClick={generate}>{busy ? "Generowanie…" : embedded ? "Zapisz projekt" : "Generuj i pobierz STL"}<span>→</span></button>
+        <button type="button" className={`generate${embedded && saved ? " saved" : ""}`} disabled={busy || imageLoading || !file || Boolean(validateParams(params)) || (embedded && saved)} onClick={generate}>{busy ? "Generowanie…" : embedded && saved ? "ZAPISANO" : embedded ? "Zapisz projekt" : "Generuj i pobierz STL"}<span>{embedded && saved ? "✓" : "→"}</span></button>
       </article>
       <footer>Pliki są przetwarzane w pamięci i nie są przechowywane na serwerze.</footer>
       </section>
